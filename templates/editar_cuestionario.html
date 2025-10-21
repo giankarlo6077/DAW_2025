@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar Cuestionario - {{ cuestionario['titulo'] }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            padding: 25px 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+        }
+
+        .codigo-pin {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 20px;
+            letter-spacing: 2px;
+        }
+
+        /* Información del cuestionario */
+        .info-section {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .info-section h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            font-family: 'Segoe UI', sans-serif;
+            transition: border 0.3s;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        /* Contador de preguntas */
+        .contador {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .contador-numero {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .contador-texto {
+            color: #666;
+            font-size: 14px;
+        }
+
+        /* Formulario de pregunta */
+        .pregunta-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .pregunta-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .pregunta-numero {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .btn-eliminar {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .btn-eliminar:hover {
+            background: #c0392b;
+        }
+
+        .opciones-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .opcion-item {
+            position: relative;
+        }
+
+        .opcion-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .opcion-letra {
+            width: 30px;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .respuesta-correcta {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .respuesta-correcta label {
+            margin-bottom: 10px;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+        }
+
+        .radio-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .radio-item input[type="radio"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .radio-item label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: normal;
+        }
+
+        /* Botones de acción */
+        .actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-add {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-add:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-cancel {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-cancel:hover {
+            background: #7f8c8d;
+        }
+
+        /* Alert flotante */
+        .alert {
+            padding: 15px 20px;
+            border-radius: 10px;
+            display: none;
+            animation: slideIn 0.3s ease;
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            min-width: 400px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffc107;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .opciones-grid,
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .header-top {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-top">
+                <h1>✏️ Editar Cuestionario</h1>
+                <div class="codigo-pin">PIN: {{ cuestionario['codigo_pin'] }}</div>
+            </div>
+        </div>
+
+        <!-- Información del Cuestionario -->
+        <div class="info-section">
+            <h2>📋 Información General</h2>
+            
+            <div class="form-group">
+                <label for="titulo">Título del Cuestionario</label>
+                <input type="text" id="titulo" value="{{ cuestionario['titulo'] }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="descripcion">Descripción</label>
+                <textarea id="descripcion" rows="3" required>{{ cuestionario['descripcion'] }}</textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="modo_juego">Modo de Juego</label>
+                    <select id="modo_juego">
+                        <option value="individual" {% if cuestionario['modo_juego'] == 'individual' %}selected{% endif %}>Individual</option>
+                        <option value="grupal" {% if cuestionario['modo_juego'] == 'grupal' %}selected{% endif %}>Grupal</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="tiempo_pregunta">Tiempo por Pregunta (segundos)</label>
+                    <input type="number" id="tiempo_pregunta" value="{{ cuestionario['tiempo_pregunta'] }}" min="10" max="120" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="num_preguntas">Número de Preguntas</label>
+                <input type="number" id="num_preguntas" value="{{ cuestionario['num_preguntas'] }}" min="1" max="50" required onchange="actualizarLimitePreguntas()">
+                <p style="font-size: 12px; color: #666; margin-top: 5px;">⚠️ Si cambias este número, asegúrate de agregar o eliminar preguntas según corresponda</p>
+            </div>
+        </div>
+
+        <!-- Contador -->
+        <div class="contador">
+            <div class="contador-numero" id="contador">{{ preguntas|length }} Preguntas</div>
+            <div class="contador-texto">Editando preguntas del cuestionario</div>
+        </div>
+
+        <!-- Contenedor de preguntas -->
+        <div id="preguntasContainer"></div>
+
+        <!-- Botones de acción -->
+        <div class="actions">
+            <button class="btn btn-add" onclick="agregarPregunta()" id="btnAgregar">➕ Agregar Pregunta</button>
+            <button class="btn btn-save" onclick="guardarCambios()" id="btnGuardar">💾 Guardar Cambios</button>
+            <button class="btn btn-cancel" onclick="cancelar()">❌ Cancelar</button>
+        </div>
+
+        <!-- Alert Flotante -->
+        <div class="alert" id="alert"></div>
+    </div>
+
+    <script>
+        let contadorPreguntas = 0;
+        let maxPreguntas = {{ cuestionario['num_preguntas'] }};
+        
+        // Cargar preguntas existentes
+        const preguntasExistentes = [
+            {% for pregunta in preguntas %}
+            {
+                pregunta: {{ pregunta['pregunta'] | tojson }},
+                opcion_a: {{ pregunta['opcion_a'] | tojson }},
+                opcion_b: {{ pregunta['opcion_b'] | tojson }},
+                opcion_c: {{ pregunta['opcion_c'] | tojson }},
+                opcion_d: {{ pregunta['opcion_d'] | tojson }},
+                respuesta_correcta: {{ pregunta['respuesta_correcta'] | tojson }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ];
+
+        window.onload = function() {
+            // Cargar preguntas existentes
+            preguntasExistentes.forEach((pregunta, index) => {
+                contadorPreguntas++;
+                crearPreguntaCard(pregunta);
+            });
+            
+            actualizarContador();
+        };
+
+        function actualizarLimitePreguntas() {
+            const nuevoLimite = parseInt(document.getElementById('num_preguntas').value);
+            if (nuevoLimite < 1 || nuevoLimite > 50) {
+                mostrarAlerta('❌ El número de preguntas debe estar entre 1 y 50', 'error');
+                document.getElementById('num_preguntas').value = maxPreguntas;
+                return;
+            }
+
+            if (nuevoLimite < contadorPreguntas) {
+                mostrarAlerta(`⚠️ Tienes ${contadorPreguntas} pregunta(s) pero indicaste que serían ${nuevoLimite}. Debes eliminar ${contadorPreguntas - nuevoLimite} pregunta(s) antes de reducir el límite.`, 'warning');
+                document.getElementById('num_preguntas').value = maxPreguntas;
+                return;
+            }
+
+            const antiguoLimite = maxPreguntas;
+            maxPreguntas = nuevoLimite;
+            actualizarContador();
+            
+            if (nuevoLimite > antiguoLimite) {
+                mostrarAlerta(`✅ Límite actualizado a ${maxPreguntas} preguntas. Ahora puedes agregar ${nuevoLimite - contadorPreguntas} preguntas más.`, 'success');
+            } else if (nuevoLimite === antiguoLimite) {
+                mostrarAlerta(`ℹ️ El límite sigue siendo ${maxPreguntas} preguntas`, 'warning');
+            }
+        }
+
+        function crearPreguntaCard(pregunta = null) {
+            const numero = contadorPreguntas;
+            const preguntaHtml = `
+                <div class="pregunta-card" data-pregunta="${numero}">
+                    <div class="pregunta-header">
+                        <div class="pregunta-numero">Pregunta ${numero}</div>
+                        <button class="btn-eliminar" onclick="eliminarPregunta(${numero})">🗑️ Eliminar</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Pregunta</label>
+                        <textarea id="pregunta_${numero}" placeholder="Escribe tu pregunta aquí..." required>${pregunta ? pregunta.pregunta : ''}</textarea>
+                    </div>
+
+                    <div class="opciones-grid">
+                        <div class="opcion-item">
+                            <div class="opcion-label">
+                                <span class="opcion-letra">A</span>
+                                <span>Opción A</span>
+                            </div>
+                            <input type="text" id="opcion_a_${numero}" placeholder="Escribe la opción A" value="${pregunta ? pregunta.opcion_a : ''}" required>
+                        </div>
+
+                        <div class="opcion-item">
+                            <div class="opcion-label">
+                                <span class="opcion-letra">B</span>
+                                <span>Opción B</span>
+                            </div>
+                            <input type="text" id="opcion_b_${numero}" placeholder="Escribe la opción B" value="${pregunta ? pregunta.opcion_b : ''}" required>
+                        </div>
+
+                        <div class="opcion-item">
+                            <div class="opcion-label">
+                                <span class="opcion-letra">C</span>
+                                <span>Opción C</span>
+                            </div>
+                            <input type="text" id="opcion_c_${numero}" placeholder="Escribe la opción C" value="${pregunta ? pregunta.opcion_c : ''}" required>
+                        </div>
+
+                        <div class="opcion-item">
+                            <div class="opcion-label">
+                                <span class="opcion-letra">D</span>
+                                <span>Opción D</span>
+                            </div>
+                            <input type="text" id="opcion_d_${numero}" placeholder="Escribe la opción D" value="${pregunta ? pregunta.opcion_d : ''}" required>
+                        </div>
+                    </div>
+
+                    <div class="respuesta-correcta">
+                        <label>✅ Respuesta Correcta</label>
+                        <div class="radio-group">
+                            <div class="radio-item">
+                                <input type="radio" name="respuesta_${numero}" id="resp_a_${numero}" value="A" ${pregunta && pregunta.respuesta_correcta === 'A' ? 'checked' : ''} required>
+                                <label for="resp_a_${numero}">A</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" name="respuesta_${numero}" id="resp_b_${numero}" value="B" ${pregunta && pregunta.respuesta_correcta === 'B' ? 'checked' : ''}>
+                                <label for="resp_b_${numero}">B</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" name="respuesta_${numero}" id="resp_c_${numero}" value="C" ${pregunta && pregunta.respuesta_correcta === 'C' ? 'checked' : ''}>
+                                <label for="resp_c_${numero}">C</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" name="respuesta_${numero}" id="resp_d_${numero}" value="D" ${pregunta && pregunta.respuesta_correcta === 'D' ? 'checked' : ''}>
+                                <label for="resp_d_${numero}">D</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('preguntasContainer').insertAdjacentHTML('beforeend', preguntaHtml);
+        }
+
+        function agregarPregunta() {
+            const limiteActual = parseInt(document.getElementById('num_preguntas').value);
+            
+            if (contadorPreguntas >= limiteActual) {
+                mostrarAlerta(`❌ Ya has alcanzado el límite de ${limiteActual} pregunta(s). No puedes agregar más.`, 'error');
+                return;
+            }
+
+            contadorPreguntas++;
+            crearPreguntaCard();
+            actualizarContador();
+            
+            setTimeout(() => {
+                const nuevaPregunta = document.querySelector(`[data-pregunta="${contadorPreguntas}"]`);
+                nuevaPregunta.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+
+        function eliminarPregunta(numero) {
+            if (confirm('¿Estás seguro de eliminar esta pregunta?')) {
+                const preguntaCard = document.querySelector(`[data-pregunta="${numero}"]`);
+                preguntaCard.remove();
+                renumerarPreguntas();
+                actualizarContador();
+            }
+        }
+
+        function renumerarPreguntas() {
+            const cards = document.querySelectorAll('.pregunta-card');
+            contadorPreguntas = cards.length; // Actualizar el contador basado en las cards que existen
+            
+            cards.forEach((card, index) => {
+                const nuevoNumero = index + 1;
+                const numeroAntiguo = card.getAttribute('data-pregunta');
+                
+                // Actualizar atributo data-pregunta
+                card.setAttribute('data-pregunta', nuevoNumero);
+                
+                // Actualizar el texto del número de pregunta
+                card.querySelector('.pregunta-numero').textContent = `Pregunta ${nuevoNumero}`;
+                
+                // Actualizar IDs y names de todos los campos
+                const preguntaTextarea = card.querySelector(`textarea[id^="pregunta_"]`);
+                if (preguntaTextarea) {
+                    preguntaTextarea.id = `pregunta_${nuevoNumero}`;
+                }
+                
+                const opcionA = card.querySelector(`input[id^="opcion_a_"]`);
+                if (opcionA) opcionA.id = `opcion_a_${nuevoNumero}`;
+                
+                const opcionB = card.querySelector(`input[id^="opcion_b_"]`);
+                if (opcionB) opcionB.id = `opcion_b_${nuevoNumero}`;
+                
+                const opcionC = card.querySelector(`input[id^="opcion_c_"]`);
+                if (opcionC) opcionC.id = `opcion_c_${nuevoNumero}`;
+                
+                const opcionD = card.querySelector(`input[id^="opcion_d_"]`);
+                if (opcionD) opcionD.id = `opcion_d_${nuevoNumero}`;
+                
+                // Actualizar radios de respuesta correcta
+                const radios = card.querySelectorAll('input[type="radio"]');
+                radios.forEach(radio => {
+                    radio.name = `respuesta_${nuevoNumero}`;
+                    radio.id = radio.id.replace(/_\d+$/, `_${nuevoNumero}`);
+                });
+                
+                // Actualizar labels de los radios
+                const labels = card.querySelectorAll('.radio-item label');
+                labels.forEach((label, idx) => {
+                    const letras = ['a', 'b', 'c', 'd'];
+                    if (idx < letras.length) {
+                        label.setAttribute('for', `resp_${letras[idx]}_${nuevoNumero}`);
+                    }
+                });
+                
+                // Actualizar onclick del botón eliminar
+                const btnEliminar = card.querySelector('.btn-eliminar');
+                if (btnEliminar) {
+                    btnEliminar.setAttribute('onclick', `eliminarPregunta(${nuevoNumero})`);
+                }
+            });
+        }
+
+        function actualizarContador() {
+            const limiteActual = parseInt(document.getElementById('num_preguntas').value);
+            document.getElementById('contador').textContent = `${contadorPreguntas} / ${limiteActual} Preguntas`;
+            
+            const btnAgregar = document.getElementById('btnAgregar');
+            
+            if (contadorPreguntas >= limiteActual) {
+                btnAgregar.disabled = true;
+                btnAgregar.style.opacity = '0.5';
+                btnAgregar.style.cursor = 'not-allowed';
+            } else {
+                btnAgregar.disabled = false;
+                btnAgregar.style.opacity = '1';
+                btnAgregar.style.cursor = 'pointer';
+            }
+        }
+
+        function validarDatos() {
+            const titulo = document.getElementById('titulo').value.trim();
+            const descripcion = document.getElementById('descripcion').value.trim();
+            const numPreguntas = parseInt(document.getElementById('num_preguntas').value);
+
+            if (!titulo) {
+                mostrarAlerta('❌ Por favor ingresa un título', 'error');
+                document.getElementById('titulo').focus();
+                return null;
+            }
+
+            if (!descripcion) {
+                mostrarAlerta('❌ Por favor ingresa una descripción', 'error');
+                document.getElementById('descripcion').focus();
+                return null;
+            }
+
+            const cards = document.querySelectorAll('.pregunta-card');
+
+            if (cards.length === 0) {
+                mostrarAlerta('❌ Debes agregar al menos una pregunta', 'error');
+                return null;
+            }
+
+            if (cards.length !== numPreguntas) {
+                mostrarAlerta(`❌ Tienes ${cards.length} pregunta(s) pero indicaste que serían ${numPreguntas}. Agrega ${numPreguntas - cards.length} más o cambia el número de preguntas.`, 'error');
+                return null;
+            }
+
+            const preguntasData = [];
+
+            for (let card of cards) {
+                const numero = card.getAttribute('data-pregunta');
+                
+                const pregunta = document.getElementById(`pregunta_${numero}`).value.trim();
+                const opcion_a = document.getElementById(`opcion_a_${numero}`).value.trim();
+                const opcion_b = document.getElementById(`opcion_b_${numero}`).value.trim();
+                const opcion_c = document.getElementById(`opcion_c_${numero}`).value.trim();
+                const opcion_d = document.getElementById(`opcion_d_${numero}`).value.trim();
+                const respuesta = document.querySelector(`input[name="respuesta_${numero}"]:checked`);
+
+                if (!pregunta) {
+                    mostrarAlerta(`❌ Por favor completa la pregunta ${numero}`, 'error');
+                    document.getElementById(`pregunta_${numero}`).focus();
+                    document.getElementById(`pregunta_${numero}`).scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return null;
+                }
+
+                if (!opcion_a || !opcion_b || !opcion_c || !opcion_d) {
+                    mostrarAlerta(`❌ Por favor completa todas las opciones de la pregunta ${numero}`, 'error');
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return null;
+                }
+
+                if (!respuesta) {
+                    mostrarAlerta(`❌ Por favor selecciona la respuesta correcta de la pregunta ${numero}`, 'error');
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return null;
+                }
+
+                preguntasData.push({
+                    pregunta: pregunta,
+                    opcion_a: opcion_a,
+                    opcion_b: opcion_b,
+                    opcion_c: opcion_c,
+                    opcion_d: opcion_d,
+                    respuesta_correcta: respuesta.value
+                });
+            }
+
+            return {
+                titulo: titulo,
+                descripcion: descripcion,
+                modo_juego: document.getElementById('modo_juego').value,
+                tiempo_pregunta: document.getElementById('tiempo_pregunta').value,
+                preguntas: preguntasData
+            };
+        }
+
+        function guardarCambios() {
+            const datos = validarDatos();
+            if (!datos) {
+                return;
+            }
+
+            const btnGuardar = document.getElementById('btnGuardar');
+            btnGuardar.disabled = true;
+            btnGuardar.textContent = '⏳ Guardando...';
+
+            fetch('/actualizar_cuestionario/{{ cuestionario["id"] }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(datos)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarAlerta('✅ Cuestionario actualizado exitosamente', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/dashboard_profesor';
+                    }, 2000);
+                } else {
+                    mostrarAlerta('❌ Error: ' + data.message, 'error');
+                    btnGuardar.disabled = false;
+                    btnGuardar.textContent = '💾 Guardar Cambios';
+                }
+            })
+            .catch(error => {
+                mostrarAlerta('❌ Error al guardar: ' + error, 'error');
+                btnGuardar.disabled = false;
+                btnGuardar.textContent = '💾 Guardar Cambios';
+            });
+        }
+
+        function mostrarAlerta(mensaje, tipo) {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${tipo} show`;
+            alert.textContent = mensaje;
+            
+            // Scroll suave hacia el botón de guardar
+            document.getElementById('btnGuardar').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            setTimeout(() => {
+                alert.classList.remove('show');
+            }, 6000);
+        }
+
+        function cancelar() {
+            if (confirm('¿Estás seguro de cancelar? Se perderán todos los cambios no guardados.')) {
+                window.location.href = '/dashboard_profesor';
+            }
+        }
+    </script>
+</body>
+</html>

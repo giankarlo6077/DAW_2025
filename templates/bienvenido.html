@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Bienvenido - Sistema de Cuestionarios</title>
+ <style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+    }
+
+    .card {
+        background: white;
+        padding: 40px; /* Ajuste para un look más similar al login */
+        border-radius: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        text-align: center;
+        width: 100%;
+        max-width: 450px;
+        animation: slideUp 0.5s ease; /* Animación de entrada */
+    }
+
+    @keyframes slideUp {
+        from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        }
+    }
+
+    h1 {
+        color: #333;
+        font-size: 28px;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #e0e0e0;
+    }
+
+    p {
+        color: #666;
+        margin: 25px 0;
+        font-size: 16px;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 14px 30px;
+        border: none;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.3s;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 7px 20px rgba(102, 126, 234, 0.4);
+    }
+    strong {
+        color: #333; /* ¡Cambiado a negro oscuro! */
+        font-weight: 900; /* Negrita máxima */
+    }
+
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🎉 Bienvenido {{ nombre }}!</h1>
+        <p>Con rol de <strong>{{ rol }}</strong>.</p>
+        {% if rol == "profesor" %}
+        <a href="{{ url_for('dashboard_profesor') }}" class="btn">Continuar al Panel de Profesor</a>
+        {% else %}
+        <a href="{{ url_for('dashboard_estudiante') }}" class="btn">Continuar al Panel de Estudiante</a>
+        {% endif %}
+    </div>
+</body>
+</html>

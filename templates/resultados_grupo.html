@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resultados - {{ cuestionario['titulo'] }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; color: #333; }
+        .container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 100%; max-width: 600px; text-align: center; animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        h1 { font-size: 32px; margin-bottom: 25px; }
+        .score-card { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 15px; margin-bottom: 30px; }
+        .score-card p { font-size: 18px; color: #6c757d; margin-bottom: 10px; }
+        .score-card h2 { font-size: 28px; color: #667eea; margin-bottom: 10px; }
+        .final-score { font-size: 72px; font-weight: bold; color: #28a745; margin: 10px 0; animation: score-pop 0.5s ease; }
+        @keyframes score-pop { from { transform: scale(0.5); } to { transform: scale(1); } }
+        .btn { display: inline-block; padding: 16px 40px; border: none; border-radius: 10px; font-size: 18px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn:hover { transform: translateY(-3px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏆 ¡Partida Finalizada! 🏆</h1>
+
+        <div class="score-card">
+            <p>El grupo</p>
+            <h2>{{ grupo['nombre_grupo'] }}</h2>
+            <p>ha obtenido una puntuación final de</p>
+            <div class="final-score">{{ grupo['current_score'] }}</div>
+            <p>en el cuestionario "{{ cuestionario['titulo'] }}"</p>
+        </div>
+
+        <a href="{{ url_for('dashboard_estudiante') }}" class="btn">Volver al Panel</a>
+    </div>
+</body>
+</html>
+

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mis Cuestionarios</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="main-container">
+        <h2>Mis Cuestionarios</h2>
+        <a href="/cuestionarios/nuevo" class="btn-primary">➕ Crear Nuevo Cuestionario</a>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Título</th>
+                    <th>Descripción</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cuestionario in cuestionarios %}
+                    <tr>
+                        <td>{{ cuestionario.titulo }}</td>
+                        <td>{{ cuestionario.descripcion }}</td>
+                        <td>{{ cuestionario.estado }}</td>
+                        <td>
+                            <a href="/cuestionarios/editar/{{ cuestionario.idCuestionario }}" class="btn-small btn-edit">✏️ Editar</a>
+                            <a href="/cuestionarios/eliminar/{{ cuestionario.idCuestionario }}" class="btn-small btn-delete" onclick="return confirm('¿Estás seguro de eliminar este cuestionario?')">🗑️ Eliminar</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

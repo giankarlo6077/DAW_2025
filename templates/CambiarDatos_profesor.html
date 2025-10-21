@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cambiar Datos - Profesor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 100%; max-width: 500px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .logo { width: 80px; height: 80px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; font-size: 40px; color: white; }
+        h1 { color: #333; font-size: 26px; margin-bottom: 10px; }
+        .subtitle { color: #666; font-size: 14px; }
+        .alert { padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .alert-error { background: #fee; border-left: 4px solid #e74c3c; color: #c0392b; }
+        .alert-success { background: #d4edda; border-left: 4px solid #28a745; color: #155724; }
+        .current-info { background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 25px; }
+        .info-item { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; }
+        .input-container { position: relative; }
+        .password-toggle-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #999; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 14px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 15px; }
+        .button-group { display: flex; gap: 10px; margin-top: 25px; }
+        .btn { flex: 1; padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; text-align: center; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-secondary { background: #e0e0e0; color: #666; }
+        .btn-danger { background: #e74c3c; color: white; margin-top: 20px; width: 100%; display: block; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-overlay.active { display: flex; }
+        .modal-content { background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 400px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header"><div class="logo">⚙️</div><h1>Cambiar Datos</h1><p class="subtitle">Actualiza tu información personal</p></div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}{% for category, message in messages %}<div class="alert alert-{{ 'success' if category == 'success' else 'error' }}">{{ message }}</div>{% endfor %}{% endif %}
+        {% endwith %}
+        <div class="current-info"><div class="info-item">👤 <strong>Nombre:</strong> {{ nombre }}</div><div class="info-item">📧 <strong>Correo:</strong> {{ correo }}</div></div>
+        <form method="POST" action="{{ url_for('cambiar_datos_profesor') }}">
+            <div class="form-group"><label for="nombre">Nuevo Nombre</label><input type="text" id="nombre" name="nombre" value="{{ nombre }}" required></div>
+            <div class="form-group"><label for="password_actual">Contraseña Actual *</label><div class="input-container"><input type="password" id="password_actual" name="password_actual" required><span class="password-toggle-icon" onclick="togglePasswordVisibility('password_actual', this)"><svg id="eye-open" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg><svg id="eye-closed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="display: none;"><path d="m10.79 12.912-1.614-1.615a3.5 3.5 0 0 1-4.474-4.474l-2.06-2.06C.938 6.278 0 8 0 8s3 5.5 8 5.5a7.029 7.029 0 0 0 2.79-.588zM5.21 3.088A7.028 7.028 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.939 1.721-2.641 3.238l-2.062-2.062a3.5 3.5 0 0 0-4.474-4.474L5.21 3.089z"/><path d="M5.525 7.646a2.5 2.5 0 0 0 2.829 2.829l-2.83-2.829zm4.95.708-2.829-2.83a2.5 2.5 0 0 1 2.829 2.829zm3.171 6-12-12 .708-.708 12 12-.708.708z"/></svg></span></div></div>
+            <div class="form-group"><label for="password_nueva">Nueva Contraseña (opcional)</label><div class="input-container"><input type="password" id="password_nueva" name="password_nueva"><span class="password-toggle-icon" onclick="togglePasswordVisibility('password_nueva', this)"><svg id="eye-open" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg><svg id="eye-closed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="display: none;"><path d="m10.79 12.912-1.614-1.615a3.5 3.5 0 0 1-4.474-4.474l-2.06-2.06C.938 6.278 0 8 0 8s3 5.5 8 5.5a7.029 7.029 0 0 0 2.79-.588zM5.21 3.088A7.028 7.028 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.939 1.721-2.641 3.238l-2.062-2.062a3.5 3.5 0 0 0-4.474-4.474L5.21 3.089z"/><path d="M5.525 7.646a2.5 2.5 0 0 0 2.829 2.829l-2.83-2.829zm4.95.708-2.829-2.83a2.5 2.5 0 0 1 2.829 2.829zm3.171 6-12-12 .708-.708 12 12-.708.708z"/></svg></span></div></div>
+            <div class="form-group"><label for="confirmar_nueva">Confirmar Nueva Contraseña</label><div class="input-container"><input type="password" id="confirmar_nueva" name="confirmar_nueva"><span class="password-toggle-icon" onclick="togglePasswordVisibility('confirmar_nueva', this)"><svg id="eye-open" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg><svg id="eye-closed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="display: none;"><path d="m10.79 12.912-1.614-1.615a3.5 3.5 0 0 1-4.474-4.474l-2.06-2.06C.938 6.278 0 8 0 8s3 5.5 8 5.5a7.029 7.029 0 0 0 2.79-.588zM5.21 3.088A7.028 7.028 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.939 1.721-2.641 3.238l-2.062-2.062a3.5 3.5 0 0 0-4.474-4.474L5.21 3.089z"/><path d="M5.525 7.646a2.5 2.5 0 0 0 2.829 2.829l-2.83-2.829zm4.95.708-2.829-2.83a2.5 2.5 0 0 1 2.829 2.829zm3.171 6-12-12 .708-.708 12 12-.708.708z"/></svg></span></div></div>
+            <div class="button-group"><button type="submit" class="btn btn-primary">Guardar Cambios</button><a href="{{ url_for('dashboard_profesor') }}" class="btn btn-secondary">Cancelar</a></div>
+        </form>
+        <button type="button" class="btn btn-danger" onclick="showDeleteModal()">❌ Eliminar Cuenta</button>
+    </div>
+    <div id="delete-modal" class="modal-overlay">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('eliminar_cuenta_profesor') }}">
+                <h2>⚠️ Confirmar Eliminación</h2>
+                <p>Ingresa tu contraseña para confirmar. Esta acción es irreversible y borrará todos tus cuestionarios.</p>
+                <div class="form-group" style="text-align: left;"><label for="modal_password_actual">Contraseña</label><div class="input-container"><input type="password" id="modal_password_actual" name="password_actual" required><span class="password-toggle-icon" onclick="togglePasswordVisibility('modal_password_actual', this)"><svg id="eye-open" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg><svg id="eye-closed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="display: none;"><path d="m10.79 12.912-1.614-1.615a3.5 3.5 0 0 1-4.474-4.474l-2.06-2.06C.938 6.278 0 8 0 8s3 5.5 8 5.5a7.029 7.029 0 0 0 2.79-.588zM5.21 3.088A7.028 7.028 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.939 1.721-2.641 3.238l-2.062-2.062a3.5 3.5 0 0 0-4.474-4.474L5.21 3.089z"/><path d="M5.525 7.646a2.5 2.5 0 0 0 2.829 2.829l-2.83-2.829zm4.95.708-2.829-2.83a2.5 2.5 0 0 1 2.829 2.829zm3.171 6-12-12 .708-.708 12 12-.708.708z"/></svg></span></div></div>
+                <div class="button-group"><button type="submit" class="btn btn-danger">Sí, Eliminar</button><button type="button" class="btn btn-secondary" onclick="hideDeleteModal()">Cancelar</button></div>
+            </form>
+        </div>
+    </div>
+    <script>
+        function togglePasswordVisibility(fieldId, icon) {
+            const input = document.getElementById(fieldId);
+            const eyeOpen = icon.querySelector('#eye-open');
+            const eyeClosed = icon.querySelector('#eye-closed');
+            if (input.type === "password") {
+                input.type = "text";
+                eyeOpen.style.display = 'none';
+                eyeClosed.style.display = 'block';
+            } else {
+                input.type = "password";
+                eyeOpen.style.display = 'block';
+                eyeClosed.style.display = 'none';
+            }
+        }
+        function showDeleteModal() { document.getElementById('delete-modal').classList.add('active'); }
+        function hideDeleteModal() { document.getElementById('delete-modal').classList.remove('active'); }
+    </script>
+</body>
+</html>
+

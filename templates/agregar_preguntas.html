@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agregar Preguntas - {{ cuestionario['titulo'] }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            padding: 25px 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+        }
+
+        .codigo-pin {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 20px;
+            letter-spacing: 2px;
+        }
+
+        .cuestionario-info {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .cuestionario-info span {
+            display: inline-block;
+            margin-right: 20px;
+        }
+
+        /* Contador de preguntas */
+        .contador {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .contador-numero {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .contador-texto {
+            color: #666;
+            font-size: 14px;
+        }
+
+        /* Formulario de pregunta */
+        .pregunta-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .pregunta-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .pregunta-numero {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .btn-eliminar {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .btn-eliminar:hover {
+            background: #c0392b;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .input-container {
+            position: relative;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+            font-size: 18px;
+        }
+
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            font-family: 'Segoe UI', sans-serif;
+            transition: all 0.3s;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .opciones-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .opcion-item {
+            position: relative;
+        }
+
+        .opcion-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .opcion-letra {
+            width: 30px;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .respuesta-correcta {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .respuesta-correcta label {
+            margin-bottom: 10px;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+        }
+
+        .radio-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .radio-item input[type="radio"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .radio-item label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: normal;
+        }
+
+        /* Botones de acción */
+        .actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-add {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-add:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-cancel {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-cancel:hover {
+            background: #7f8c8d;
+        }
+
+        /* Alert flotante */
+        .alert {
+            padding: 15px 20px;
+            border-radius: 10px;
+            display: none;
+            animation: slideIn 0.3s ease;
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            min-width: 400px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffc107;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .opciones-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header-top {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .actions {
+                flex-direction: column;
+            }
+
+            .alert {
+                min-width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-top">
+                <h1>{% if modo_edicion %}✏️ Editar{% else %}📝 Agregar{% endif %} Preguntas</h1>
+                <div class="codigo-pin">PIN: {{ cuestionario['codigo_pin'] }}</div>
+            </div>
+            <div class="cuestionario-info">
+                <span>📄 {{ cuestionario['descripcion'] }}</span>
+                <span>⏱️ {{ cuestionario['tiempo_pregunta'] }} segundos</span>
+                <span>🎮 {{ cuestionario['modo_juego'].capitalize() }}</span>
+            </div>
+        </div>
+
+        <!-- Contador -->
+        <div class="contador">
+            <div class="contador-numero" id="contador">0 / {{ cuestionario['num_preguntas'] }}</div>
+            <div class="contador-texto">Preguntas agregadas</div>
+        </div>
+
+        <!-- Contenedor de preguntas -->
+        <div id="preguntasContainer"></div>
+
+        <!-- Botones de acción -->
+        <div class="actions">
+            <button class="btn btn-add" onclick="agregarPregunta()" id="btnAgregar">➕ Agregar Pregunta</button>
+            <button class="btn btn-save" onclick="guardarCuestionario()" id="btnGuardar" disabled>💾 Guardar Cuestionario</button>
+            <button class="btn btn-cancel" onclick="cancelar()">❌ Cancelar</button>
+        </div>
+
+        <!-- Alert Flotante -->
+        <div class="alert" id="alert"></div>
+    </div>
+
+    <script>
+        let preguntas = [];
+        const maxPreguntas = {{ cuestionario['num_preguntas'] }};
+        let contadorPreguntas = 0;
+        const modoEdicion = {% if modo_edicion %}true{% else %}false{% endif %};
+        const cuestionarioId = {{ cuestionario['id'] }};
+
+        // Cargar preguntas existentes si estamos en modo edición
+        {% if preguntas %}
+        const preguntasExistentes = [
+            {% for pregunta in preguntas %}
+            {
+                pregunta: {{ pregunta['pregunta'] | tojson }},
+                opcion_a: {{ pregunta['opcion_a'] | tojson }},
+                opcion_b: {{ pregunta['opcion_b'] | tojson }},
+                opcion_c: {{ pregunta['opcion_c'] | tojson }},
+                opcion_d: {{ pregunta['opcion_d'] | tojson }},
+                respuesta_correcta: {{ pregunta['respuesta_correcta'] | tojson }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ];
+        {% else %}
+        const preguntasExistentes = [];
+        {% endif %}
+
+        function agregarPregunta(datosPreguntas = null) {
+            if (contadorPreguntas >= maxPreguntas) {
+                mostrarAlerta(`❌ Ya has alcanzado el límite de ${maxPreguntas} pregunta(s)`, 'error');
+                return;
+            }
+
+            contadorPreguntas++;
+            const preguntaHtml = `
+                <div class="pregunta-card" data-pregunta="${contadorPreguntas}">
+                    <div class="pregunta-header">
+                        <div class="pregunta-numero">Pregunta ${contadorPreguntas}</div>
+                        <button class="btn-eliminar" onclick="eliminarPregunta(${contadorPreguntas})">🗑️ Eliminar</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Pregunta</label>
+                        <textarea id="pregunta_${contadorPreguntas}" placeholder="Escribe tu pregunta aquí..." required>${datosPreguntas ? datosPreguntas.pregunta : ''}</textarea>
+                    </div>
+
+                    <div class="opciones-grid">
+                        <div class="opcion-item">
+                            <div class="opcion-label">
+                                <span class="opcion-letra">A</span>
+                                <span>Opción A</span>
+                            </div>
+                            <input type="text" id="opcion_a_${contadorPreguntas}" placeholder="Escribe la opción A" value="${datosPreguntas ? datosPreguntas.opcion_a : ''}" required>
+                        </div>
+
+                        <div class="opcion-item">
+                            <div class="opcion-label">
+                                <span class="opcion-letra">B</span>
+                                <span>Opción B</span>
+                            </div>
+                            <input type="text" id="opcion_b_${contadorPreguntas}" placeholder="Escribe la opción B" value="${datosPreguntas ? datosPreguntas.opcion_b : ''}" required>
+                        </div>
+
+                        <div class="opcion-item">
+                            <div class="opcion-label">
+                                <span class="opcion-letra">C</span>
+                                <span>Opción C</span>
+                            </div>
+                            <input type="text" id="opcion_c_${contadorPreguntas}" placeholder="Escribe la opción C" value="${datosPreguntas ? datosPreguntas.opcion_c : ''}" required>
+                        </div>
+
+                        <div class="opcion-item">
+                            <div class="opcion-label">
+                                <span class="opcion-letra">D</span>
+                                <span>Opción D</span>
+                            </div>
+                            <input type="text" id="opcion_d_${contadorPreguntas}" placeholder="Escribe la opción D" value="${datosPreguntas ? datosPreguntas.opcion_d : ''}" required>
+                        </div>
+                    </div>
+
+                    <div class="respuesta-correcta">
+                        <label>✅ Respuesta Correcta</label>
+                        <div class="radio-group">
+                            <div class="radio-item">
+                                <input type="radio" name="respuesta_${contadorPreguntas}" id="resp_a_${contadorPreguntas}" value="A" ${datosPreguntas && datosPreguntas.respuesta_correcta === 'A' ? 'checked' : ''} required>
+                                <label for="resp_a_${contadorPreguntas}">A</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" name="respuesta_${contadorPreguntas}" id="resp_b_${contadorPreguntas}" value="B" ${datosPreguntas && datosPreguntas.respuesta_correcta === 'B' ? 'checked' : ''}>
+                                <label for="resp_b_${contadorPreguntas}">B</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" name="respuesta_${contadorPreguntas}" id="resp_c_${contadorPreguntas}" value="C" ${datosPreguntas && datosPreguntas.respuesta_correcta === 'C' ? 'checked' : ''}>
+                                <label for="resp_c_${contadorPreguntas}">C</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" name="respuesta_${contadorPreguntas}" id="resp_d_${contadorPreguntas}" value="D" ${datosPreguntas && datosPreguntas.respuesta_correcta === 'D' ? 'checked' : ''}>
+                                <label for="resp_d_${contadorPreguntas}">D</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('preguntasContainer').insertAdjacentHTML('beforeend', preguntaHtml);
+            actualizarContador();
+
+            // Scroll suave a la nueva pregunta
+            setTimeout(() => {
+                const nuevaPregunta = document.querySelector(`[data-pregunta="${contadorPreguntas}"]`);
+                nuevaPregunta.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+
+        function eliminarPregunta(numero) {
+            if (confirm('¿Estás seguro de eliminar esta pregunta?')) {
+                const preguntaCard = document.querySelector(`[data-pregunta="${numero}"]`);
+                preguntaCard.remove();
+                contadorPreguntas--;
+                actualizarContador();
+                renumerarPreguntas();
+            }
+        }
+
+        function renumerarPreguntas() {
+            const cards = document.querySelectorAll('.pregunta-card');
+            contadorPreguntas = 0;
+            cards.forEach((card, index) => {
+                contadorPreguntas++;
+                const nuevoNumero = index + 1;
+                card.setAttribute('data-pregunta', nuevoNumero);
+                card.querySelector('.pregunta-numero').textContent = `Pregunta ${nuevoNumero}`;
+            });
+        }
+
+        function actualizarContador() {
+            document.getElementById('contador').textContent = `${contadorPreguntas} / ${maxPreguntas}`;
+
+            // Habilitar/deshabilitar botones
+            const btnAgregar = document.getElementById('btnAgregar');
+            const btnGuardar = document.getElementById('btnGuardar');
+
+            if (contadorPreguntas >= maxPreguntas) {
+                btnAgregar.disabled = true;
+                btnAgregar.style.opacity = '0.5';
+                btnAgregar.style.cursor = 'not-allowed';
+            } else {
+                btnAgregar.disabled = false;
+                btnAgregar.style.opacity = '1';
+                btnAgregar.style.cursor = 'pointer';
+            }
+
+            if (contadorPreguntas > 0) {
+                btnGuardar.disabled = false;
+                btnGuardar.style.opacity = '1';
+            } else {
+                btnGuardar.disabled = true;
+                btnGuardar.style.opacity = '0.5';
+            }
+        }
+
+        function validarPreguntas() {
+            const cards = document.querySelectorAll('.pregunta-card');
+            const preguntasData = [];
+
+            for (let card of cards) {
+                const numero = card.getAttribute('data-pregunta');
+
+                const pregunta = document.getElementById(`pregunta_${numero}`).value.trim();
+                const opcion_a = document.getElementById(`opcion_a_${numero}`).value.trim();
+                const opcion_b = document.getElementById(`opcion_b_${numero}`).value.trim();
+                const opcion_c = document.getElementById(`opcion_c_${numero}`).value.trim();
+                const opcion_d = document.getElementById(`opcion_d_${numero}`).value.trim();
+                const respuesta = document.querySelector(`input[name="respuesta_${numero}"]:checked`);
+
+                // Validaciones
+                if (!pregunta) {
+                    mostrarAlerta(`❌ Por favor completa la pregunta ${numero}`, 'error');
+                    document.getElementById(`pregunta_${numero}`).focus();
+                    document.getElementById(`pregunta_${numero}`).scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return null;
+                }
+
+                if (!opcion_a || !opcion_b || !opcion_c || !opcion_d) {
+                    mostrarAlerta(`❌ Por favor completa todas las opciones de la pregunta ${numero}`, 'error');
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return null;
+                }
+
+                if (!respuesta) {
+                    mostrarAlerta(`❌ Por favor selecciona la respuesta correcta de la pregunta ${numero}`, 'error');
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return null;
+                }
+
+                preguntasData.push({
+                    pregunta: pregunta,
+                    opcion_a: opcion_a,
+                    opcion_b: opcion_b,
+                    opcion_c: opcion_c,
+                    opcion_d: opcion_d,
+                    respuesta_correcta: respuesta.value
+                });
+            }
+
+            return preguntasData;
+        }
+
+        function guardarCuestionario() {
+            if (contadorPreguntas === 0) {
+                mostrarAlerta('❌ Debes agregar al menos una pregunta', 'error');
+                return;
+            }
+
+            if (contadorPreguntas !== maxPreguntas) {
+                mostrarAlerta(`❌ Debes agregar exactamente ${maxPreguntas} preguntas. Actualmente tienes ${contadorPreguntas}.`, 'error');
+                return;
+            }
+
+            // CONFIRMACIÓN ANTES DE GUARDAR
+            if (!confirm('¿Estás seguro de guardar este cuestionario? Esta acción no se puede deshacer.')) {
+                return;
+            }
+
+            const preguntasData = validarPreguntas();
+            if (!preguntasData) {
+                return;
+            }
+
+            const btnGuardar = document.getElementById('btnGuardar');
+            btnGuardar.disabled = true;
+            btnGuardar.textContent = '⏳ Guardando...';
+
+            const url = modoEdicion ? `/actualizar_cuestionario/${cuestionarioId}` : `/guardar_preguntas/${cuestionarioId}`;
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ preguntas: preguntasData })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarAlerta(modoEdicion ? '✅ Cuestionario actualizado exitosamente' : '✅ Cuestionario guardado exitosamente', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/dashboard_profesor';
+                    }, 2000);
+                } else {
+                    mostrarAlerta('❌ Error: ' + data.message, 'error');
+                    btnGuardar.disabled = false;
+                    btnGuardar.textContent = '💾 Guardar Cuestionario';
+                }
+            })
+            .catch(error => {
+                mostrarAlerta('❌ Error al guardar: ' + error, 'error');
+                btnGuardar.disabled = false;
+                btnGuardar.textContent = '💾 Guardar Cuestionario';
+            });
+        }
+
+        function mostrarAlerta(mensaje, tipo) {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${tipo} show`;
+            alert.textContent = mensaje;
+
+            // Scroll suave hacia el botón de guardar
+            document.getElementById('btnGuardar').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            setTimeout(() => {
+                alert.classList.remove('show');
+            }, 6000);
+        }
+
+        function cancelar() {
+            if (contadorPreguntas > 0) {
+                if (confirm('¿Estás seguro de cancelar? Se perderán todos los cambios.')) {
+                    window.location.href = '/dashboard_profesor';
+                }
+            } else {
+                window.location.href = '/dashboard_profesor';
+            }
+        }
+
+        // Agregar primera pregunta automáticamente o cargar preguntas existentes
+        window.onload = function() {
+            if (modoEdicion && preguntasExistentes.length > 0) {
+                // Cargar preguntas existentes
+                preguntasExistentes.forEach(pregunta => {
+                    agregarPregunta(pregunta);
+                });
+            } else {
+                // Agregar primera pregunta vacía
+                agregarPregunta();
+            }
+        };
+    </script>
+</body>
+</html>

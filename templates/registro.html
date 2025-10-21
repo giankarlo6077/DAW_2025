@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrarse - Sistema de Cuestionarios</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .main-container { width: 100%; max-width: 900px; }
+        .header { text-align: center; margin-bottom: 30px; animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        .header h1 { color: white; font-size: 36px; margin-bottom: 15px; text-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .tabs { display: flex; gap: 15px; justify-content: center; margin-bottom: 30px; }
+        .tab { padding: 12px 40px; background: rgba(255,255,255,0.2); color: white; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 16px; transition: all 0.3s; backdrop-filter: blur(10px); }
+        .tab:hover { background: rgba(255,255,255,0.3); transform: translateY(-2px); }
+        .tab.active { background: white; color: #667eea; border-color: white; box-shadow: 0 5px 20px rgba(0,0,0,0.2); }
+        .container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); display: grid; grid-template-columns: 1fr 250px; gap: 40px; animation: slideUp 0.5s ease; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        .alert { padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; animation: shake 0.5s ease; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        .alert-error { background: #fee; border-left: 4px solid #e74c3c; color: #c0392b; }
+        .form-section { flex: 1; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #333; font-weight: 600; font-size: 14px; }
+        .input-container { position: relative; }
+        .input-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #999; font-size: 18px; z-index: 2; }
+        .password-toggle-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #999; z-index: 2; }
+        input[type="text"], input[type="email"], input[type="password"] { width: 100%; padding: 14px 45px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 15px; transition: all 0.3s; }
+        input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
+        .btn-submit { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 0.5px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-top: 10px; }
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+        .side-section { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
+        .illustration { width: 100%; height: 250px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 80px; box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3); transition: all 0.5s ease; }
+        .illustration.estudiante { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+        .benefits { text-align: center; }
+        .benefit-item { margin-bottom: 15px; color: #666; font-size: 14px; }
+        .benefit-item::before { content: '✓'; color: #28a745; font-weight: bold; margin-right: 8px; font-size: 16px; }
+        .login-link { text-align: center; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 10px; }
+        .login-link a { color: #667eea; text-decoration: none; font-weight: 600; font-size: 15px; }
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; padding: 30px 20px; }
+            .side-section { display: none; }
+            .header h1 { font-size: 28px; }
+            .tabs { flex-direction: column; gap: 10px; }
+            .tab { width: 100%; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="header"><h1>🎮 Crear Cuenta</h1></div>
+        <div class="tabs">
+            <div class="tab {% if not rol_seleccionado or rol_seleccionado == 'profesor' %}active{% endif %}" onclick="seleccionarRol('profesor')" id="tab-profesor">👨‍🏫 Profesor</div>
+            <div class="tab {% if rol_seleccionado == 'estudiante' %}active{% endif %}" onclick="seleccionarRol('estudiante')" id="tab-estudiante">👨‍🎓 Estudiante</div>
+        </div>
+        <div class="container">
+            <div class="form-section">
+                <form method="POST" action="/registro">
+                    <input type="hidden" name="rol" id="rol" value="{{ rol_seleccionado or 'profesor' }}">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                            <div class="alert alert-error">
+                                <span>⚠️</span>
+                                <span>{{ message }}</span>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    <div class="form-group">
+                        <label for="nombre">Nombres Completos</label>
+                        <div class="input-container">
+                            <span class="input-icon">👤</span>
+                            <input type="text" id="nombre" name="nombre" placeholder="Ej: Juan Pérez" value="{{ nombre or '' }}" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="correo">Correo Electrónico</label>
+                        <div class="input-container">
+                            <span class="input-icon">📧</span>
+                            <input type="email" id="correo" name="correo" placeholder="tu@email.com" value="{{ correo or '' }}" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Contraseña</label>
+                        <div class="input-container">
+                            <span class="input-icon">🔒</span>
+                            <input type="password" id="password" name="password" placeholder="Mínimo 8 caracteres, mayúscula, etc." required>
+                            <span class="password-toggle-icon" onclick="togglePasswordVisibility('password', this)">
+                                <svg id="eye-open" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg>
+                                <svg id="eye-closed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="display: none;"><path d="m10.79 12.912-1.614-1.615a3.5 3.5 0 0 1-4.474-4.474l-2.06-2.06C.938 6.278 0 8 0 8s3 5.5 8 5.5a7.029 7.029 0 0 0 2.79-.588zM5.21 3.088A7.028 7.028 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.939 1.721-2.641 3.238l-2.062-2.062a3.5 3.5 0 0 0-4.474-4.474L5.21 3.089z"/><path d="M5.525 7.646a2.5 2.5 0 0 0 2.829 2.829l-2.83-2.829zm4.95.708-2.829-2.83a2.5 2.5 0 0 1 2.829 2.829zm3.171 6-12-12 .708-.708 12 12-.708.708z"/></svg>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmar">Confirmar Contraseña</label>
+                        <div class="input-container">
+                            <span class="input-icon">🔒</span>
+                            <input type="password" id="confirmar" name="confirmar" placeholder="Repite tu contraseña" required>
+                             <span class="password-toggle-icon" onclick="togglePasswordVisibility('confirmar', this)">
+                                <svg id="eye-open" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg>
+                                <svg id="eye-closed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="display: none;"><path d="m10.79 12.912-1.614-1.615a3.5 3.5 0 0 1-4.474-4.474l-2.06-2.06C.938 6.278 0 8 0 8s3 5.5 8 5.5a7.029 7.029 0 0 0 2.79-.588zM5.21 3.088A7.028 7.028 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.939 1.721-2.641 3.238l-2.062-2.062a3.5 3.5 0 0 0-4.474-4.474L5.21 3.089z"/><path d="M5.525 7.646a2.5 2.5 0 0 0 2.829 2.829l-2.83-2.829zm4.95.708-2.829-2.83a2.5 2.5 0 0 1 2.829 2.829zm3.171 6-12-12 .708-.708 12 12-.708.708z"/></svg>
+                            </span>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-submit">Registrarse</button>
+                    <div class="login-link">
+                        <p>¿Ya tienes una cuenta? <a href="{{ url_for('login') }}">Inicia Sesión →</a></p>
+                    </div>
+                </form>
+            </div>
+            <div class="side-section">
+                <div class="illustration" id="illustration"><span id="illustration-icon"></span></div>
+                <div class="benefits">
+                    <div class="benefit-item" id="benefit1"></div>
+                    <div class="benefit-item" id="benefit2"></div>
+                    <div class="benefit-item" id="benefit3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function togglePasswordVisibility(fieldId, icon) {
+            const input = document.getElementById(fieldId);
+            const eyeOpen = icon.querySelector('#eye-open');
+            const eyeClosed = icon.querySelector('#eye-closed');
+            if (input.type === "password") {
+                input.type = "text";
+                eyeOpen.style.display = 'none';
+                eyeClosed.style.display = 'block';
+            } else {
+                input.type = "password";
+                eyeOpen.style.display = 'block';
+                eyeClosed.style.display = 'none';
+            }
+        }
+        function seleccionarRol(rol) {
+            document.getElementById("rol").value = rol;
+            const tabProfesor = document.getElementById("tab-profesor");
+            const tabEstudiante = document.getElementById("tab-estudiante");
+            const illustration = document.getElementById("illustration");
+            const illustrationIcon = document.getElementById("illustration-icon");
+            const benefit1 = document.getElementById("benefit1");
+            const benefit2 = document.getElementById("benefit2");
+            const benefit3 = document.getElementById("benefit3");
+            if (rol === "profesor") {
+                tabProfesor.classList.add("active");
+                tabEstudiante.classList.remove("active");
+                illustration.classList.remove("estudiante");
+                illustrationIcon.textContent = "👨‍🏫";
+                benefit1.textContent = "Crea cuestionarios interactivos";
+                benefit2.textContent = "Gestiona a tus estudiantes";
+                benefit3.textContent = "Analiza resultados en tiempo real";
+            } else {
+                tabEstudiante.classList.add("active");
+                tabProfesor.classList.remove("active");
+                illustration.classList.add("estudiante");
+                illustrationIcon.textContent = "👨‍🎓";
+                benefit1.textContent = "Participa en cuestionarios divertidos";
+                benefit2.textContent = "Aprende jugando y compitiendo";
+                benefit3.textContent = "Gana premios y reconocimientos";
+            }
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const initialRol = document.getElementById('rol').value;
+            seleccionarRol(initialRol);
+        });
+    </script>
+</body>
+</html>
+

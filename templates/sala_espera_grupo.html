@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sala de Espera - {{ grupo['nombre_grupo'] }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; color: #333; }
+        .container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 100%; max-width: 600px; text-align: center; animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .icon { font-size: 48px; margin-bottom: 20px; }
+        h1 { font-size: 32px; margin-bottom: 25px; }
+        .group-info { background: #f8f9fa; padding: 20px; border-radius: 15px; margin-bottom: 25px; }
+        .group-info h2 { font-size: 24px; color: #667eea; margin-bottom: 10px; }
+        .group-info p { color: #6c757d; margin-bottom: 10px; }
+        .group-info .codigo-grupo { font-size: 20px; font-weight: bold; background: #e9ecef; padding: 8px 15px; border-radius: 8px; user-select: all; display: inline-block; }
+        .players-list { margin-bottom: 25px; }
+        .players-list h3 { font-size: 20px; margin-bottom: 15px; }
+        .player { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; align-items: center; gap: 15px; text-align: left; }
+        .player span { font-size: 18px; }
+        .leader-controls { background: #e9ecef; padding: 20px; border-radius: 15px; margin-top: 20px; }
+        .leader-controls p { font-size: 16px; margin-bottom: 15px; }
+        .btn { display: inline-block; padding: 16px 40px; border: none; border-radius: 10px; font-size: 18px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; width: 100%; }
+        .btn-start { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; }
+        .btn-start:hover { transform: translateY(-3px); box-shadow: 0 5px 20px rgba(40, 167, 69, 0.4); }
+        .btn-start:disabled { background: #6c757d; cursor: not-allowed; }
+        .btn-exit { font-size: 14px; color: #dc3545; background: none; text-decoration: none; margin-top: 20px; display: inline-block; }
+        .btn-exit:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">⏳</div>
+        <h1>Sala de Espera</h1>
+
+        <div class="group-info">
+            <h2>{{ grupo['nombre_grupo'] }}</h2>
+            <p>Código para invitar:</p>
+            <span class="codigo-grupo">{{ grupo['codigo_grupo'] }}</span>
+        </div>
+
+        <div class="players-list">
+            <h3>Jugadores en el Grupo ({{ miembros|length }})</h3>
+            {% for miembro in miembros %}
+            <div class="player">
+                <span>{% if miembro['id'] == grupo['lider_id'] %}👑{% else %}👤{% endif %}</span>
+                <span>{{ miembro['nombre'] }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if user_id == grupo['lider_id'] %}
+        <div class="leader-controls">
+            <p>¡Eres el líder! Cuando todos estén listos, inicia la partida.</p>
+            <button class="btn btn-start" onclick="iniciarPartida()">🚀 ¡Comenzar Cuestionario!</button>
+        </div>
+        {% else %}
+        <div class="leader-controls">
+            <p>Esperando que el líder inicie la partida...</p>
+        </div>
+        {% endif %}
+        
+        <a href="{{ url_for('salir_grupo') }}" class="btn-exit" onclick="return confirm('¿Estás seguro de que quieres salir del grupo?');">Salir del Grupo</a>
+    </div>
+
+    <script>
+        const grupoId = {{ grupo['id'] }};
+        const esLider = {{ 'true' if user_id == grupo['lider_id'] else 'false' }};
+
+        // --- LÓGICA PARA EL LÍDER ---
+        if (esLider) {
+            function iniciarPartida() {
+                const boton = document.querySelector('.btn-start');
+                boton.disabled = true;
+                boton.textContent = 'Iniciando...';
+
+                fetch(`/iniciar_partida_grupal/${grupoId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // El backend cambia el estado, y la redirección ocurre para todos (incluido el líder)
+                        // gracias al sondeo que ahora también hará el líder.
+                        // Para una respuesta más rápida para el líder, redirigimos inmediatamente.
+                        window.location.href = `/partida_grupal/${grupoId}`;
+                    } else {
+                        alert('No se pudo iniciar la partida. Intenta de nuevo.');
+                        boton.disabled = false;
+                        boton.textContent = '🚀 ¡Comenzar Cuestionario!';
+                    }
+                })
+                .catch(err => {
+                     alert('Ocurrió un error de red. Intenta de nuevo.');
+                     console.error(err);
+                     boton.disabled = false;
+                     boton.textContent = '🚀 ¡Comenzar Cuestionario!';
+                });
+            }
+        }
+
+        // --- LÓGICA DE SONDEO PARA TODOS LOS MIEMBROS (INCLUIDO EL LÍDER) ---
+        // Esto asegura que si algo cambia (como que el grupo se disuelve), todos reaccionen.
+        const pollInterval = setInterval(() => {
+            fetch(`/api/estado_grupo/${grupoId}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Si data es null, el grupo fue eliminado.
+                    if (!data) {
+                        clearInterval(pollInterval);
+                        // Solo muestra la alerta a los no-líderes para evitar redundancia si el líder lo disolvió.
+                        if (!esLider) {
+                           alert("El líder ha disuelto el grupo.");
+                        }
+                        window.location.href = "{{ url_for('dashboard_estudiante') }}";
+                        return;
+                    }
+                    // Si el juego ha comenzado, todos se unen.
+                    if (data.game_state === 'playing') {
+                        clearInterval(pollInterval);
+                        window.location.href = `/partida_grupal/${grupoId}`;
+                    }
+                })
+                .catch(err => {
+                    console.error("Error en el sondeo de estado:", err);
+                    clearInterval(pollInterval); // Detener si hay un error de red
+                });
+        }, 3000); // Revisa cada 3 segundos
+    </script>
+</body>
+</html>
+

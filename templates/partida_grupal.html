@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Partida Grupal - {{ cuestionario['titulo'] }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; color: #333; }
+        .game-container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 100%; max-width: 800px; text-align: center; animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .header { margin-bottom: 20px; }
+        .header h1 { font-size: 28px; }
+        .header p { font-size: 16px; color: #666; }
+        .question-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 18px; font-weight: 600; }
+        #score { color: #28a745; }
+        .timer-container { width: 100%; background-color: #e9ecef; border-radius: 10px; overflow: hidden; margin-bottom: 30px; }
+        #timer-bar { height: 20px; width: 100%; background: linear-gradient(90deg, #28a745, #ffc107, #dc3545); transition: width 1s linear; }
+        #question-text { font-size: 24px; min-height: 100px; display: flex; align-items: center; justify-content: center; margin-bottom: 30px; }
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .option-btn { padding: 20px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: 18px; cursor: pointer; transition: all 0.2s ease; background-color: white; width: 100%; }
+        .option-btn:not(:disabled):hover { transform: translateY(-3px); border-color: #667eea; }
+        .option-btn:disabled { cursor: not-allowed; background-color: #f8f9fa; color: #6c757d; }
+        .option-btn.selected { background-color: #667eea; color: white; border-color: #667eea; }
+        .option-btn.correct { background-color: #28a745; color: white; border-color: #28a745; }
+        .option-btn.incorrect { background-color: #dc3545; color: white; border-color: #dc3545; }
+        .feedback { font-size: 20px; font-weight: bold; margin-top: 20px; height: 30px; }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <h1>{{ cuestionario['titulo'] }}</h1>
+            <p>Jugando en grupo: {{ grupo['nombre_grupo'] }}</p>
+        </div>
+
+        <div class="question-header">
+            <span id="question-counter"></span>
+            <span id="score">Puntuación: {{ grupo['current_score'] }}</span>
+        </div>
+
+        <div class="timer-container">
+            <div id="timer-bar"></div>
+        </div>
+
+        <h2 id="question-text">Cargando pregunta...</h2>
+
+        <div class="options-grid">
+            <button class="option-btn" data-option="A" id="opcion_a" onclick="seleccionarRespuesta('A')" {% if user_id != grupo['lider_id'] %}disabled{% endif %}></button>
+            <button class="option-btn" data-option="B" id="opcion_b" onclick="seleccionarRespuesta('B')" {% if user_id != grupo['lider_id'] %}disabled{% endif %}></button>
+            <button class="option-btn" data-option="C" id="opcion_c" onclick="seleccionarRespuesta('C')" {% if user_id != grupo['lider_id'] %}disabled{% endif %}></button>
+            <button class="option-btn" data-option="D" id="opcion_d" onclick="seleccionarRespuesta('D')" {% if user_id != grupo['lider_id'] %}disabled{% endif %}></button>
+        </div>
+
+        <div class="feedback" id="feedback-message"></div>
+    </div>
+
+    <script>
+        const grupoId = {{ grupo['id'] }};
+        const esLider = {{ 'true' if user_id == grupo['lider_id'] else 'false' }};
+        const tiempoPorPregunta = {{ cuestionario['tiempo_pregunta'] }};
+        let timerInterval;
+
+        function cargarPregunta() {
+            fetch(`/api/get_pregunta/${grupoId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.finished) {
+                        window.location.href = `/resultados_grupo/${grupoId}`;
+                        return;
+                    }
+                    const pregunta = data.pregunta;
+                    document.getElementById('question-text').textContent = pregunta.pregunta;
+                    document.getElementById('opcion_a').textContent = `A: ${pregunta.opcion_a}`;
+                    document.getElementById('opcion_b').textContent = `B: ${pregunta.opcion_b}`;
+                    document.getElementById('opcion_c').textContent = `C: ${pregunta.opcion_c}`;
+                    document.getElementById('opcion_d').textContent = `D: ${pregunta.opcion_d}`;
+                    document.getElementById('question-counter').textContent = `Pregunta ${data.index + 1} / ${data.total}`;
+                    resetearEstilosBotones();
+                    iniciarTemporizador();
+                });
+        }
+
+        function seleccionarRespuesta(opcion) {
+            if (!esLider) return;
+            clearInterval(timerInterval);
+            deshabilitarOpciones();
+
+            fetch(`/api/responder/${grupoId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ respuesta: opcion })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const btnSeleccionado = document.querySelector(`[data-option="${opcion}"]`);
+                if (data.es_correcta) {
+                    btnSeleccionado.classList.add('correct');
+                    document.getElementById('feedback-message').textContent = '¡Respuesta Correcta!';
+                    document.getElementById('feedback-message').style.color = '#28a745';
+                } else {
+                    btnSeleccionado.classList.add('incorrect');
+                    document.getElementById('feedback-message').textContent = 'Respuesta Incorrecta';
+                    document.getElementById('feedback-message').style.color = '#dc3545';
+                }
+                setTimeout(() => {
+                    location.reload(); // Recargar para sincronizar estado y obtener nueva pregunta/puntuación
+                }, 2000);
+            });
+        }
+        
+        function iniciarTemporizador() {
+            let tiempoRestante = tiempoPorPregunta;
+            const timerBar = document.getElementById('timer-bar');
+            timerBar.style.transition = `width ${tiempoPorPregunta}s linear`;
+            timerBar.style.width = '0%';
+
+            timerInterval = setInterval(() => {
+                tiempoRestante--;
+                if (tiempoRestante <= 0) {
+                    clearInterval(timerInterval);
+                    if (esLider) {
+                        seleccionarRespuesta(null); // Enviar respuesta nula si se acaba el tiempo
+                    }
+                }
+            }, 1000);
+        }
+
+        function deshabilitarOpciones() {
+            document.querySelectorAll('.option-btn').forEach(btn => btn.disabled = true);
+        }
+
+        function resetearEstilosBotones() {
+            document.querySelectorAll('.option-btn').forEach(btn => {
+                btn.classList.remove('selected', 'correct', 'incorrect');
+                if (esLider) {
+                    btn.disabled = false;
+                }
+            });
+            document.getElementById('feedback-message').textContent = '';
+        }
+
+        window.onload = cargarPregunta;
+    </script>
+</body>
+</html>
+

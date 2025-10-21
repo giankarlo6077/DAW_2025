@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Profesor - Cuestionarios</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f6fa;
+            min-height: 100vh;
+        }
+
+        /* Header con menú desplegable */
+        .top-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left h1 {
+            font-size: 24px;
+        }
+
+        .header-right {
+            position: relative;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 10px 15px;
+            border-radius: 8px;
+            transition: background 0.3s;
+        }
+
+        .user-menu:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: white;
+            color: #667eea;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+            font-size: 18px;
+        }
+
+        .user-info-header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .user-info-header h3 {
+            font-size: 16px;
+        }
+
+        .dropdown-arrow {
+            margin-left: 10px;
+            font-size: 12px;
+            transition: transform 0.3s;
+        }
+
+        .dropdown-arrow.active {
+            transform: rotate(180deg);
+        }
+
+        /* Menú desplegable */
+        .dropdown-menu {
+            position: absolute;
+            top: 60px;
+            right: 0;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            min-width: 200px;
+            display: none;
+            z-index: 1000;
+        }
+
+        .dropdown-menu.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .dropdown-menu a {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            color: #333;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+
+        .dropdown-menu a:first-child {
+            border-radius: 10px 10px 0 0;
+        }
+
+        .dropdown-menu a:last-child {
+            border-radius: 0 0 10px 10px;
+            color: #e74c3c;
+        }
+
+        .dropdown-menu a:hover {
+            background: #f5f6fa;
+        }
+
+        /* Contenedor principal */
+        .main-container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        /* Banner de bienvenida */
+        .welcome-banner {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .welcome-banner h2 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .welcome-banner p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        /* Botón principal */
+        .btn-primary {
+            display: inline-block;
+            padding: 15px 30px;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            margin-top: 15px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card h3 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .stat-card .number {
+            font-size: 36px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .stat-card p {
+            color: #888;
+            font-size: 14px;
+        }
+
+        /* Secciones de contenido */
+        .content-section {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .section-header h2 {
+            color: #333;
+            font-size: 22px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Grid de cuestionarios */
+        .quiz-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .quiz-card {
+            background: white;
+            border: 2px solid #f0f0f0;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .quiz-card:hover {
+            border-color: #667eea;
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.2);
+        }
+
+        .quiz-card h3 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .quiz-meta {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .quiz-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .btn-small {
+            padding: 8px 15px;
+            font-size: 13px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            flex: 1;
+        }
+
+        .btn-play {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .btn-edit {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-delete {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-small:hover {
+            opacity: 0.8;
+            transform: scale(1.05);
+        }
+
+        /* Tabla de resultados */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        th {
+            background: #f8f9fa;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-active {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .badge-draft {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            font-size: 24px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #f0f0f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-cancel {
+            background: #95a5a6;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .top-header {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quiz-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .section-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header con menú desplegable -->
+    <div class="top-header">
+        <div class="header-left">
+            <h1>🎮 Sistema de Cuestionarios</h1>
+        </div>
+        <div class="header-right">
+            <div class="user-menu" onclick="toggleDropdown()">
+                <div class="user-avatar">{{ nombre[0].upper() }}</div>
+                <div class="user-info-header">
+                    <h3>{{ nombre }}</h3>
+                    <p>Profesor</p>
+                </div>
+                <span class="dropdown-arrow" id="dropdownArrow">▼</span>
+            </div>
+            <div class="dropdown-menu" id="dropdownMenu">
+                <a href="#" onclick="cambiarDatos()">⚙️ Cambiar datos</a>
+                <a href="/logout">🚪 Cerrar sesión</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenido principal -->
+    <div class="main-container">
+        <!-- Banner de bienvenida -->
+        <div class="welcome-banner">
+            <h2>¡Bienvenido, {{ nombre }}! 👋</h2>
+            <p>Crea cuestionarios interactivos para tus estudiantes. Aprendizaje gamificado y divertido.</p>
+            <button class="btn-primary" onclick="openCreateModal()">➕ Crear Nuevo Cuestionario</button>
+        </div>
+
+        <!-- Estadísticas -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Cuestionarios Creados</h3>
+                <div class="number">{{ total_cuestionarios }}</div>
+                <p>📝 Total de evaluaciones</p>
+            </div>
+            <div class="stat-card">
+                <h3>Total Preguntas</h3>
+                <div class="number">{{ total_preguntas }}</div>
+                <p>❓ En todos los cuestionarios</p>
+            </div>
+            <div class="stat-card">
+                <h3>Partidas Jugadas</h3>
+                <div class="number">0</div>
+                <p>🎮 Próximamente</p>
+            </div>
+            <div class="stat-card">
+                <h3>Promedio General</h3>
+                <div class="number">0%</div>
+                <p>⭐ Próximamente</p>
+            </div>
+        </div>
+
+        <!-- Mis Cuestionarios -->
+        <div class="content-section">
+            <div class="section-header">
+                <h2>📚 Mis Cuestionarios</h2>
+                <button class="btn" onclick="openCreateModal()">➕ Nuevo Cuestionario</button>
+            </div>
+
+            <div class="quiz-grid">
+                {% if cuestionarios %}
+                    {% for cuestionario in cuestionarios %}
+                    <div class="quiz-card">
+                        <h3>{{ cuestionario['titulo'] }}</h3>
+                        <div class="quiz-meta">
+                            <span>📝 {{ cuestionario['total_preguntas'] }} preguntas</span>
+                            <span>⏱️ {{ cuestionario['tiempo_pregunta'] }} seg/preg</span>
+                        </div>
+                        <p style="color: #666; font-size: 14px;">{{ cuestionario['descripcion'] }}</p>
+                        <span class="badge badge-active" style="margin-top: 10px; display: inline-block;">
+                            PIN: {{ cuestionario['codigo_pin'] }}
+                        </span>
+                        <div class="quiz-actions">
+                            <button class="btn-small btn-play" onclick="startQuiz('{{ cuestionario['codigo_pin'] }}')">▶️ Iniciar</button>
+                            <button class="btn-small btn-edit" onclick="editQuiz({{ cuestionario['id'] }})">✏️ Editar</button>
+                            <button class="btn-small btn-delete" onclick="deleteQuiz({{ cuestionario['id'] }})">🗑️</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #999;">
+                        <p style="font-size: 48px; margin-bottom: 10px;">📝</p>
+                        <p style="font-size: 18px; margin-bottom: 10px;">No tienes cuestionarios creados</p>
+                        <p style="font-size: 14px;">Haz clic en "Crear Nuevo Cuestionario" para comenzar</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Últimas Partidas -->
+        <div class="content-section">
+            <div class="section-header">
+                <h2>🎯 Últimas Partidas</h2>
+                <button class="btn">📊 Próximamente</button>
+            </div>
+
+            <div style="text-align: center; padding: 40px; color: #999;">
+                <p style="font-size: 48px; margin-bottom: 10px;">🎮</p>
+                <p style="font-size: 16px;">Las partidas aparecerán aquí cuando los estudiantes jueguen</p>
+            </div>
+        </div>
+
+        <!-- Repositorio Público -->
+        <div class="content-section">
+            <div class="section-header">
+                <h2>🌍 Repositorio Público</h2>
+                <p style="color: #666; margin: 0;">Próximamente: Cuestionarios compartidos por otros profesores</p>
+            </div>
+
+            <div style="text-align: center; padding: 40px; color: #999;">
+                <p style="font-size: 48px; margin-bottom: 10px;">🌐</p>
+                <p style="font-size: 16px;">Esta función estará disponible próximamente</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Crear Cuestionario -->
+    <div class="modal" id="createModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>➕ Crear Nuevo Cuestionario</h3>
+            </div>
+            <form method="POST" action="/crear_cuestionario" id="formCrearCuestionario" onsubmit="return confirmarCrearCuestionario(event)">
+                <div class="form-group">
+                    <label>Título del Cuestionario</label>
+                    <input type="text" name="titulo" placeholder="Ej: Matemáticas Básicas" required>
+                </div>
+                <div class="form-group">
+                    <label>Descripción</label>
+                    <textarea name="descripcion" rows="3" placeholder="Describe de qué trata este cuestionario..." required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Modo de Juego</label>
+                    <select name="modo_juego" required>
+                        <option value="individual">Individual</option>
+                        <option value="grupal">Grupal</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Tiempo por Pregunta (segundos)</label>
+                    <input type="number" name="tiempo_pregunta" value="30" min="10" max="120" required>
+                </div>
+                <div class="form-group">
+                    <label>Número de Preguntas</label>
+                    <input type="number" name="num_preguntas" value="10" min="1" max="50" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-cancel" onclick="closeCreateModal()">Cancelar</button>
+                    <button type="submit" class="btn">Crear y Añadir Preguntas</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function toggleDropdown() {
+            const menu = document.getElementById('dropdownMenu');
+            const arrow = document.getElementById('dropdownArrow');
+            menu.classList.toggle('show');
+            arrow.classList.toggle('active');
+        }
+
+        function cambiarDatos() {
+            window.location.href = '/cambiar_datos_profesor';
+        }
+
+        function openCreateModal() {
+            document.getElementById('createModal').classList.add('show');
+        }
+
+        function closeCreateModal() {
+            document.getElementById('createModal').classList.remove('show');
+        }
+
+        function confirmarCrearCuestionario(event) {
+            event.preventDefault();
+            
+            const form = document.getElementById('formCrearCuestionario');
+            const titulo = form.querySelector('[name="titulo"]').value;
+            const numPreguntas = form.querySelector('[name="num_preguntas"]').value;
+            
+            if (confirm(`¿Estás seguro de crear el cuestionario "${titulo}" con ${numPreguntas} preguntas?\n\nSerás redirigido para agregar las preguntas.`)) {
+                form.submit();
+            }
+        }
+
+        function startQuiz(code) {
+            alert(`Iniciando cuestionario con código: ${code}\n\nLos estudiantes podrán unirse usando este código.`);
+        }
+
+        function editQuiz(id) {
+            window.location.href = `/editar_cuestionario/${id}`;
+        }
+
+        function deleteQuiz(id) {
+            if (confirm('¿Estás seguro de eliminar este cuestionario? Se eliminarán también todas sus preguntas.')) {
+                fetch(`/eliminar_cuestionario/${id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ Cuestionario eliminado correctamente');
+                        location.reload();
+                    } else {
+                        alert('❌ Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('❌ Error al eliminar: ' + error);
+                });
+            }
+        }
+
+        // Cerrar el menú si se hace clic fuera
+        window.onclick = function(event) {
+            if (!event.target.closest('.user-menu') && !event.target.closest('.modal-content')) {
+                const menu = document.getElementById('dropdownMenu');
+                const arrow = document.getElementById('dropdownArrow');
+                if (menu.classList.contains('show')) {
+                    menu.classList.remove('show');
+                    arrow.classList.remove('active');
+                }
+            }
+            
+            // Cerrar modal si se hace clic fuera
+            if (event.target.classList.contains('modal')) {
+                event.target.classList.remove('show');
+            }
+        }
+    </script>
+</body>
+</html>
