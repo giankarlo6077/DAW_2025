@@ -9,40 +9,40 @@
         body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; color: #333; }
         .container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 100%; max-width: 700px; text-align: center; animation: fadeIn 0.5s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        
+
         .trophy { font-size: 80px; margin-bottom: 20px; animation: bounce 1s ease infinite; }
         @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
-        
+
         h1 { font-size: 32px; margin-bottom: 10px; color: #667eea; }
         .subtitle { color: #666; margin-bottom: 30px; font-size: 16px; }
-        
+
         .score-card { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 15px; margin-bottom: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
         .score-card p { font-size: 16px; color: #6c757d; margin-bottom: 10px; }
         .score-card h2 { font-size: 28px; color: #667eea; margin-bottom: 15px; }
-        
+
         .final-score { font-size: 72px; font-weight: bold; color: #28a745; margin: 15px 0; animation: score-pop 0.5s ease; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); }
         @keyframes score-pop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        
+
         .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 25px; }
         .stat-item { background: #f8f9fa; padding: 15px; border-radius: 10px; }
         .stat-item .label { font-size: 12px; color: #6c757d; text-transform: uppercase; margin-bottom: 5px; }
         .stat-item .value { font-size: 24px; font-weight: bold; color: #667eea; }
-        
+
         .members-section { background: #f8f9fa; padding: 20px; border-radius: 15px; margin-bottom: 25px; text-align: left; }
         .members-section h3 { font-size: 18px; margin-bottom: 15px; text-align: center; color: #333; }
         .member-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: white; border-radius: 8px; margin-bottom: 8px; }
         .member-item:last-child { margin-bottom: 0; }
-        
+
         .confetti { position: fixed; width: 10px; height: 10px; background: #f0f; top: -10px; animation: fall 3s linear; pointer-events: none; }
         @keyframes fall { to { transform: translateY(100vh) rotate(360deg); opacity: 0; } }
-        
+
         .actions { display: flex; gap: 10px; margin-top: 25px; }
         .btn { flex: 1; display: inline-block; padding: 16px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; }
         .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
         .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
         .btn-secondary { background: #6c757d; color: white; }
         .btn-secondary:hover { background: #5a6268; }
-        
+
         @media (max-width: 600px) {
             .stats-grid { grid-template-columns: 1fr; }
             .actions { flex-direction: column; }
@@ -84,15 +84,15 @@
 
         <div class="members-section">
             <h3>👥 Participantes</h3>
-            {% if miembros %}
+                {% if miembros %}
                 {% for miembro in miembros %}
-                <div class="member-item">
-                    <span style="font-size: 24px;">👤</span>
-                    <span>{{ miembro['nombre_usuario'] }}</span>
-                </div>
-                {% endfor %}
+            <div class="member-item">
+            <span style="font-size: 24px;">👤</span>
+            <span>{{ miembro.nombre }}</span>
+        </div>
+            {% endfor %}
             {% else %}
-                <p style="text-align: center; color: #999;">No hay miembros registrados</p>
+        <p style="text-align: center; color: #999;">No hay miembros registrados</p>
             {% endif %}
         </div>
 
@@ -115,12 +115,12 @@
                     confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
                     confetti.style.animationDelay = Math.random() * 0.5 + 's';
                     document.body.appendChild(confetti);
-                    
+
                     setTimeout(() => confetti.remove(), 3000);
                 }, i * 50);
             }
         }
-        
+
         // Ejecutar confetti al cargar
         window.addEventListener('load', () => {
             createConfetti();
