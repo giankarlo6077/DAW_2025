@@ -18,7 +18,7 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = 'cevar4@gmail.com'
-app.config['MAIL_PASSWORD'] = 'rgzl jhyh ceaa snxi'
+app.config['MAIL_PASSWORD'] = 'rgzl jhyh ceaa snxi' # Considera usar variables de entorno
 app.config['MAIL_DEFAULT_SENDER'] = 'cevar4@gmail.com'
 app.config['MAIL_DEBUG'] = True
 
@@ -522,7 +522,7 @@ def cambiar_datos_profesor():
 def eliminar_cuenta_profesor():
     if "usuario" not in session or session.get("rol") != "profesor":
         return redirect(url_for("login"))
-
+    
     password_actual = request.form.get("password_actual")
     user_id = session["user_id"]
     conexion = obtener_conexion()
@@ -541,15 +541,15 @@ def eliminar_cuenta_profesor():
                 cuestionario_ids = [c['id'] for c in cuestionarios]
                 id_placeholders = ', '.join(['%s'] * len(cuestionario_ids))
                 cursor.execute(f"DELETE FROM preguntas WHERE cuestionario_id IN ({id_placeholders})", tuple(cuestionario_ids))
-
+            
             cursor.execute("DELETE FROM cuestionarios WHERE profesor_id = %s", (user_id,))
             cursor.execute("DELETE FROM usuarios WHERE id = %s", (user_id,))
-
+            
             conexion.commit()
             session.clear()
             flash("✅ Tu cuenta y todos tus datos han sido eliminados permanentemente.", "success")
             return redirect(url_for('login'))
-
+            
     except Exception as e:
         flash("❌ Ocurrió un error al intentar eliminar la cuenta.", "error")
         print(f"Error al eliminar cuenta: {e}")
@@ -564,7 +564,7 @@ def eliminar_cuenta_profesor():
 def dashboard_estudiante():
     if "usuario" not in session or session.get("rol") != "estudiante":
         return redirect(url_for("login"))
-
+    
     grupo_info, miembros = None, []
     user_id = session.get("user_id")
     conexion = obtener_conexion()
@@ -741,9 +741,9 @@ def sala_espera_grupo(grupo_id):
         with conexion.cursor() as cursor:
             cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
             grupo = cursor.fetchone()
-            cursor.execute("SELECT nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
+            cursor.execute("SELECT id, nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
             miembros = cursor.fetchall()
-
+            
             if not grupo:
                 return redirect(url_for('dashboard_estudiante'))
 
@@ -808,7 +808,7 @@ def partida_grupal(grupo_id):
             cuestionario = cursor.fetchone()
     finally:
         if conexion and conexion.open: conexion.close()
-
+        
     return render_template("partida_grupal.html", grupo=grupo, cuestionario=cuestionario, user_id=session['user_id'])
 
 @app.route("/resultados_grupo/<int:grupo_id>")
@@ -816,9 +816,18 @@ def resultados_grupo(grupo_id):
     if "usuario" not in session: 
         return redirect(url_for('login'))
     
+    user_id = session.get("user_id")
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
+            # Verificar que el usuario pertenece al grupo
+            cursor.execute("SELECT grupo_id FROM usuarios WHERE id = %s", (user_id,))
+            usuario = cursor.fetchone()
+            
+            if not usuario or usuario['grupo_id'] != grupo_id:
+                flash("❌ No perteneces a este grupo", "error")
+                return redirect(url_for('dashboard_estudiante'))
+            
             # Obtener información del grupo
             cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
             grupo = cursor.fetchone()
@@ -827,105 +836,36 @@ def resultados_grupo(grupo_id):
                 flash("❌ Grupo no encontrado", "error")
                 return redirect(url_for('dashboard_estudiante'))
             
-            # Verificar si ya existe un historial para esta partida
-            cursor.execute("""
-                SELECT h.*, c.titulo, c.descripcion, c.num_preguntas, c.tiempo_pregunta, c.modo_juego
-                FROM historial_partidas h
-                JOIN cuestionarios c ON h.cuestionario_id = c.id
-                WHERE h.grupo_id = %s
-                ORDER BY h.fecha_partida DESC
-                LIMIT 1
-            """, (grupo_id,))
-            historial = cursor.fetchone()
+            # Obtener información del cuestionario usando el PIN que debería estar en el grupo
+            cursor.execute("SELECT * FROM cuestionarios WHERE codigo_pin = %s", (grupo['active_pin'],))
+            cuestionario = cursor.fetchone()
             
-            # Si no hay historial y el grupo tiene un active_pin, crear el historial
-            if not historial and grupo.get('active_pin'):
-                # Obtener información del cuestionario
-                cursor.execute("SELECT * FROM cuestionarios WHERE codigo_pin = %s", (grupo['active_pin'],))
-                cuestionario = cursor.fetchone()
-                
-                if cuestionario:
-                    # Obtener número de miembros
-                    cursor.execute("SELECT COUNT(*) as total FROM usuarios WHERE grupo_id = %s", (grupo_id,))
-                    num_miembros = cursor.fetchone()['total']
-                    
-                    # Guardar en historial
-                    cursor.execute("""
-                        INSERT INTO historial_partidas 
-                        (grupo_id, cuestionario_id, nombre_grupo, puntuacion_final, num_preguntas_total, num_miembros)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (grupo_id, cuestionario['id'], grupo['nombre_grupo'], 
-                          grupo.get('current_score', 0), cuestionario['num_preguntas'], num_miembros))
-                    
-                    partida_id = cursor.lastrowid
-                    
-                    # Guardar participantes
-                    cursor.execute("SELECT id, nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
-                    participantes = cursor.fetchall()
-                    
-                    for participante in participantes:
-                        cursor.execute("""
-                            INSERT INTO participantes_partida (partida_id, usuario_id, nombre_usuario)
-                            VALUES (%s, %s, %s)
-                        """, (partida_id, participante['id'], participante['nombre']))
-                    
-                    # Limpiar estado del juego
-                    cursor.execute("""
-                        UPDATE grupos 
-                        SET active_pin = NULL, 
-                            game_state = NULL, 
-                            current_question_index = 0,
-                            current_score = 0
-                        WHERE id = %s
-                    """, (grupo_id,))
-                    
-                    conexion.commit()
-                    
-                    # Recargar el historial recién creado
-                    cursor.execute("""
-                        SELECT h.*, c.titulo, c.descripcion, c.num_preguntas, c.tiempo_pregunta, c.modo_juego
-                        FROM historial_partidas h
-                        JOIN cuestionarios c ON h.cuestionario_id = c.id
-                        WHERE h.id = %s
-                    """, (partida_id,))
-                    historial = cursor.fetchone()
-            
-            # Si aún no hay historial, redirigir
-            if not historial:
-                flash("❌ No se encontraron resultados de la partida", "error")
-                return redirect(url_for('dashboard_estudiante'))
-            
+            # Si no hay cuestionario, es un error o el juego ya se limpió, pero podemos continuar con los datos del grupo.
+            if not cuestionario:
+                 flash("No se pudo cargar la información completa del cuestionario, pero aquí están tus resultados.", "error")
+
             # Obtener miembros que participaron
-            cursor.execute("""
-                SELECT nombre_usuario 
-                FROM participantes_partida 
-                WHERE partida_id = %s
-            """, (historial['id'],))
+            cursor.execute("SELECT nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
             miembros = cursor.fetchall()
             
-            # Construir objeto similar al grupo para compatibilidad con el template
-            grupo_info = {
-                'id': grupo_id,
-                'nombre_grupo': historial['nombre_grupo'],
-                'current_score': historial['puntuacion_final']
-            }
-            
-            cuestionario_info = {
-                'titulo': historial['titulo'],
-                'descripcion': historial['descripcion'],
-                'num_preguntas': historial['num_preguntas'],
-                'tiempo_pregunta': historial['tiempo_pregunta'],
-                'modo_juego': historial['modo_juego']
-            }
-            
+            # Limpiar estado del juego para futuras partidas
+            cursor.execute("""
+                UPDATE grupos 
+                SET active_pin = NULL, 
+                    game_state = NULL, 
+                    current_question_index = 0
+                WHERE id = %s
+            """, (grupo_id,))
+            conexion.commit()
     finally:
         if conexion and conexion.open: 
             conexion.close()
     
     return render_template("resultados_grupo.html", 
-                         grupo=grupo_info, 
-                         cuestionario=cuestionario_info,
-                         miembros=miembros)
+                           grupo=grupo, 
+                           cuestionario=cuestionario,
+                           miembros=miembros)
+
 
 # --- API INTERNA PARA JUEGO EN TIEMPO REAL ---
 
@@ -1016,7 +956,6 @@ def api_get_pregunta(grupo_id):
         if conexion and conexion.open:
             conexion.close()
 
-
 @app.route("/api/responder/<int:grupo_id>", methods=["POST"])
 def api_responder(grupo_id):
     """Procesa la respuesta del líder del grupo"""
@@ -1069,7 +1008,7 @@ def api_responder(grupo_id):
                 puntos_ganados = 100
                 nuevo_score = juego['current_score'] + puntos_ganados
                 cursor.execute("UPDATE grupos SET current_score = %s WHERE id = %s",
-                             (nuevo_score, grupo_id))
+                               (nuevo_score, grupo_id))
 
             nuevo_index = juego['current_question_index'] + 1
             cursor.execute("UPDATE grupos SET current_question_index = %s WHERE id = %s",
@@ -1100,6 +1039,7 @@ def api_responder(grupo_id):
     finally:
         if conexion and conexion.open:
             conexion.close()
+
 
 @app.route("/cambiar_datos_estudiante", methods=["GET", "POST"])
 def cambiar_datos_estudiante():
@@ -1186,3 +1126,4 @@ def error_interno(error):
 # ---------------- INICIAR APP ----------------
 if __name__ == "__main__":
     app.run(debug=True, port=8080)
+

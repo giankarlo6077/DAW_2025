@@ -63,6 +63,7 @@
         let pollInterval;
         let respuestaEnviada = false;
         let juegoTerminado = false;
+        let ultimoIndexVisto = -1;
 
         console.log('🎮 Iniciando juego - Grupo ID:', grupoId, 'Es líder:', esLider);
 
@@ -71,9 +72,9 @@
                 console.log('⚠️ Juego ya terminado, no se carga pregunta');
                 return;
             }
-
+            
             console.log('📥 Cargando pregunta...');
-
+            
             fetch(`/api/get_pregunta/${grupoId}`)
                 .then(response => {
                     console.log('📡 Respuesta recibida:', response.status);
@@ -84,14 +85,14 @@
                 })
                 .then(data => {
                     console.log('📦 Datos recibidos:', data);
-
+                    
                     if (data.error) {
                         console.error('❌ Error en datos:', data.error);
                         alert('Error: ' + data.error);
                         window.location.href = '/dashboard_estudiante';
                         return;
                     }
-
+                    
                     if (data.finished) {
                         console.log('🏁 Juego finalizado');
                         juegoTerminado = true;
@@ -100,10 +101,13 @@
                         window.location.href = `/resultados_grupo/${grupoId}`;
                         return;
                     }
-
+                    
                     const pregunta = data.pregunta;
                     console.log('✅ Pregunta cargada:', pregunta.pregunta.substring(0, 50) + '...');
-
+                    
+                    // Actualizar índice visto
+                    ultimoIndexVisto = data.index;
+                    
                     document.getElementById('question-text').textContent = pregunta.pregunta;
                     document.getElementById('opcion_a').textContent = `A: ${pregunta.opcion_a}`;
                     document.getElementById('opcion_b').textContent = `B: ${pregunta.opcion_b}`;
@@ -111,12 +115,12 @@
                     document.getElementById('opcion_d').textContent = `D: ${pregunta.opcion_d}`;
                     document.getElementById('question-counter').textContent = `Pregunta ${data.index + 1} / ${data.total}`;
                     document.getElementById('score').textContent = `Puntuación: ${data.score}`;
-
+                    
                     tiempoPorPregunta = data.tiempo_pregunta;
                     respuestaEnviada = false;
                     resetearEstilosBotones();
                     iniciarTemporizador();
-
+                    
                     // Iniciar polling para no-líderes
                     if (!esLider) {
                         console.log('👥 Iniciando polling para miembro no-líder');
@@ -134,12 +138,12 @@
                 console.log('⚠️ Intento de respuesta de no-líder bloqueado');
                 return;
             }
-
+            
             if (respuestaEnviada) {
                 console.log('⚠️ Respuesta ya enviada, ignorando');
                 return;
             }
-
+            
             console.log('📤 Enviando respuesta:', opcion);
             respuestaEnviada = true;
             clearInterval(timerInterval);
@@ -162,47 +166,26 @@
             })
             .then(data => {
                 console.log('📦 Resultado de respuesta:', data);
-
+                
                 if (!data.success) {
                     console.error('❌ Error al procesar respuesta:', data.message);
-
-                    // Si el juego ya terminó, redirigir a resultados
+                    
                     if (data.finished) {
                         juegoTerminado = true;
                         window.location.href = `/resultados_grupo/${grupoId}`;
                         return;
                     }
-
+                    
                     alert(data.message || 'Error al procesar la respuesta');
                     respuestaEnviada = false;
                     return;
                 }
-
-                // Mostrar retroalimentación visual
-                if (btnSeleccionado) {
-                    btnSeleccionado.classList.remove('selected');
-                    if (data.es_correcta) {
-                        btnSeleccionado.classList.add('correct');
-                        document.getElementById('feedback-message').innerHTML = `✅ ¡Correcto! +${data.puntos_ganados} puntos`;
-                        document.getElementById('feedback-message').style.color = '#28a745';
-                        console.log('✅ Respuesta correcta!');
-                    } else {
-                        btnSeleccionado.classList.add('incorrect');
-                        document.getElementById('feedback-message').innerHTML = `❌ Incorrecto. La respuesta correcta era ${data.respuesta_correcta}`;
-                        document.getElementById('feedback-message').style.color = '#dc3545';
-                        console.log('❌ Respuesta incorrecta. Correcta era:', data.respuesta_correcta);
-
-                        // Marcar también la respuesta correcta
-                        const btnCorrecto = document.querySelector(`[data-option="${data.respuesta_correcta}"]`);
-                        if (btnCorrecto) {
-                            btnCorrecto.classList.add('correct');
-                        }
-                    }
-                }
-
+                
+                mostrarResultado(data.respuesta_seleccionada, data.respuesta_correcta, data.es_correcta, data.puntos_ganados);
+                
                 // Actualizar puntuación
                 document.getElementById('score').textContent = `Puntuación: ${data.nuevo_score}`;
-
+                
                 // Esperar 3 segundos antes de cargar la siguiente pregunta
                 setTimeout(() => {
                     if (data.es_ultima_pregunta) {
@@ -220,15 +203,47 @@
                 alert('Error de conexión: ' + error.message);
             });
         }
-
+        
+        function mostrarResultado(respuestaSeleccionada, respuestaCorrecta, esCorrecta, puntosGanados) {
+            // Marcar respuesta seleccionada
+            if (respuestaSeleccionada) {
+                const btnSeleccionado = document.querySelector(`[data-option="${respuestaSeleccionada}"]`);
+                if (btnSeleccionado) {
+                    btnSeleccionado.classList.remove('selected');
+                    if (esCorrecta) {
+                        btnSeleccionado.classList.add('correct');
+                    } else {
+                        btnSeleccionado.classList.add('incorrect');
+                    }
+                }
+            }
+            
+            // Siempre marcar la respuesta correcta
+            const btnCorrecto = document.querySelector(`[data-option="${respuestaCorrecta}"]`);
+            if (btnCorrecto) {
+                btnCorrecto.classList.add('correct');
+            }
+            
+            // Mostrar mensaje
+            if (esCorrecta) {
+                document.getElementById('feedback-message').innerHTML = `✅ ¡Correcto! +${puntosGanados} puntos`;
+                document.getElementById('feedback-message').style.color = '#28a745';
+                console.log('✅ Respuesta correcta!');
+            } else {
+                document.getElementById('feedback-message').innerHTML = `❌ Incorrecto. La respuesta correcta era ${respuestaCorrecta}`;
+                document.getElementById('feedback-message').style.color = '#dc3545';
+                console.log('❌ Respuesta incorrecta. Correcta era:', respuestaCorrecta);
+            }
+        }
+        
         function iniciarTemporizador() {
             let tiempoRestante = tiempoPorPregunta;
             const timerBar = document.getElementById('timer-bar');
             timerBar.style.transition = 'none';
             timerBar.style.width = '100%';
-
+            
             console.log('⏱️ Temporizador iniciado:', tiempoPorPregunta, 'segundos');
-
+            
             setTimeout(() => {
                 timerBar.style.transition = `width ${tiempoPorPregunta}s linear`;
                 timerBar.style.width = '0%';
@@ -250,14 +265,14 @@
             if (pollInterval) {
                 clearInterval(pollInterval);
             }
-
-            // Los no-líderes verifican cada 2 segundos si hay cambios
+            
+            // Los no-líderes verifican cada 1.5 segundos
             pollInterval = setInterval(() => {
                 if (juegoTerminado) {
                     clearInterval(pollInterval);
                     return;
                 }
-
+                
                 fetch(`/api/get_pregunta/${grupoId}`)
                     .then(response => response.json())
                     .then(data => {
@@ -267,22 +282,45 @@
                             clearInterval(pollInterval);
                             clearInterval(timerInterval);
                             window.location.href = `/resultados_grupo/${grupoId}`;
+                            return;
                         }
-                        // Si el índice cambió, recargar pregunta
-                        else if (data.index !== undefined) {
-                            const currentIndex = parseInt(document.getElementById('question-counter').textContent.split(' ')[1]) - 1;
-                            if (data.index !== currentIndex && !respuestaEnviada) {
-                                console.log('🔄 Nueva pregunta detectada por polling');
-                                clearInterval(timerInterval);
-                                cargarPregunta();
-                            }
+                        
+                        // Si el estado es 'answered', mostrar resultado
+                        if (data.game_state === 'answered') {
+                            // Obtener información de la respuesta
+                            fetch(`/api/get_ultima_respuesta/${grupoId}`)
+                                .then(r => r.json())
+                                .then(respData => {
+                                    if (respData.tiene_respuesta && !respuestaEnviada) {
+                                        console.log('📥 Mostrando respuesta del líder');
+                                        respuestaEnviada = true;
+                                        clearInterval(timerInterval);
+                                        deshabilitarOpciones();
+                                        
+                                        // Mostrar resultado (sin saber cuál fue la selección del líder)
+                                        mostrarResultado(null, respData.respuesta_correcta, false, 0);
+                                        document.getElementById('score').textContent = `Puntuación: ${respData.nuevo_score}`;
+                                        
+                                        // Esperar y cargar siguiente pregunta
+                                        setTimeout(() => {
+                                            if (data.index > ultimoIndexVisto) {
+                                                cargarPregunta();
+                                            }
+                                        }, 3000);
+                                    }
+                                });
+                        }
+                        // Si cambió el índice, cargar nueva pregunta
+                        else if (data.index !== undefined && data.index > ultimoIndexVisto && !respuestaEnviada) {
+                            console.log('🔄 Nueva pregunta detectada por polling');
+                            clearInterval(timerInterval);
+                            cargarPregunta();
                         }
                     })
                     .catch(err => {
                         console.error('❌ Error en polling:', err);
-                        // No detener el polling por un error temporal
                     });
-            }, 2000);
+            }, 1500);
         }
 
         function deshabilitarOpciones() {
