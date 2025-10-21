@@ -84,12 +84,16 @@
 
         <div class="members-section">
             <h3>👥 Participantes</h3>
-            {% for miembro in miembros %}
-            <div class="member-item">
-                <span style="font-size: 24px;">👤</span>
-                <span>{{ miembro['nombre'] }}</span>
-            </div>
-            {% endfor %}
+            {% if miembros %}
+                {% for miembro in miembros %}
+                <div class="member-item">
+                    <span style="font-size: 24px;">👤</span>
+                    <span>{{ miembro['nombre_usuario'] }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="text-align: center; color: #999;">No hay miembros registrados</p>
+            {% endif %}
         </div>
 
         <div class="actions">

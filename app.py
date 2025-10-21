@@ -18,7 +18,7 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = 'cevar4@gmail.com'
-app.config['MAIL_PASSWORD'] = 'rgzl jhyh ceaa snxi' # Considera usar variables de entorno
+app.config['MAIL_PASSWORD'] = 'rgzl jhyh ceaa snxi'
 app.config['MAIL_DEFAULT_SENDER'] = 'cevar4@gmail.com'
 app.config['MAIL_DEBUG'] = True
 
@@ -580,12 +580,11 @@ def dashboard_estudiante():
     finally:
         if conexion and conexion.open: conexion.close()
 
-    # <<< LA CORRECCIÓN ESTÁ AQUÍ >>>
     return render_template("dashboard_estudiante.html",
                            nombre=session["usuario"],
                            grupo=grupo_info,
                            miembros=miembros,
-                           user_id=user_id) # Se añade user_id al contexto
+                           user_id=user_id)
 
 @app.route("/crear_grupo", methods=["POST"])
 def crear_grupo():
@@ -686,7 +685,6 @@ def juego_grupo():
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # Obtener el grupo del usuario
             cursor.execute("""
                 SELECT g.id, g.lider_id, g.nombre_grupo
                 FROM grupos g
@@ -703,7 +701,6 @@ def juego_grupo():
                 flash("❌ Solo el líder del grupo puede iniciar una partida.", "error")
                 return redirect(url_for('dashboard_estudiante'))
 
-            # Verificar que el PIN del cuestionario existe
             cursor.execute("SELECT id, titulo FROM cuestionarios WHERE codigo_pin = %s", (pin,))
             cuestionario = cursor.fetchone()
 
@@ -711,7 +708,6 @@ def juego_grupo():
                 flash(f"❌ No se encontró ningún cuestionario con el PIN '{pin}'.", "error")
                 return redirect(url_for('dashboard_estudiante'))
 
-            # Inicializar el juego del grupo
             cursor.execute("""
                 UPDATE grupos
                 SET active_pin = %s,
@@ -766,7 +762,6 @@ def iniciar_partida_grupal(grupo_id):
 
     try:
         with conexion.cursor() as cursor:
-            # Verificar que quien inicia es el líder
             cursor.execute("SELECT lider_id, active_pin FROM grupos WHERE id = %s", (grupo_id,))
             grupo = cursor.fetchone()
 
@@ -779,7 +774,6 @@ def iniciar_partida_grupal(grupo_id):
             if not grupo['active_pin']:
                 return jsonify({"success": False, "message": "No hay cuestionario asignado"}), 400
 
-            # Cambiar estado a 'playing' y resetear índices
             cursor.execute("""
                 UPDATE grupos
                 SET game_state = 'playing',
@@ -819,20 +813,119 @@ def partida_grupal(grupo_id):
 
 @app.route("/resultados_grupo/<int:grupo_id>")
 def resultados_grupo(grupo_id):
-    if "usuario" not in session: return redirect(url_for('login'))
+    if "usuario" not in session: 
+        return redirect(url_for('login'))
+    
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
+            # Obtener información del grupo
             cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
             grupo = cursor.fetchone()
-            cursor.execute("SELECT * FROM cuestionarios WHERE codigo_pin = %s", (grupo['active_pin'],))
-            cuestionario = cursor.fetchone()
-            # Limpiar estado del juego al finalizar
-            cursor.execute("UPDATE grupos SET active_pin = NULL, game_state = NULL, current_question_index = 0 WHERE id = %s", (grupo_id,))
-            conexion.commit()
+            
+            if not grupo:
+                flash("❌ Grupo no encontrado", "error")
+                return redirect(url_for('dashboard_estudiante'))
+            
+            # Verificar si ya existe un historial para esta partida
+            cursor.execute("""
+                SELECT h.*, c.titulo, c.descripcion, c.num_preguntas, c.tiempo_pregunta, c.modo_juego
+                FROM historial_partidas h
+                JOIN cuestionarios c ON h.cuestionario_id = c.id
+                WHERE h.grupo_id = %s
+                ORDER BY h.fecha_partida DESC
+                LIMIT 1
+            """, (grupo_id,))
+            historial = cursor.fetchone()
+            
+            # Si no hay historial y el grupo tiene un active_pin, crear el historial
+            if not historial and grupo.get('active_pin'):
+                # Obtener información del cuestionario
+                cursor.execute("SELECT * FROM cuestionarios WHERE codigo_pin = %s", (grupo['active_pin'],))
+                cuestionario = cursor.fetchone()
+                
+                if cuestionario:
+                    # Obtener número de miembros
+                    cursor.execute("SELECT COUNT(*) as total FROM usuarios WHERE grupo_id = %s", (grupo_id,))
+                    num_miembros = cursor.fetchone()['total']
+                    
+                    # Guardar en historial
+                    cursor.execute("""
+                        INSERT INTO historial_partidas 
+                        (grupo_id, cuestionario_id, nombre_grupo, puntuacion_final, num_preguntas_total, num_miembros)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, (grupo_id, cuestionario['id'], grupo['nombre_grupo'], 
+                          grupo.get('current_score', 0), cuestionario['num_preguntas'], num_miembros))
+                    
+                    partida_id = cursor.lastrowid
+                    
+                    # Guardar participantes
+                    cursor.execute("SELECT id, nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
+                    participantes = cursor.fetchall()
+                    
+                    for participante in participantes:
+                        cursor.execute("""
+                            INSERT INTO participantes_partida (partida_id, usuario_id, nombre_usuario)
+                            VALUES (%s, %s, %s)
+                        """, (partida_id, participante['id'], participante['nombre']))
+                    
+                    # Limpiar estado del juego
+                    cursor.execute("""
+                        UPDATE grupos 
+                        SET active_pin = NULL, 
+                            game_state = NULL, 
+                            current_question_index = 0,
+                            current_score = 0
+                        WHERE id = %s
+                    """, (grupo_id,))
+                    
+                    conexion.commit()
+                    
+                    # Recargar el historial recién creado
+                    cursor.execute("""
+                        SELECT h.*, c.titulo, c.descripcion, c.num_preguntas, c.tiempo_pregunta, c.modo_juego
+                        FROM historial_partidas h
+                        JOIN cuestionarios c ON h.cuestionario_id = c.id
+                        WHERE h.id = %s
+                    """, (partida_id,))
+                    historial = cursor.fetchone()
+            
+            # Si aún no hay historial, redirigir
+            if not historial:
+                flash("❌ No se encontraron resultados de la partida", "error")
+                return redirect(url_for('dashboard_estudiante'))
+            
+            # Obtener miembros que participaron
+            cursor.execute("""
+                SELECT nombre_usuario 
+                FROM participantes_partida 
+                WHERE partida_id = %s
+            """, (historial['id'],))
+            miembros = cursor.fetchall()
+            
+            # Construir objeto similar al grupo para compatibilidad con el template
+            grupo_info = {
+                'id': grupo_id,
+                'nombre_grupo': historial['nombre_grupo'],
+                'current_score': historial['puntuacion_final']
+            }
+            
+            cuestionario_info = {
+                'titulo': historial['titulo'],
+                'descripcion': historial['descripcion'],
+                'num_preguntas': historial['num_preguntas'],
+                'tiempo_pregunta': historial['tiempo_pregunta'],
+                'modo_juego': historial['modo_juego']
+            }
+            
     finally:
-        if conexion and conexion.open: conexion.close()
-    return render_template("resultados_grupo.html", grupo=grupo, cuestionario=cuestionario)
+        if conexion and conexion.open: 
+            conexion.close()
+    
+    return render_template("resultados_grupo.html", 
+                         grupo=grupo_info, 
+                         cuestionario=cuestionario_info,
+                         miembros=miembros)
 
 # --- API INTERNA PARA JUEGO EN TIEMPO REAL ---
 
@@ -850,7 +943,7 @@ def api_estado_grupo(grupo_id):
             estado = cursor.fetchone()
 
             if not estado:
-                return jsonify(None)  # El grupo fue eliminado
+                return jsonify(None)
 
             return jsonify(estado)
     except Exception as e:
@@ -866,7 +959,6 @@ def api_get_pregunta(grupo_id):
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # Obtener estado del juego
             cursor.execute("""
                 SELECT g.active_pin, g.current_question_index, g.current_score, g.game_state
                 FROM grupos g
@@ -877,7 +969,6 @@ def api_get_pregunta(grupo_id):
             if not juego or not juego['active_pin']:
                 return jsonify({"error": "No hay juego activo"}), 404
 
-            # Obtener información del cuestionario
             cursor.execute("""
                 SELECT id, num_preguntas, tiempo_pregunta
                 FROM cuestionarios
@@ -888,14 +979,12 @@ def api_get_pregunta(grupo_id):
             if not cuestionario:
                 return jsonify({"error": "Cuestionario no encontrado"}), 404
 
-            # Verificar si el juego ha terminado
             if juego['current_question_index'] >= cuestionario['num_preguntas']:
                 return jsonify({
                     "finished": True,
                     "score": juego['current_score']
                 })
 
-            # Obtener la pregunta actual
             cursor.execute("""
                 SELECT id, pregunta, opcion_a, opcion_b, opcion_c, opcion_d
                 FROM preguntas
@@ -940,14 +1029,12 @@ def api_responder(grupo_id):
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # Verificar que quien responde es el líder
             cursor.execute("SELECT lider_id FROM grupos WHERE id = %s", (grupo_id,))
             grupo = cursor.fetchone()
 
             if not grupo or grupo['lider_id'] != user_id:
                 return jsonify({"success": False, "message": "Solo el líder puede responder"}), 403
 
-            # Obtener información del juego actual
             cursor.execute("""
                 SELECT g.current_question_index, g.current_score, c.id as cuestionario_id, c.num_preguntas
                 FROM grupos g
@@ -959,11 +1046,9 @@ def api_responder(grupo_id):
             if not juego:
                 return jsonify({"success": False, "message": "No se encontró el juego"}), 404
 
-            # Verificar si el juego ya terminó
             if juego['current_question_index'] >= juego['num_preguntas']:
                 return jsonify({"success": False, "message": "El juego ya terminó", "finished": True}), 400
 
-            # Obtener la pregunta actual
             cursor.execute("""
                 SELECT respuesta_correcta
                 FROM preguntas
@@ -977,26 +1062,22 @@ def api_responder(grupo_id):
             if not pregunta_actual:
                 return jsonify({"success": False, "message": "No se encontró la pregunta"}), 404
 
-            # Validar la respuesta
             es_correcta = (respuesta_usuario == pregunta_actual['respuesta_correcta'])
             puntos_ganados = 0
 
             if es_correcta:
-                puntos_ganados = 100  # Puedes ajustar la puntuación
+                puntos_ganados = 100
                 nuevo_score = juego['current_score'] + puntos_ganados
                 cursor.execute("UPDATE grupos SET current_score = %s WHERE id = %s",
                              (nuevo_score, grupo_id))
 
-            # Avanzar a la siguiente pregunta
             nuevo_index = juego['current_question_index'] + 1
             cursor.execute("UPDATE grupos SET current_question_index = %s WHERE id = %s",
                          (nuevo_index, grupo_id))
 
-            # Verificar si es la última pregunta
             es_ultima_pregunta = (nuevo_index >= juego['num_preguntas'])
 
             if es_ultima_pregunta:
-                # Marcar el juego como terminado
                 cursor.execute("UPDATE grupos SET game_state = 'finished' WHERE id = %s", (grupo_id,))
 
             conexion.commit()
@@ -1105,4 +1186,3 @@ def error_interno(error):
 # ---------------- INICIAR APP ----------------
 if __name__ == "__main__":
     app.run(debug=True, port=8080)
-
