@@ -7,32 +7,122 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; color: #333; }
-        .container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 100%; max-width: 600px; text-align: center; animation: fadeIn 0.5s ease; }
+        .container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 100%; max-width: 700px; text-align: center; animation: fadeIn 0.5s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        h1 { font-size: 32px; margin-bottom: 25px; }
-        .score-card { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 15px; margin-bottom: 30px; }
-        .score-card p { font-size: 18px; color: #6c757d; margin-bottom: 10px; }
-        .score-card h2 { font-size: 28px; color: #667eea; margin-bottom: 10px; }
-        .final-score { font-size: 72px; font-weight: bold; color: #28a745; margin: 10px 0; animation: score-pop 0.5s ease; }
-        @keyframes score-pop { from { transform: scale(0.5); } to { transform: scale(1); } }
-        .btn { display: inline-block; padding: 16px 40px; border: none; border-radius: 10px; font-size: 18px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .btn:hover { transform: translateY(-3px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+        
+        .trophy { font-size: 80px; margin-bottom: 20px; animation: bounce 1s ease infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+        
+        h1 { font-size: 32px; margin-bottom: 10px; color: #667eea; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 16px; }
+        
+        .score-card { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 15px; margin-bottom: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .score-card p { font-size: 16px; color: #6c757d; margin-bottom: 10px; }
+        .score-card h2 { font-size: 28px; color: #667eea; margin-bottom: 15px; }
+        
+        .final-score { font-size: 72px; font-weight: bold; color: #28a745; margin: 15px 0; animation: score-pop 0.5s ease; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); }
+        @keyframes score-pop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 25px; }
+        .stat-item { background: #f8f9fa; padding: 15px; border-radius: 10px; }
+        .stat-item .label { font-size: 12px; color: #6c757d; text-transform: uppercase; margin-bottom: 5px; }
+        .stat-item .value { font-size: 24px; font-weight: bold; color: #667eea; }
+        
+        .members-section { background: #f8f9fa; padding: 20px; border-radius: 15px; margin-bottom: 25px; text-align: left; }
+        .members-section h3 { font-size: 18px; margin-bottom: 15px; text-align: center; color: #333; }
+        .member-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: white; border-radius: 8px; margin-bottom: 8px; }
+        .member-item:last-child { margin-bottom: 0; }
+        
+        .confetti { position: fixed; width: 10px; height: 10px; background: #f0f; top: -10px; animation: fall 3s linear; pointer-events: none; }
+        @keyframes fall { to { transform: translateY(100vh) rotate(360deg); opacity: 0; } }
+        
+        .actions { display: flex; gap: 10px; margin-top: 25px; }
+        .btn { flex: 1; display: inline-block; padding: 16px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #5a6268; }
+        
+        @media (max-width: 600px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .actions { flex-direction: column; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🏆 ¡Partida Finalizada! 🏆</h1>
+        <div class="trophy">🏆</div>
+        <h1>¡Partida Finalizada!</h1>
+        <p class="subtitle">Felicidades por completar el cuestionario</p>
 
         <div class="score-card">
-            <p>El grupo</p>
+            <p>Grupo</p>
             <h2>{{ grupo['nombre_grupo'] }}</h2>
-            <p>ha obtenido una puntuación final de</p>
+            <p>Puntuación Final</p>
             <div class="final-score">{{ grupo['current_score'] }}</div>
-            <p>en el cuestionario "{{ cuestionario['titulo'] }}"</p>
+            <p style="font-size: 14px; color: #999; margin-top: 10px;">Cuestionario: {{ cuestionario['titulo'] }}</p>
         </div>
 
-        <a href="{{ url_for('dashboard_estudiante') }}" class="btn">Volver al Panel</a>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="label">Total Preguntas</div>
+                <div class="value">{{ cuestionario['num_preguntas'] }}</div>
+            </div>
+            <div class="stat-item">
+                <div class="label">Miembros</div>
+                <div class="value">{{ miembros|length }}</div>
+            </div>
+            <div class="stat-item">
+                <div class="label">Modo</div>
+                <div class="value" style="font-size: 18px;">{{ cuestionario['modo_juego'].capitalize() }}</div>
+            </div>
+            <div class="stat-item">
+                <div class="label">Tiempo/Pregunta</div>
+                <div class="value">{{ cuestionario['tiempo_pregunta'] }}s</div>
+            </div>
+        </div>
+
+        <div class="members-section">
+            <h3>👥 Participantes</h3>
+            {% for miembro in miembros %}
+            <div class="member-item">
+                <span style="font-size: 24px;">👤</span>
+                <span>{{ miembro['nombre'] }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="actions">
+            <a href="{{ url_for('dashboard_estudiante') }}" class="btn btn-primary">🏠 Volver al Dashboard</a>
+            <a href="{{ url_for('salir_grupo') }}" class="btn btn-secondary">🚪 Salir del Grupo</a>
+        </div>
     </div>
+
+    <script>
+        // Crear confetti animado
+        function createConfetti() {
+            const colors = ['#667eea', '#764ba2', '#28a745', '#ffc107', '#dc3545'];
+            for (let i = 0; i < 50; i++) {
+                setTimeout(() => {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = Math.random() * 100 + '%';
+                    confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                    confetti.style.animationDelay = Math.random() * 0.5 + 's';
+                    document.body.appendChild(confetti);
+                    
+                    setTimeout(() => confetti.remove(), 3000);
+                }, i * 50);
+            }
+        }
+        
+        // Ejecutar confetti al cargar
+        window.addEventListener('load', () => {
+            createConfetti();
+            // Repetir el confetti después de 3 segundos
+            setTimeout(createConfetti, 3000);
+        });
+    </script>
 </body>
 </html>
-

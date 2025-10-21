@@ -151,7 +151,7 @@ def registro():
         if password != confirmar:
             flash("❌ Las contraseñas no coinciden", "error")
             return render_template("registro.html", nombre=nombre, correo=correo, rol_seleccionado=rol)
-        
+
         es_segura, mensaje_error = es_password_segura(password)
         if not es_segura:
             flash(f"❌ {mensaje_error}", "error")
@@ -172,7 +172,7 @@ def registro():
                 cursor.execute(sql, (nombre, correo, password, rol, codigo, fecha_codigo))
                 conexion.commit()
                 usuario_id = cursor.lastrowid
-            
+
             session["temp_usuario_id"] = usuario_id
             session["temp_correo"] = correo
             session["temp_nombre"] = nombre
@@ -262,10 +262,10 @@ def login():
             flash("❌ Debes verificar tu cuenta.", "error")
             session.update(temp_usuario_id=usuario['id'], temp_correo=usuario['correo'], temp_nombre=usuario['nombre'])
             return redirect(url_for("verificar_cuenta"))
-        
+
         session.permanent = True
         session.update(usuario=usuario["nombre"], correo=usuario["correo"], rol=usuario["rol"], user_id=usuario["id"])
-        
+
         return redirect(url_for("dashboard_profesor") if usuario["rol"] == "profesor" else url_for("dashboard_estudiante"))
     return render_template("iniciosesion.html")
 
@@ -522,7 +522,7 @@ def cambiar_datos_profesor():
 def eliminar_cuenta_profesor():
     if "usuario" not in session or session.get("rol") != "profesor":
         return redirect(url_for("login"))
-    
+
     password_actual = request.form.get("password_actual")
     user_id = session["user_id"]
     conexion = obtener_conexion()
@@ -541,15 +541,15 @@ def eliminar_cuenta_profesor():
                 cuestionario_ids = [c['id'] for c in cuestionarios]
                 id_placeholders = ', '.join(['%s'] * len(cuestionario_ids))
                 cursor.execute(f"DELETE FROM preguntas WHERE cuestionario_id IN ({id_placeholders})", tuple(cuestionario_ids))
-            
+
             cursor.execute("DELETE FROM cuestionarios WHERE profesor_id = %s", (user_id,))
             cursor.execute("DELETE FROM usuarios WHERE id = %s", (user_id,))
-            
+
             conexion.commit()
             session.clear()
             flash("✅ Tu cuenta y todos tus datos han sido eliminados permanentemente.", "success")
             return redirect(url_for('login'))
-            
+
     except Exception as e:
         flash("❌ Ocurrió un error al intentar eliminar la cuenta.", "error")
         print(f"Error al eliminar cuenta: {e}")
@@ -564,7 +564,7 @@ def eliminar_cuenta_profesor():
 def dashboard_estudiante():
     if "usuario" not in session or session.get("rol") != "estudiante":
         return redirect(url_for("login"))
-    
+
     grupo_info, miembros = None, []
     user_id = session.get("user_id")
     conexion = obtener_conexion()
@@ -581,10 +581,10 @@ def dashboard_estudiante():
         if conexion and conexion.open: conexion.close()
 
     # <<< LA CORRECCIÓN ESTÁ AQUÍ >>>
-    return render_template("dashboard_estudiante.html", 
-                           nombre=session["usuario"], 
-                           grupo=grupo_info, 
-                           miembros=miembros, 
+    return render_template("dashboard_estudiante.html",
+                           nombre=session["usuario"],
+                           grupo=grupo_info,
+                           miembros=miembros,
                            user_id=user_id) # Se añade user_id al contexto
 
 @app.route("/crear_grupo", methods=["POST"])
@@ -672,35 +672,65 @@ def salir_grupo():
 
 @app.route("/juego_grupo", methods=["POST"])
 def juego_grupo():
+    """Inicia un juego grupal"""
     if "usuario" not in session or session.get("rol") != "estudiante":
         return redirect(url_for("login"))
 
     pin = request.form.get("pin")
     user_id = session["user_id"]
+
+    if not pin:
+        flash("❌ Debes ingresar un código PIN.", "error")
+        return redirect(url_for("dashboard_estudiante"))
+
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
             # Obtener el grupo del usuario
-            cursor.execute("SELECT g.id, g.lider_id FROM grupos g JOIN usuarios u ON g.id = u.grupo_id WHERE u.id = %s", (user_id,))
+            cursor.execute("""
+                SELECT g.id, g.lider_id, g.nombre_grupo
+                FROM grupos g
+                JOIN usuarios u ON g.id = u.grupo_id
+                WHERE u.id = %s
+            """, (user_id,))
             grupo = cursor.fetchone()
-            if not grupo or grupo['lider_id'] != user_id:
+
+            if not grupo:
+                flash("❌ Debes estar en un grupo para jugar en modo grupal.", "error")
+                return redirect(url_for('dashboard_estudiante'))
+
+            if grupo['lider_id'] != user_id:
                 flash("❌ Solo el líder del grupo puede iniciar una partida.", "error")
                 return redirect(url_for('dashboard_estudiante'))
 
             # Verificar que el PIN del cuestionario existe
-            cursor.execute("SELECT id FROM cuestionarios WHERE codigo_pin = %s", (pin,))
-            if not cursor.fetchone():
+            cursor.execute("SELECT id, titulo FROM cuestionarios WHERE codigo_pin = %s", (pin,))
+            cuestionario = cursor.fetchone()
+
+            if not cuestionario:
                 flash(f"❌ No se encontró ningún cuestionario con el PIN '{pin}'.", "error")
                 return redirect(url_for('dashboard_estudiante'))
-            
-            # Actualizar el estado del grupo para indicar que está en una sala de espera
-            cursor.execute("UPDATE grupos SET active_pin = %s, game_state = 'waiting' WHERE id = %s", (pin, grupo['id']))
+
+            # Inicializar el juego del grupo
+            cursor.execute("""
+                UPDATE grupos
+                SET active_pin = %s,
+                    game_state = 'waiting',
+                    current_question_index = 0,
+                    current_score = 0
+                WHERE id = %s
+            """, (pin, grupo['id']))
             conexion.commit()
 
+            print(f"✅ Juego iniciado - Grupo: {grupo['id']}, PIN: {pin}, Estado: waiting")
+
             return redirect(url_for('sala_espera_grupo', grupo_id=grupo['id']))
+
     except Exception as e:
         flash("❌ Error al iniciar el juego grupal.", "error")
-        print(f"Error en /juego_grupo: {e}")
+        print(f"❌ Error en /juego_grupo: {e}")
+        import traceback
+        traceback.print_exc()
         return redirect(url_for('dashboard_estudiante'))
     finally:
         if conexion and conexion.open:
@@ -717,7 +747,7 @@ def sala_espera_grupo(grupo_id):
             grupo = cursor.fetchone()
             cursor.execute("SELECT nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
             miembros = cursor.fetchall()
-            
+
             if not grupo:
                 return redirect(url_for('dashboard_estudiante'))
 
@@ -727,15 +757,50 @@ def sala_espera_grupo(grupo_id):
 
 @app.route("/iniciar_partida_grupal/<int:grupo_id>", methods=["POST"])
 def iniciar_partida_grupal(grupo_id):
-    if "usuario" not in session: return jsonify({"success": False}), 403
+    """El líder inicia oficialmente la partida desde la sala de espera"""
+    if "usuario" not in session:
+        return jsonify({"success": False, "message": "No autenticado"}), 403
+
+    user_id = session['user_id']
     conexion = obtener_conexion()
+
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("UPDATE grupos SET game_state = 'playing', current_question_index = 0, current_score = 0 WHERE id = %s AND lider_id = %s", (grupo_id, session['user_id']))
+            # Verificar que quien inicia es el líder
+            cursor.execute("SELECT lider_id, active_pin FROM grupos WHERE id = %s", (grupo_id,))
+            grupo = cursor.fetchone()
+
+            if not grupo:
+                return jsonify({"success": False, "message": "Grupo no encontrado"}), 404
+
+            if grupo['lider_id'] != user_id:
+                return jsonify({"success": False, "message": "Solo el líder puede iniciar"}), 403
+
+            if not grupo['active_pin']:
+                return jsonify({"success": False, "message": "No hay cuestionario asignado"}), 400
+
+            # Cambiar estado a 'playing' y resetear índices
+            cursor.execute("""
+                UPDATE grupos
+                SET game_state = 'playing',
+                    current_question_index = 0,
+                    current_score = 0
+                WHERE id = %s
+            """, (grupo_id,))
             conexion.commit()
-        return jsonify({"success": True})
+
+            print(f"✅ Partida iniciada - Grupo ID: {grupo_id}, Estado: playing")
+
+            return jsonify({"success": True})
+
+    except Exception as e:
+        print(f"❌ Error en iniciar_partida_grupal: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
     finally:
-        if conexion and conexion.open: conexion.close()
+        if conexion and conexion.open:
+            conexion.close()
 
 @app.route("/partida_grupal/<int:grupo_id>")
 def partida_grupal(grupo_id):
@@ -749,7 +814,7 @@ def partida_grupal(grupo_id):
             cuestionario = cursor.fetchone()
     finally:
         if conexion and conexion.open: conexion.close()
-        
+
     return render_template("partida_grupal.html", grupo=grupo, cuestionario=cuestionario, user_id=session['user_id'])
 
 @app.route("/resultados_grupo/<int:grupo_id>")
@@ -773,64 +838,187 @@ def resultados_grupo(grupo_id):
 
 @app.route("/api/estado_grupo/<int:grupo_id>")
 def api_estado_grupo(grupo_id):
+    """Obtiene el estado actual del grupo"""
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT game_state, active_pin FROM grupos WHERE id = %s", (grupo_id,))
+            cursor.execute("""
+                SELECT game_state, active_pin, current_question_index, current_score
+                FROM grupos
+                WHERE id = %s
+            """, (grupo_id,))
             estado = cursor.fetchone()
+
+            if not estado:
+                return jsonify(None)  # El grupo fue eliminado
+
             return jsonify(estado)
+    except Exception as e:
+        print(f"Error en api_estado_grupo: {e}")
+        return jsonify({"error": str(e)}), 500
     finally:
-        if conexion and conexion.open: conexion.close()
+        if conexion and conexion.open:
+            conexion.close()
 
 @app.route("/api/get_pregunta/<int:grupo_id>")
 def api_get_pregunta(grupo_id):
+    """Obtiene la pregunta actual del juego grupal"""
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT active_pin, current_question_index FROM grupos WHERE id = %s", (grupo_id,))
+            # Obtener estado del juego
+            cursor.execute("""
+                SELECT g.active_pin, g.current_question_index, g.current_score, g.game_state
+                FROM grupos g
+                WHERE g.id = %s
+            """, (grupo_id,))
             juego = cursor.fetchone()
-            cursor.execute("SELECT id, num_preguntas FROM cuestionarios WHERE codigo_pin = %s", (juego['active_pin'],))
+
+            if not juego or not juego['active_pin']:
+                return jsonify({"error": "No hay juego activo"}), 404
+
+            # Obtener información del cuestionario
+            cursor.execute("""
+                SELECT id, num_preguntas, tiempo_pregunta
+                FROM cuestionarios
+                WHERE codigo_pin = %s
+            """, (juego['active_pin'],))
             cuestionario = cursor.fetchone()
 
-            if juego['current_question_index'] >= cuestionario['num_preguntas']:
-                return jsonify({"finished": True})
+            if not cuestionario:
+                return jsonify({"error": "Cuestionario no encontrado"}), 404
 
-            cursor.execute("SELECT * FROM preguntas WHERE cuestionario_id = %s ORDER BY orden LIMIT 1 OFFSET %s", (cuestionario['id'], juego['current_question_index']))
+            # Verificar si el juego ha terminado
+            if juego['current_question_index'] >= cuestionario['num_preguntas']:
+                return jsonify({
+                    "finished": True,
+                    "score": juego['current_score']
+                })
+
+            # Obtener la pregunta actual
+            cursor.execute("""
+                SELECT id, pregunta, opcion_a, opcion_b, opcion_c, opcion_d
+                FROM preguntas
+                WHERE cuestionario_id = %s
+                ORDER BY orden
+                LIMIT 1 OFFSET %s
+            """, (cuestionario['id'], juego['current_question_index']))
+
             pregunta = cursor.fetchone()
+
+            if not pregunta:
+                return jsonify({"error": "Pregunta no encontrada"}), 404
+
             return jsonify({
                 "pregunta": pregunta,
                 "index": juego['current_question_index'],
-                "total": cuestionario['num_preguntas']
+                "total": cuestionario['num_preguntas'],
+                "score": juego['current_score'],
+                "tiempo_pregunta": cuestionario['tiempo_pregunta'],
+                "finished": False
             })
+
+    except Exception as e:
+        print(f"Error en api_get_pregunta: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Error del servidor: {str(e)}"}), 500
     finally:
-        if conexion and conexion.open: conexion.close()
+        if conexion and conexion.open:
+            conexion.close()
+
 
 @app.route("/api/responder/<int:grupo_id>", methods=["POST"])
 def api_responder(grupo_id):
-    if "usuario" not in session or session['user_id'] != obtener_conexion().cursor().execute("SELECT lider_id FROM grupos WHERE id = %s", (grupo_id,)).fetchone()['lider_id']:
-        return jsonify({"success": False, "message": "Solo el líder puede responder"}), 403
-        
+    """Procesa la respuesta del líder del grupo"""
+    if "usuario" not in session:
+        return jsonify({"success": False, "message": "No autenticado"}), 403
+
+    user_id = session['user_id']
     respuesta_usuario = request.json.get('respuesta')
+
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT g.current_question_index, c.id as cuestionario_id FROM grupos g JOIN cuestionarios c ON g.active_pin = c.codigo_pin WHERE g.id = %s", (grupo_id,))
+            # Verificar que quien responde es el líder
+            cursor.execute("SELECT lider_id FROM grupos WHERE id = %s", (grupo_id,))
+            grupo = cursor.fetchone()
+
+            if not grupo or grupo['lider_id'] != user_id:
+                return jsonify({"success": False, "message": "Solo el líder puede responder"}), 403
+
+            # Obtener información del juego actual
+            cursor.execute("""
+                SELECT g.current_question_index, g.current_score, c.id as cuestionario_id, c.num_preguntas
+                FROM grupos g
+                JOIN cuestionarios c ON g.active_pin = c.codigo_pin
+                WHERE g.id = %s
+            """, (grupo_id,))
             juego = cursor.fetchone()
 
-            cursor.execute("SELECT respuesta_correcta FROM preguntas WHERE cuestionario_id = %s ORDER BY orden LIMIT 1 OFFSET %s", (juego['cuestionario_id'], juego['current_question_index']))
-            pregunta_actual = cursor.fetchone()
-            
-            es_correcta = (respuesta_usuario == pregunta_actual['respuesta_correcta'])
-            if es_correcta:
-                # Simple puntuación: 100 puntos por respuesta correcta
-                cursor.execute("UPDATE grupos SET current_score = current_score + 100 WHERE id = %s", (grupo_id,))
+            if not juego:
+                return jsonify({"success": False, "message": "No se encontró el juego"}), 404
 
-            cursor.execute("UPDATE grupos SET current_question_index = current_question_index + 1 WHERE id = %s", (grupo_id,))
+            # Verificar si el juego ya terminó
+            if juego['current_question_index'] >= juego['num_preguntas']:
+                return jsonify({"success": False, "message": "El juego ya terminó", "finished": True}), 400
+
+            # Obtener la pregunta actual
+            cursor.execute("""
+                SELECT respuesta_correcta
+                FROM preguntas
+                WHERE cuestionario_id = %s
+                ORDER BY orden
+                LIMIT 1 OFFSET %s
+            """, (juego['cuestionario_id'], juego['current_question_index']))
+
+            pregunta_actual = cursor.fetchone()
+
+            if not pregunta_actual:
+                return jsonify({"success": False, "message": "No se encontró la pregunta"}), 404
+
+            # Validar la respuesta
+            es_correcta = (respuesta_usuario == pregunta_actual['respuesta_correcta'])
+            puntos_ganados = 0
+
+            if es_correcta:
+                puntos_ganados = 100  # Puedes ajustar la puntuación
+                nuevo_score = juego['current_score'] + puntos_ganados
+                cursor.execute("UPDATE grupos SET current_score = %s WHERE id = %s",
+                             (nuevo_score, grupo_id))
+
+            # Avanzar a la siguiente pregunta
+            nuevo_index = juego['current_question_index'] + 1
+            cursor.execute("UPDATE grupos SET current_question_index = %s WHERE id = %s",
+                         (nuevo_index, grupo_id))
+
+            # Verificar si es la última pregunta
+            es_ultima_pregunta = (nuevo_index >= juego['num_preguntas'])
+
+            if es_ultima_pregunta:
+                # Marcar el juego como terminado
+                cursor.execute("UPDATE grupos SET game_state = 'finished' WHERE id = %s", (grupo_id,))
+
             conexion.commit()
-            
-            return jsonify({"success": True, "es_correcta": es_correcta})
+
+            return jsonify({
+                "success": True,
+                "es_correcta": es_correcta,
+                "puntos_ganados": puntos_ganados,
+                "respuesta_correcta": pregunta_actual['respuesta_correcta'],
+                "es_ultima_pregunta": es_ultima_pregunta,
+                "nuevo_index": nuevo_index,
+                "nuevo_score": juego['current_score'] + puntos_ganados if es_correcta else juego['current_score']
+            })
+
+    except Exception as e:
+        print(f"Error en api_responder: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": f"Error del servidor: {str(e)}"}), 500
     finally:
-        if conexion and conexion.open: conexion.close()
+        if conexion and conexion.open:
+            conexion.close()
 
 @app.route("/cambiar_datos_estudiante", methods=["GET", "POST"])
 def cambiar_datos_estudiante():
