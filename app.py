@@ -522,7 +522,7 @@ def cambiar_datos_profesor():
 def eliminar_cuenta_profesor():
     if "usuario" not in session or session.get("rol") != "profesor":
         return redirect(url_for("login"))
-    
+
     password_actual = request.form.get("password_actual")
     user_id = session["user_id"]
     conexion = obtener_conexion()
@@ -541,15 +541,15 @@ def eliminar_cuenta_profesor():
                 cuestionario_ids = [c['id'] for c in cuestionarios]
                 id_placeholders = ', '.join(['%s'] * len(cuestionario_ids))
                 cursor.execute(f"DELETE FROM preguntas WHERE cuestionario_id IN ({id_placeholders})", tuple(cuestionario_ids))
-            
+
             cursor.execute("DELETE FROM cuestionarios WHERE profesor_id = %s", (user_id,))
             cursor.execute("DELETE FROM usuarios WHERE id = %s", (user_id,))
-            
+
             conexion.commit()
             session.clear()
             flash("✅ Tu cuenta y todos tus datos han sido eliminados permanentemente.", "success")
             return redirect(url_for('login'))
-            
+
     except Exception as e:
         flash("❌ Ocurrió un error al intentar eliminar la cuenta.", "error")
         print(f"Error al eliminar cuenta: {e}")
@@ -564,7 +564,7 @@ def eliminar_cuenta_profesor():
 def dashboard_estudiante():
     if "usuario" not in session or session.get("rol") != "estudiante":
         return redirect(url_for("login"))
-    
+
     grupo_info, miembros = None, []
     user_id = session.get("user_id")
     conexion = obtener_conexion()
@@ -743,7 +743,7 @@ def sala_espera_grupo(grupo_id):
             grupo = cursor.fetchone()
             cursor.execute("SELECT id, nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
             miembros = cursor.fetchall()
-            
+
             if not grupo:
                 return redirect(url_for('dashboard_estudiante'))
 
@@ -808,14 +808,14 @@ def partida_grupal(grupo_id):
             cuestionario = cursor.fetchone()
     finally:
         if conexion and conexion.open: conexion.close()
-        
+
     return render_template("partida_grupal.html", grupo=grupo, cuestionario=cuestionario, user_id=session['user_id'])
 
 @app.route("/resultados_grupo/<int:grupo_id>")
 def resultados_grupo(grupo_id):
-    if "usuario" not in session: 
+    if "usuario" not in session:
         return redirect(url_for('login'))
-    
+
     user_id = session.get("user_id")
     conexion = obtener_conexion()
     try:
@@ -823,46 +823,41 @@ def resultados_grupo(grupo_id):
             # Verificar que el usuario pertenece al grupo
             cursor.execute("SELECT grupo_id FROM usuarios WHERE id = %s", (user_id,))
             usuario = cursor.fetchone()
-            
+
             if not usuario or usuario['grupo_id'] != grupo_id:
                 flash("❌ No perteneces a este grupo", "error")
                 return redirect(url_for('dashboard_estudiante'))
-            
+
             # Obtener información del grupo
             cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
             grupo = cursor.fetchone()
-            
+
             if not grupo:
                 flash("❌ Grupo no encontrado", "error")
                 return redirect(url_for('dashboard_estudiante'))
-            
+
             # Obtener información del cuestionario usando el PIN que debería estar en el grupo
             cursor.execute("SELECT * FROM cuestionarios WHERE codigo_pin = %s", (grupo['active_pin'],))
             cuestionario = cursor.fetchone()
-            
-            # Si no hay cuestionario, es un error o el juego ya se limpió, pero podemos continuar con los datos del grupo.
+
             if not cuestionario:
-                 flash("No se pudo cargar la información completa del cuestionario, pero aquí están tus resultados.", "error")
+                flash("No se pudo cargar la información completa del cuestionario, pero aquí están tus resultados.", "info")
 
             # Obtener miembros que participaron
             cursor.execute("SELECT nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
             miembros = cursor.fetchall()
-            
-            # Limpiar estado del juego para futuras partidas
-            cursor.execute("""
-                UPDATE grupos 
-                SET active_pin = NULL, 
-                    game_state = NULL, 
-                    current_question_index = 0
-                WHERE id = %s
-            """, (grupo_id,))
-            conexion.commit()
+
+            # --- BLOQUE ELIMINADO ---
+            # Ya no limpiamos el estado aquí.
+            # La limpieza se hará al iniciar la PRÓXIMA partida.
+            # conexion.commit() <--- Esto también se va si estaba después del execute.
+
     finally:
-        if conexion and conexion.open: 
+        if conexion and conexion.open:
             conexion.close()
-    
-    return render_template("resultados_grupo.html", 
-                           grupo=grupo, 
+
+    return render_template("resultados_grupo.html",
+                           grupo=grupo,
                            cuestionario=cuestionario,
                            miembros=miembros)
 
