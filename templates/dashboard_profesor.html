@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Profesor - Cuestionarios</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     <style>
         * {
             margin: 0;
@@ -546,34 +547,46 @@
             </div>
 
             <div class="quiz-grid">
-                {% if cuestionarios %}
-                    {% for cuestionario in cuestionarios %}
-                    <div class="quiz-card">
-                        <h3>{{ cuestionario['titulo'] }}</h3>
-                        <div class="quiz-meta">
-                            <span>📝 {{ cuestionario['total_preguntas'] }} preguntas</span>
-                            <span>⏱️ {{ cuestionario['tiempo_pregunta'] }} seg/preg</span>
-                        </div>
-                        <p style="color: #666; font-size: 14px;">{{ cuestionario['descripcion'] }}</p>
-                        <span class="badge badge-active" style="margin-top: 10px; display: inline-block;">
-                            PIN: {{ cuestionario['codigo_pin'] }}
-                        </span>
-                        <div class="quiz-actions">
-                            <button class="btn-small btn-play" onclick="startQuiz('{{ cuestionario['codigo_pin'] }}')">▶️ Iniciar</button>
-                            <button class="btn-small btn-edit" onclick="editQuiz({{ cuestionario['id'] }})">✏️ Editar</button>
-                            <button class="btn-small btn-delete" onclick="deleteQuiz({{ cuestionario['id'] }})">🗑️</button>
-                        </div>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #999;">
-                        <p style="font-size: 48px; margin-bottom: 10px;">📝</p>
-                        <p style="font-size: 18px; margin-bottom: 10px;">No tienes cuestionarios creados</p>
-                        <p style="font-size: 14px;">Haz clic en "Crear Nuevo Cuestionario" para comenzar</p>
-                    </div>
-                {% endif %}
+    {% if cuestionarios %}
+        {% for cuestionario in cuestionarios %}
+        <div class="quiz-card">
+            <h3>{{ cuestionario['titulo'] }}</h3>
+            <div class="quiz-meta">
+                <span>📝 {{ cuestionario['total_preguntas'] }} preguntas</span>
+                <span>⏱️ {{ cuestionario['tiempo_pregunta'] }} seg/preg</span>
+            </div>
+            <p style="color: #666; font-size: 14px;">{{ cuestionario['descripcion'] }}</p>
+
+            <!-- Mostrar el modo de juego -->
+            <div style="margin-top: 10px; display: flex; gap: 10px; align-items: center;">
+                <span class="badge badge-active">PIN: {{ cuestionario['codigo_pin'] }}</span>
+                <span class="badge" style="{% if cuestionario['modo_juego'] == 'grupal' %}background: #d1ecf1; color: #0c5460;{% else %}background: #fff3cd; color: #856404;{% endif %}">
+                    {% if cuestionario['modo_juego'] == 'grupal' %}👥 Grupal{% else %}👤 Individual{% endif %}
+                </span>
+            </div>
+
+            <div class="quiz-actions">
+                <button class="btn-small btn-play" onclick="startQuiz('{{ cuestionario['codigo_pin'] }}', '{{ cuestionario['modo_juego'] }}')">
+                    {% if cuestionario['modo_juego'] == 'grupal' %}
+                    🎮 Sala Grupal
+                    {% else %}
+                    📋 Ver PIN
+                    {% endif %}
+                </button>
+                <button class="btn-small btn-edit" onclick="editQuiz({{ cuestionario['id'] }})">✏️ Editar</button>
+                <button class="btn-small btn-delete" onclick="deleteQuiz({{ cuestionario['id'] }})">🗑️</button>
+                <button class="btn-small" style="background: #17a2b8; color: white;" onclick="exportarResultados({{ cuestionario['id'] }})">📊 Excel</button>
             </div>
         </div>
+        {% endfor %}
+    {% else %}
+        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #999;">
+            <p style="font-size: 48px; margin-bottom: 10px;">📝</p>
+            <p style="font-size: 18px; margin-bottom: 10px;">No tienes cuestionarios creados</p>
+            <p style="font-size: 14px;">Haz clic en "Crear Nuevo Cuestionario" para comenzar</p>
+        </div>
+    {% endif %}
+</div>
 
         <!-- Últimas Partidas -->
         <div class="content-section">
@@ -662,19 +675,35 @@
 
         function confirmarCrearCuestionario(event) {
             event.preventDefault();
-            
+
             const form = document.getElementById('formCrearCuestionario');
             const titulo = form.querySelector('[name="titulo"]').value;
             const numPreguntas = form.querySelector('[name="num_preguntas"]').value;
-            
+
             if (confirm(`¿Estás seguro de crear el cuestionario "${titulo}" con ${numPreguntas} preguntas?\n\nSerás redirigido para agregar las preguntas.`)) {
                 form.submit();
             }
         }
 
-        function startQuiz(code) {
-            alert(`Iniciando cuestionario con código: ${code}\n\nLos estudiantes podrán unirse usando este código.`);
-        }
+        function startQuiz(code, modoJuego) {
+    if (modoJuego === 'grupal') {
+        window.location.href = `/sala_profesor/${code}`;
+    } else {
+        const mensaje = `📋 Cuestionario Individual\n\n` +
+                       `PIN: ${code}\n\n` +
+                       `Los estudiantes pueden usar este código para:\n` +
+                       `• Visualizar las preguntas del cuestionario\n` +
+                       `• Estudiar el contenido\n\n` +
+                       `Nota: Este cuestionario está en modo INDIVIDUAL, no se puede jugar en grupo.`;
+        alert(mensaje);
+    }
+}
+
+function exportarResultados(cuestionarioId) {
+    if (confirm('¿Deseas exportar los resultados de este cuestionario a Excel?')) {
+        window.location.href = `/exportar_resultados/${cuestionarioId}`;
+    }
+}
 
         function editQuiz(id) {
             window.location.href = `/editar_cuestionario/${id}`;
@@ -713,7 +742,7 @@
                     arrow.classList.remove('active');
                 }
             }
-            
+
             // Cerrar modal si se hace clic fuera
             if (event.target.classList.contains('modal')) {
                 event.target.classList.remove('show');

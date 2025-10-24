@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Estudiante - Cuestionarios</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f6fa; min-height: 100vh; }
@@ -51,7 +52,7 @@
         .btn-danger { background: #e74c3c; color: white; }
         .btn-danger:hover { background: #c0392b; }
         @media (max-width: 900px) { .grid-container { grid-template-columns: 1fr; } }
-        
+
         /* === ESTILOS AÑADIDOS INICIAN AQUÍ === */
         .recent-list {
             display: flex;
@@ -164,7 +165,7 @@
                         <p>Debes estar en un grupo para jugar. Crea uno o únete a uno existente.</p>
                     {% endif %}
                 </div>
-                
+
                 {% if cuestionarios_recientes %}
                 <div class="content-section">
                     <div class="section-header">
@@ -175,7 +176,7 @@
                         <div class="recent-item">
                             <div class="item-icon">📚</div>
                             <div class="item-details">
-                                <h4>{{ c.titulo_cuestionario }}</h4>                                
+                                <h4>{{ c.titulo_cuestionario }}</h4>
                                 <p>Finalizado: {{ c.fecha_partida.strftime('%d/%m/%Y a las %H:%M') }}</p>
                             </div>
                             <div class="item-score">
@@ -188,7 +189,7 @@
                 </div>
                 {% endif %}
                             </div>
-            
+
             <aside class="sidebar">
                 <div class="content-section">
                     <div class="section-header">

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exportación Exitosa - Google Drive</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+
+        .container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); max-width: 600px; width: 100%; text-align: center; animation: slideUp 0.5s ease; }
+
+        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+        .success-icon { font-size: 80px; margin-bottom: 20px; animation: bounce 1s ease; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+
+        h1 { color: #28a745; font-size: 32px; margin-bottom: 15px; }
+        .subtitle { color: #666; font-size: 16px; margin-bottom: 30px; }
+
+        .file-info { background: #f8f9fa; padding: 20px; border-radius: 15px; margin-bottom: 25px; text-align: left; }
+        .file-info h3 { color: #333; font-size: 18px; margin-bottom: 15px; text-align: center; }
+        .file-info p { color: #666; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; word-break: break-all; }
+        .file-info strong { color: #333; min-width: 80px; }
+
+        .actions { display: flex; gap: 15px; margin-top: 30px; }
+        .btn { flex: 1; padding: 15px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .btn-primary { background: #4285F4; color: white; }
+        .btn-primary:hover { background: #3367D6; transform: translateY(-2px); }
+        .btn-secondary { background: #28a745; color: white; }
+        .btn-secondary:hover { background: #218838; transform: translateY(-2px); }
+        .btn-tertiary { background: #6c757d; color: white; }
+        .btn-tertiary:hover { background: #5a6268; }
+
+        .tip { background: #e3f2fd; border-left: 4px solid #2196F3; padding: 15px; border-radius: 8px; margin-top: 25px; text-align: left; }
+        .tip h4 { color: #1976d2; font-size: 16px; margin-bottom: 10px; }
+        .tip p { color: #0d47a1; font-size: 14px; line-height: 1.6; }
+
+        @media (max-width: 768px) {
+            .container { padding: 30px 20px; }
+            .success-icon { font-size: 60px; }
+            h1 { font-size: 26px; }
+            .actions { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✅</div>
+        <h1>¡Exportación Exitosa!</h1>
+        <p class="subtitle">Tu archivo ha sido guardado en Google Drive</p>
+
+        <div class="file-info">
+            <h3>📄 Información del Archivo</h3>
+            <p><strong>Nombre:</strong> <span>{{ filename }}</span></p>
+            <p><strong>Ubicación:</strong> <span>Resultados_Cuestionarios/</span></p>
+            <p><strong>Estado:</strong> <span style="color: #28a745;">✓ Guardado exitosamente</span></p>
+        </div>
+
+        <div class="actions">
+            <a href="{{ drive_link }}" target="_blank" class="btn btn-primary">
+                <span>☁️</span>
+                <span>Ver en Drive</span>
+            </a>
+            <a href="{{ download_link }}" target="_blank" class="btn btn-secondary">
+                <span>📥</span>
+                <span>Descargar</span>
+            </a>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <a href="{{ url_for('dashboard_profesor') }}" class="btn btn-tertiary">
+                <span>🏠</span>
+                <span>Volver al Dashboard</span>
+            </a>
+        </div>
+
+        <div class="tip">
+            <h4>💡 Consejos</h4>
+            <p>• El archivo está en la carpeta "Resultados_Cuestionarios" de tu Google Drive</p>
+            <p>• Puedes compartir el enlace con otros profesores</p>
+            <p>• El archivo se puede editar y actualizar en cualquier momento</p>
+            <p>• Usa Google Sheets para ver el archivo en línea</p>
+        </div>
+    </div>
+</body>
+</html>

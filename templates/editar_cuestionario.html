@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editar Cuestionario - {{ cuestionario['titulo'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     <style>
         * {
             margin: 0;
@@ -365,7 +366,7 @@
         <!-- Información del Cuestionario -->
         <div class="info-section">
             <h2>📋 Información General</h2>
-            
+
             <div class="form-group">
                 <label for="titulo">Título del Cuestionario</label>
                 <input type="text" id="titulo" value="{{ cuestionario['titulo'] }}" required>
@@ -421,7 +422,7 @@
     <script>
         let contadorPreguntas = 0;
         let maxPreguntas = {{ cuestionario['num_preguntas'] }};
-        
+
         // Cargar preguntas existentes
         const preguntasExistentes = [
             {% for pregunta in preguntas %}
@@ -442,7 +443,7 @@
                 contadorPreguntas++;
                 crearPreguntaCard(pregunta);
             });
-            
+
             actualizarContador();
         };
 
@@ -463,7 +464,7 @@
             const antiguoLimite = maxPreguntas;
             maxPreguntas = nuevoLimite;
             actualizarContador();
-            
+
             if (nuevoLimite > antiguoLimite) {
                 mostrarAlerta(`✅ Límite actualizado a ${maxPreguntas} preguntas. Ahora puedes agregar ${nuevoLimite - contadorPreguntas} preguntas más.`, 'success');
             } else if (nuevoLimite === antiguoLimite) {
@@ -548,7 +549,7 @@
 
         function agregarPregunta() {
             const limiteActual = parseInt(document.getElementById('num_preguntas').value);
-            
+
             if (contadorPreguntas >= limiteActual) {
                 mostrarAlerta(`❌ Ya has alcanzado el límite de ${limiteActual} pregunta(s). No puedes agregar más.`, 'error');
                 return;
@@ -557,7 +558,7 @@
             contadorPreguntas++;
             crearPreguntaCard();
             actualizarContador();
-            
+
             setTimeout(() => {
                 const nuevaPregunta = document.querySelector(`[data-pregunta="${contadorPreguntas}"]`);
                 nuevaPregunta.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -576,42 +577,42 @@
         function renumerarPreguntas() {
             const cards = document.querySelectorAll('.pregunta-card');
             contadorPreguntas = cards.length; // Actualizar el contador basado en las cards que existen
-            
+
             cards.forEach((card, index) => {
                 const nuevoNumero = index + 1;
                 const numeroAntiguo = card.getAttribute('data-pregunta');
-                
+
                 // Actualizar atributo data-pregunta
                 card.setAttribute('data-pregunta', nuevoNumero);
-                
+
                 // Actualizar el texto del número de pregunta
                 card.querySelector('.pregunta-numero').textContent = `Pregunta ${nuevoNumero}`;
-                
+
                 // Actualizar IDs y names de todos los campos
                 const preguntaTextarea = card.querySelector(`textarea[id^="pregunta_"]`);
                 if (preguntaTextarea) {
                     preguntaTextarea.id = `pregunta_${nuevoNumero}`;
                 }
-                
+
                 const opcionA = card.querySelector(`input[id^="opcion_a_"]`);
                 if (opcionA) opcionA.id = `opcion_a_${nuevoNumero}`;
-                
+
                 const opcionB = card.querySelector(`input[id^="opcion_b_"]`);
                 if (opcionB) opcionB.id = `opcion_b_${nuevoNumero}`;
-                
+
                 const opcionC = card.querySelector(`input[id^="opcion_c_"]`);
                 if (opcionC) opcionC.id = `opcion_c_${nuevoNumero}`;
-                
+
                 const opcionD = card.querySelector(`input[id^="opcion_d_"]`);
                 if (opcionD) opcionD.id = `opcion_d_${nuevoNumero}`;
-                
+
                 // Actualizar radios de respuesta correcta
                 const radios = card.querySelectorAll('input[type="radio"]');
                 radios.forEach(radio => {
                     radio.name = `respuesta_${nuevoNumero}`;
                     radio.id = radio.id.replace(/_\d+$/, `_${nuevoNumero}`);
                 });
-                
+
                 // Actualizar labels de los radios
                 const labels = card.querySelectorAll('.radio-item label');
                 labels.forEach((label, idx) => {
@@ -620,7 +621,7 @@
                         label.setAttribute('for', `resp_${letras[idx]}_${nuevoNumero}`);
                     }
                 });
-                
+
                 // Actualizar onclick del botón eliminar
                 const btnEliminar = card.querySelector('.btn-eliminar');
                 if (btnEliminar) {
@@ -632,9 +633,9 @@
         function actualizarContador() {
             const limiteActual = parseInt(document.getElementById('num_preguntas').value);
             document.getElementById('contador').textContent = `${contadorPreguntas} / ${limiteActual} Preguntas`;
-            
+
             const btnAgregar = document.getElementById('btnAgregar');
-            
+
             if (contadorPreguntas >= limiteActual) {
                 btnAgregar.disabled = true;
                 btnAgregar.style.opacity = '0.5';
@@ -679,7 +680,7 @@
 
             for (let card of cards) {
                 const numero = card.getAttribute('data-pregunta');
-                
+
                 const pregunta = document.getElementById(`pregunta_${numero}`).value.trim();
                 const opcion_a = document.getElementById(`opcion_a_${numero}`).value.trim();
                 const opcion_b = document.getElementById(`opcion_b_${numero}`).value.trim();
@@ -766,10 +767,10 @@
             const alert = document.getElementById('alert');
             alert.className = `alert alert-${tipo} show`;
             alert.textContent = mensaje;
-            
+
             // Scroll suave hacia el botón de guardar
             document.getElementById('btnGuardar').scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
+
             setTimeout(() => {
                 alert.classList.remove('show');
             }, 6000);

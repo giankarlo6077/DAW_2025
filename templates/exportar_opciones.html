@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exportar Resultados - {{ cuestionario['titulo'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+
+        .container { max-width: 800px; margin: 0 auto; }
+
+        .header { background: white; padding: 30px; border-radius: 20px; margin-bottom: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; }
+        .header h1 { color: #333; font-size: 28px; margin-bottom: 10px; }
+        .header .subtitle { color: #666; font-size: 16px; }
+
+        .info-card { background: #f8f9fa; padding: 20px; border-radius: 15px; margin-bottom: 30px; border-left: 4px solid #667eea; }
+        .info-card h3 { color: #333; font-size: 18px; margin-bottom: 10px; }
+        .info-card p { color: #666; font-size: 14px; line-height: 1.6; }
+        .info-card .stat { font-size: 24px; font-weight: bold; color: #667eea; margin-top: 10px; }
+
+        .export-options { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+
+        .option-card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); text-align: center; transition: all 0.3s; }
+        .option-card:hover { transform: translateY(-5px); box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
+        .option-card .icon { font-size: 64px; margin-bottom: 20px; }
+        .option-card h3 { color: #333; font-size: 22px; margin-bottom: 15px; }
+        .option-card p { color: #666; font-size: 14px; margin-bottom: 20px; line-height: 1.6; }
+        .option-card .btn { display: inline-block; padding: 15px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; }
+        .option-card .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
+        
+        /* Botón de Conectar (gris) */
+        .btn-connect { background: #f8f9fa; color: #333; border: 2px solid #e0e0e0; }
+        .btn-connect:hover { background: #e9ecef; box-shadow: none; }
+
+
+        .option-card.excel .icon { color: #217346; }
+        .option-card.drive .icon { color: #4285F4; }
+
+        .alert { padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+        .alert-warning { background: #fff3cd; border-left: 4px solid #ffc107; color: #856404; }
+        .alert-success { background: #d4edda; border-left: 4px solid #28a745; color: #155724; }
+        .alert-error { background: #f8d7da; border-left: 4px solid #dc3545; color: #721c24; }
+
+        .btn-back { display: inline-block; padding: 12px 30px; background: white; color: #667eea; border: 2px solid #667eea; border-radius: 10px; text-decoration: none; font-weight: 600; margin-top: 20px; transition: all 0.3s; }
+        .btn-back:hover { background: #667eea; color: white; }
+
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .header { padding: 20px; }
+            .header h1 { font-size: 22px; }
+            .export-options { grid-template-columns: 1fr; }
+            .option-card { padding: 25px; }
+            .option-card .icon { font-size: 48px; }
+            .option-card h3 { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Exportar Resultados</h1>
+            <p class="subtitle">{{ cuestionario['titulo'] }}</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ 'success' if category == 'success' else 'warning' if category == 'warning' else 'error' }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="info-card">
+            <h3>📈 Información del Cuestionario</h3>
+            <p>{{ cuestionario['titulo'] }}</p>
+            <p><strong>Total de preguntas:</strong> {{ cuestionario['num_preguntas'] }}</p>
+            <p><strong>Partidas registradas:</strong></p>
+            <div class="stat">{{ total_resultados }}</div>
+        </div>
+
+        {% if total_resultados > 0 %}
+        <div class="export-options">
+            <div class="option-card excel" onclick="window.location.href='{{ url_for('descargar_excel', cuestionario_id=cuestionario_id) }}'">
+                <div class="icon">📥</div>
+                <h3>Descargar Excel</h3>
+                <p>Descarga el archivo directamente a tu computadora. Incluye resultados detallados y estadísticas.</p>
+                <a href="{{ url_for('descargar_excel', cuestionario_id=cuestionario_id) }}" class="btn">Descargar Ahora</a>
+            </div>
+
+            <div class="option-card drive">
+                <div class="icon">☁️</div>
+                <h3>Guardar en Google Drive</h3>
+                <p>Guarda el archivo automáticamente en tu Google Drive. Accede desde cualquier dispositivo.</p>
+                
+                <!-- LÓGICA MODIFICADA -->
+                {% if is_drive_connected %}
+                    <a href="{{ url_for('exportar_google_drive', cuestionario_id=cuestionario_id) }}" class="btn">Subir a Drive</a>
+                {% else %}
+                    <a href="{{ url_for('google_auth') }}" class="btn btn-connect">Conectar con Google</a>
+                {% endif %}
+                <!-- FIN DE LA LÓGICA MODIFICADA -->
+            </div>
+        </div>
+
+        <div class="info-card" style="border-left-color: #17a2b8; background: #e7f7f9;">
+            <h3>ℹ️ Qué Incluye el Reporte</h3>
+            <ul style="padding-left: 20px; color: #666;">
+                <li style="margin-bottom: 8px;"><strong>Resultados Detallados:</strong> Lista completa de partidas con grupo, puntuación, participantes y fecha</li>
+                <li style="margin-bottom: 8px;"><strong>Estadísticas Generales:</strong> Promedios, máximos, mínimos y distribución de resultados</li>
+                <li style="margin-bottom: 8px;"><strong>Porcentajes:</strong> Cálculo automático del porcentaje de aciertos</li>
+                <li><strong>Formato Profesional:</strong> Archivo Excel listo para imprimir o presentar</li>
+            </ul>
+        </div>
+        {% else %}
+        <div class="alert alert-warning">
+            ⚠️ <strong>No hay resultados para exportar.</strong><br>
+            Este cuestionario aún no ha sido jugado por ningún grupo.
+        </div>
+        {% endif %}
+
+        <div style="text-align: center;">
+            <a href="{{ url_for('dashboard_profesor') }}" class="btn-back">← Volver al Dashboard</a>
+        </div>
+    </div>
+</body> 
+</html>
+

@@ -1,0 +1,525 @@
+/* ==============================================
+   ESTILOS RESPONSIVE GLOBALES
+   Agregar estos estilos a cada template o crear un archivo CSS común
+   ============================================== */
+
+/* ========== BREAKPOINTS ========== */
+/* Mobile: < 768px */
+/* Tablet: 768px - 1024px */
+/* Desktop: > 1024px */
+
+/* ========== BASE RESPONSIVE ========== */
+* {
+    -webkit-tap-highlight-color: transparent; /* Eliminar highlight en móvil */
+}
+
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========== DASHBOARD PROFESOR - RESPONSIVE ========== */
+@media (max-width: 1024px) {
+    /* Tablet */
+    .main-container {
+        padding: 0 15px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .quiz-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    /* Mobile */
+    .top-header {
+        flex-direction: column;
+        gap: 15px;
+        padding: 15px 20px;
+    }
+    
+    .header-left h1 {
+        font-size: 20px;
+    }
+    
+    .user-avatar {
+        width: 35px;
+        height: 35px;
+        font-size: 16px;
+    }
+    
+    .user-info-header h3 {
+        font-size: 14px;
+    }
+    
+    .user-info-header p {
+        font-size: 12px;
+    }
+    
+    .welcome-banner {
+        padding: 20px;
+    }
+    
+    .welcome-banner h2 {
+        font-size: 22px;
+    }
+    
+    .welcome-banner p {
+        font-size: 14px;
+    }
+    
+    .btn-primary {
+        padding: 12px 20px;
+        font-size: 14px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .stat-card {
+        padding: 20px;
+    }
+    
+    .stat-card .number {
+        font-size: 28px;
+    }
+    
+    .quiz-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .quiz-card {
+        padding: 15px;
+    }
+    
+    .quiz-actions {
+        flex-wrap: wrap;
+    }
+    
+    .btn-small {
+        flex: 1 1 45%;
+        font-size: 12px;
+        padding: 10px;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+}
+
+/* ========== DASHBOARD ESTUDIANTE - RESPONSIVE ========== */
+@media (max-width: 768px) {
+    .grid-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .pin-input-container {
+        flex-direction: column;
+    }
+    
+    .pin-input {
+        font-size: 14px;
+    }
+    
+    .btn-join {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+    }
+    
+    .grupo-info-card .codigo-grupo {
+        font-size: 16px;
+        padding: 6px 12px;
+    }
+    
+    .recent-list {
+        gap: 10px;
+    }
+    
+    .recent-item {
+        flex-direction: column;
+        text-align: center;
+        padding: 12px;
+    }
+    
+    .item-score {
+        text-align: center;
+        margin-top: 10px;
+    }
+}
+
+/* ========== FORMULARIOS - RESPONSIVE ========== */
+@media (max-width: 768px) {
+    .container {
+        padding: 25px 20px;
+        max-width: 100%;
+    }
+    
+    .logo {
+        width: 70px;
+        height: 70px;
+        font-size: 36px;
+    }
+    
+    h1 {
+        font-size: 22px;
+    }
+    
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+        font-size: 16px; /* Evita zoom en iOS */
+    }
+    
+    .button-group {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+    }
+}
+
+/* ========== AGREGAR/EDITAR PREGUNTAS - RESPONSIVE ========== */
+@media (max-width: 768px) {
+    .header {
+        padding: 20px;
+    }
+    
+    .header h1 {
+        font-size: 20px;
+    }
+    
+    .header-top {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .codigo-pin {
+        font-size: 18px;
+        padding: 8px 15px;
+    }
+    
+    .pregunta-card {
+        padding: 20px;
+    }
+    
+    .opciones-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .radio-group {
+        flex-wrap: wrap;
+    }
+    
+    .actions {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+    }
+    
+    .alert {
+        min-width: 90%;
+        font-size: 14px;
+        padding: 12px 15px;
+    }
+}
+
+/* ========== SALA ESPERA - RESPONSIVE ========== */
+@media (max-width: 768px) {
+    .icon {
+        font-size: 36px;
+    }
+    
+    h1 {
+        font-size: 24px;
+    }
+    
+    .group-info {
+        padding: 15px;
+    }
+    
+    .group-info h2 {
+        font-size: 20px;
+    }
+    
+    .group-info .codigo-grupo {
+        font-size: 16px;
+        padding: 6px 12px;
+    }
+    
+    .player {
+        padding: 12px;
+        font-size: 16px;
+    }
+    
+    .btn {
+        padding: 14px 30px;
+        font-size: 16px;
+    }
+}
+
+/* ========== PARTIDA GRUPAL - RESPONSIVE ========== */
+@media (max-width: 768px) {
+    .game-container {
+        padding: 25px 20px;
+    }
+    
+    .header h1 {
+        font-size: 22px;
+    }
+    
+    .header p {
+        font-size: 14px;
+    }
+    
+    .question-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        font-size: 16px;
+    }
+    
+    #question-text {
+        font-size: 20px;
+        min-height: 80px;
+    }
+    
+    .options-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .option-btn {
+        padding: 16px;
+        font-size: 16px;
+    }
+    
+    .feedback {
+        font-size: 16px;
+    }
+}
+
+/* ========== RESULTADOS - RESPONSIVE ========== */
+@media (max-width: 768px) {
+    .trophy {
+        font-size: 60px;
+    }
+    
+    h1 {
+        font-size: 24px;
+    }
+    
+    .subtitle {
+        font-size: 14px;
+    }
+    
+    .score-card {
+        padding: 20px;
+    }
+    
+    .score-card h2 {
+        font-size: 22px;
+    }
+    
+    .final-score {
+        font-size: 56px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stat-item {
+        padding: 12px;
+    }
+    
+    .stat-item .value {
+        font-size: 20px;
+    }
+    
+    .members-section {
+        padding: 15px;
+    }
+    
+    .actions {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+    }
+}
+
+/* ========== SALA PROFESOR - RESPONSIVE ========== */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    
+    .header {
+        padding: 20px;
+    }
+    
+    .header h1 {
+        font-size: 20px;
+    }
+    
+    .header .pin {
+        font-size: 18px;
+        padding: 8px 15px;
+    }
+    
+    .status-bar {
+        flex-direction: column;
+        gap: 20px;
+        padding: 15px;
+    }
+    
+    .status-item {
+        width: 100%;
+    }
+    
+    .control-panel {
+        padding: 20px;
+    }
+    
+    .btn-start-all {
+        width: 100%;
+        font-size: 16px;
+        padding: 16px;
+    }
+    
+    .grupos-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .grupo-card {
+        padding: 20px;
+    }
+    
+    .grupo-card h3 {
+        font-size: 20px;
+    }
+    
+    .empty-state {
+        padding: 40px 20px;
+    }
+    
+    .empty-state .icon {
+        font-size: 48px;
+    }
+    
+    .empty-state h3 {
+        font-size: 20px;
+    }
+}
+
+/* ========== MEJORAS DE USABILIDAD MÓVIL ========== */
+
+/* Aumentar área táctil en botones */
+@media (max-width: 768px) {
+    button, a.btn, .btn-small {
+        min-height: 44px; /* Tamaño mínimo recomendado por Apple HIG */
+    }
+    
+    /* Mejorar contraste y legibilidad */
+    input, textarea, select {
+        font-size: 16px; /* Previene zoom automático en iOS */
+        min-height: 44px;
+    }
+    
+    /* Mejorar espaciado entre elementos táctiles */
+    .quiz-actions,
+    .button-group,
+    .actions {
+        gap: 12px;
+    }
+}
+
+/* ========== ORIENTACIÓN LANDSCAPE EN MÓVIL ========== */
+@media (max-width: 768px) and (orientation: landscape) {
+    .game-container {
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    
+    .header {
+        padding: 15px 20px;
+    }
+    
+    #question-text {
+        font-size: 18px;
+        min-height: 60px;
+    }
+    
+    .options-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ========== MODO OSCURO (OPCIONAL) ========== */
+@media (prefers-color-scheme: dark) {
+    /* Agregar estilos de modo oscuro si se desea */
+    /* Por ahora mantenemos los colores originales */
+}
+
+/* ========== TABLET ESPECÍFICO (768px - 1024px) ========== */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .quiz-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .grupos-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .options-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ========== ANIMACIONES SUAVES ========== */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ========== IMPRESIÓN ========== */
+@media print {
+    .top-header,
+    .dropdown-menu,
+    .btn,
+    .actions,
+    .quiz-actions {
+        display: none;
+    }
+    
+    body {
+        background: white;
+    }
+    
+    .container,
+    .content-section,
+    .quiz-card {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+}

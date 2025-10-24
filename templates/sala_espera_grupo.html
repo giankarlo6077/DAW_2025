@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sala de Espera - {{ grupo['nombre_grupo'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; color: #333; }
@@ -50,17 +51,6 @@
             {% endfor %}
         </div>
 
-        {% if user_id == grupo['lider_id'] %}
-        <div class="leader-controls">
-            <p>¡Eres el líder! Cuando todos estén listos, inicia la partida.</p>
-            <button class="btn btn-start" onclick="iniciarPartida()">🚀 ¡Comenzar Cuestionario!</button>
-        </div>
-        {% else %}
-        <div class="leader-controls">
-            <p>Esperando que el líder inicie la partida...</p>
-        </div>
-        {% endif %}
-        
         <a href="{{ url_for('salir_grupo') }}" class="btn-exit" onclick="return confirm('¿Estás seguro de que quieres salir del grupo?');">Salir del Grupo</a>
     </div>
 

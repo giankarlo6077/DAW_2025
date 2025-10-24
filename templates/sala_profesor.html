@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sala del Profesor - {{ cuestionario['titulo'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        .header { background: white; padding: 30px; border-radius: 20px; margin-bottom: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; }
+        .header h1 { color: #333; font-size: 28px; margin-bottom: 10px; }
+        .header .pin { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px 20px; border-radius: 10px; font-size: 24px; font-weight: bold; letter-spacing: 3px; display: inline-block; margin-top: 10px; }
+
+        .status-bar { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .status-item { text-align: center; }
+        .status-item .number { font-size: 36px; font-weight: bold; color: #667eea; }
+        .status-item .label { color: #666; font-size: 14px; text-transform: uppercase; }
+
+        .control-panel { background: white; padding: 25px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); text-align: center; }
+        .btn-start-all { padding: 20px 40px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border: none; border-radius: 12px; font-size: 20px; font-weight: bold; cursor: pointer; transition: all 0.3s; }
+        .btn-start-all:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4); }
+        .btn-start-all:disabled { background: #6c757d; cursor: not-allowed; transform: none; }
+
+        .grupos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .grupo-card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); transition: all 0.3s; }
+        .grupo-card:hover { transform: translateY(-5px); box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
+        .grupo-card h3 { color: #667eea; font-size: 22px; margin-bottom: 15px; }
+        .grupo-info { color: #666; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        .grupo-info span { font-weight: bold; }
+        .estado { display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+        .estado.waiting { background: #fff3cd; color: #856404; }
+        .estado.playing { background: #d1ecf1; color: #0c5460; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+        .miembros-lista { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-top: 15px; }
+        .miembros-lista p { font-size: 13px; color: #666; margin-bottom: 8px; font-weight: 600; }
+        .miembros-lista ul { list-style: none; padding: 0; }
+        .miembros-lista li { padding: 5px 0; color: #333; font-size: 14px; }
+
+        .empty-state { background: white; padding: 60px 40px; border-radius: 15px; text-align: center; color: #999; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        .empty-state .icon { font-size: 64px; margin-bottom: 20px; }
+        .empty-state h3 { font-size: 24px; margin-bottom: 10px; }
+        .empty-state p { font-size: 16px; }
+
+        .btn-back { display: inline-block; padding: 12px 30px; background: white; color: #667eea; border: 2px solid #667eea; border-radius: 10px; text-decoration: none; font-weight: 600; margin-top: 20px; transition: all 0.3s; }
+        .btn-back:hover { background: #667eea; color: white; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .header { padding: 20px; }
+            .header h1 { font-size: 22px; }
+            .header .pin { font-size: 20px; padding: 8px 15px; }
+            .status-bar { flex-direction: column; }
+            .grupos-grid { grid-template-columns: 1fr; }
+            .btn-start-all { width: 100%; font-size: 18px; padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 Sala de Control del Profesor</h1>
+            <p style="color: #666; margin: 10px 0;">{{ cuestionario['titulo'] }}</p>
+            <div class="pin">PIN: {{ cuestionario['codigo_pin'] }}</div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="number" id="total-grupos">{{ grupos_esperando|length }}</div>
+                <div class="label">Grupos Esperando</div>
+            </div>
+            <div class="status-item">
+                <div class="number" id="total-jugadores">
+                    {% set total = namespace(value=0) %}
+                    {% for grupo in grupos_esperando %}
+                        {% set total.value = total.value + grupo['num_miembros'] %}
+                    {% endfor %}
+                    {{ total.value }}
+                </div>
+                <div class="label">Total Jugadores</div>
+            </div>
+            <div class="status-item">
+                <div class="number">{{ cuestionario['num_preguntas'] }}</div>
+                <div class="label">Preguntas</div>
+            </div>
+        </div>
+
+        {% if grupos_esperando %}
+        <div class="control-panel">
+            <p style="color: #666; margin-bottom: 15px; font-size: 16px;">
+                Cuando todos los grupos estén listos, inicia las partidas
+            </p>
+            <button class="btn-start-all" onclick="iniciarTodasLasPartidas()" id="btnIniciar">
+                🚀 Iniciar Todas las Partidas
+            </button>
+        </div>
+
+        <div class="grupos-grid" id="grupos-container">
+            {% for grupo in grupos_esperando %}
+            <div class="grupo-card" data-grupo-id="{{ grupo['id'] }}">
+                <h3>{{ grupo['nombre_grupo'] }}</h3>
+                <div class="grupo-info">
+                    <span>Estado:</span>
+                    <span class="estado {{ grupo['game_state'] }}">
+                        {% if grupo['game_state'] == 'waiting' %}⏳ Esperando
+                        {% elif grupo['game_state'] == 'playing' %}▶️ Jugando
+                        {% else %}{{ grupo['game_state'] }}{% endif %}
+                    </span>
+                </div>
+                <div class="grupo-info">
+                    <span>👥 Miembros:</span> {{ grupo['num_miembros'] }}
+                </div>
+
+                {% if grupo['miembros'] %}
+                <div class="miembros-lista">
+                    <p>Participantes:</p>
+                    <ul>
+                        {% for miembro in grupo['miembros'].split(', ') %}
+                        <li>• {{ miembro }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="icon">⏳</div>
+            <h3>Esperando Grupos</h3>
+            <p>Los grupos aparecerán aquí cuando ingresen el PIN</p>
+            <p style="margin-top: 10px;">Comparte el PIN <strong>{{ cuestionario['codigo_pin'] }}</strong> con tus estudiantes</p>
+        </div>
+        {% endif %}
+
+        <div style="text-align: center;">
+            <a href="{{ url_for('dashboard_profesor') }}" class="btn-back">← Volver al Dashboard</a>
+        </div>
+    </div>
+
+    <script>
+        const codigoPin = '{{ cuestionario["codigo_pin"] }}';
+        let pollInterval;
+
+        // Actualizar lista de grupos en tiempo real
+        function actualizarGrupos() {
+            fetch(`/api/grupos_esperando/${codigoPin}`)
+                .then(response => response.json())
+                .then(grupos => {
+                    if (grupos.error) {
+                        console.error('Error:', grupos.error);
+                        return;
+                    }
+
+                    // Actualizar contador
+                    document.getElementById('total-grupos').textContent = grupos.length;
+
+                    let totalJugadores = 0;
+                    grupos.forEach(g => totalJugadores += g.num_miembros);
+                    document.getElementById('total-jugadores').textContent = totalJugadores;
+
+                    // Si no hay grupos, mostrar empty state
+                    if (grupos.length === 0) {
+                        const container = document.getElementById('grupos-container');
+                        if (container && !container.classList.contains('empty-shown')) {
+                            location.reload(); // Recargar para mostrar empty state
+                        }
+                    }
+
+                    // Actualizar estado de cada grupo
+                    grupos.forEach(grupo => {
+                        const card = document.querySelector(`[data-grupo-id="${grupo.id}"]`);
+                        if (card) {
+                            const estadoSpan = card.querySelector('.estado');
+                            if (estadoSpan) {
+                                estadoSpan.className = `estado ${grupo.game_state}`;
+                                if (grupo.game_state === 'waiting') {
+                                    estadoSpan.textContent = '⏳ Esperando';
+                                } else if (grupo.game_state === 'playing') {
+                                    estadoSpan.textContent = '▶️ Jugando';
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => console.error('Error al actualizar grupos:', error));
+        }
+
+        // Iniciar polling
+        pollInterval = setInterval(actualizarGrupos, 3000);
+
+        // Iniciar todas las partidas
+        function iniciarTodasLasPartidas() {
+            if (!confirm('¿Estás seguro de iniciar todas las partidas? Los grupos comenzarán a jugar inmediatamente.')) {
+                return;
+            }
+
+            const btn = document.getElementById('btnIniciar');
+            btn.disabled = true;
+            btn.textContent = '⏳ Iniciando partidas...';
+
+            fetch(`/profesor_iniciar_partidas/${codigoPin}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✅ ${data.message}`);
+                    // Actualizar inmediatamente
+                    actualizarGrupos();
+                    btn.textContent = '✅ Partidas Iniciadas';
+                    btn.style.background = '#28a745';
+                } else {
+                    alert('❌ ' + data.message);
+                    btn.disabled = false;
+                    btn.textContent = '🚀 Iniciar Todas las Partidas';
+                }
+            })
+            .catch(error => {
+                alert('❌ Error de red: ' + error.message);
+                btn.disabled = false;
+                btn.textContent = '🚀 Iniciar Todas las Partidas';
+            });
+        }
+
+        // Limpiar interval al salir
+        window.addEventListener('beforeunload', () => {
+            if (pollInterval) clearInterval(pollInterval);
+        });
+    </script>
+</body>
+</html>

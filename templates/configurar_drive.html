@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración - Profesor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f5f6fa; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); width: 100%; max-width: 550px; text-align: center; }
+        .header { margin-bottom: 30px; }
+        .header h1 { font-size: 26px; color: #333; margin-bottom: 10px; }
+        .header p { font-size: 16px; color: #666; }
+        .alert { padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+        .alert-error { background: #fee; border-left: 4px solid #e74c3c; color: #c0392b; }
+        .alert-success { background: #d4edda; border-left: 4px solid #28a745; color: #155724; }
+        .config-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0; }
+        .config-section h2 { font-size: 20px; color: #333; margin-bottom: 20px; }
+        .btn { display: inline-block; padding: 14px 30px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.3s; }
+        .btn-connect { background: #f8f9fa; color: #333; border: 2px solid #e0e0e0; }
+        .btn-connect:hover { background: #e9ecef; }
+        .btn-back { color: #667eea; text-decoration: none; margin-top: 30px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚙️ Configuración del Profesor</h1>
+            <p>Gestiona tus integraciones y perfil</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}">
+                    <span>{{ '✅' if category == 'success' else '⚠️' }}</span>
+                    <span>{{ message }}</span>
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="config-section">
+            <h2>Integración con Google Drive</h2>
+            <p style="color: #666; margin-bottom: 20px;">
+                Conecta tu cuenta de Google Drive para exportar los resultados de tus cuestionarios directamente a una hoja de cálculo en tu nube.
+            </p>
+            <a href="{{ url_for('google_auth') }}" class="btn btn-connect">
+                <span><svg height="20" viewBox="0 0 24 24" width="20"><path d="M19.6 9.18c0-.62-.05-1.22-.16-1.81H12v3.42h4.31c-.18 1.12-.7 2.07-1.57 2.7v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.59z" fill="#4285F4"></path><path d="M12 20.39c2.34 0 4.29- .78 5.71-2.12l-2.92-2.26c-.78.53-1.79.84-2.79.84-2.13 0-3.94-1.44-4.58-3.36H4.26v2.33C5.7 18.61 8.63 20.39 12 20.39z" fill="#34A853"></path><path d="M7.42 12.8c-.12-.36-.18-.75-.18-1.15s.06-.79.18-1.15V8.17H4.26C3.83 9.14 3.6 10.2 3.6 11.31s.23 2.17.66 3.14l3.16-2.65z" fill="#FBBC05"></path><path d="M12 7.23c1.27 0 2.42.44 3.32 1.3l2.58-2.58C16.29 4.3 14.33 3.23 12 3.23c-3.37 0-6.3 1.78-7.74 4.49l3.16 2.65C8.06 8.67 9.87 7.23 12 7.23z" fill="#EA4335"></path></svg></span>
+                Conectar / Volver a conectar Google Drive
+            </a>
+        </div>
+        
+        <a href="{{ url_for('dashboard_profesor') }}" class="btn-back">← Volver al panel</a>
+    </div>
+</body>
+</html>
+
