@@ -6,6 +6,14 @@ import string
 import re
 import secrets
 from datetime import datetime, timedelta
+from io import BytesIO
+import json
+import pandas as pd
+import google.oauth2.credentials
+import google_drive_helper
+from flask import send_file
+import traceback
+
 
 from io import BytesIO
 import json
@@ -1699,9 +1707,124 @@ def descargar_excel(cuestionario_id):
 
 @app.route("/exportar_google_drive/<int:cuestionario_id>")
 def exportar_google_drive(cuestionario_id):
-    """Exportar a Google Drive"""
+    """Exporta los resultados a Google Drive"""
     if "usuario" not in session or session.get("rol") != "profesor":
         return redirect(url_for("login"))
+
+    user_id = session['user_id']
+    conexion = None # Inicializa conexion a None
+
+    try:
+        # --- Imports necesarios SOLO para esta función ---
+        from google.oauth2.credentials import Credentials
+        # --- Fin imports locales ---
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            # 1. Obtener credenciales de Google del usuario
+            cursor.execute("SELECT google_creds_json FROM usuarios WHERE id = %s", (user_id,))
+            usuario = cursor.fetchone()
+            if not usuario or not usuario.get('google_creds_json'):
+                flash("❌ No tienes conectada tu cuenta de Google Drive.", "error")
+                return redirect(url_for('exportar_resultados', cuestionario_id=cuestionario_id))
+
+            # Cargar las credenciales
+            try:
+                creds_info = json.loads(usuario['google_creds_json'])
+                # IMPORTANTE: Asegúrate que SCOPES esté definido globalmente o aquí
+                credentials = Credentials.from_authorized_user_info(creds_info, SCOPES)
+            except Exception as cred_error:
+                print(f"❌ Error al cargar credenciales: {cred_error}")
+                flash("❌ Hubo un error al cargar tus credenciales de Google. Intenta reconectar tu cuenta.", "error")
+                return redirect(url_for('configurar_google_drive')) # O a donde configures Drive
+
+            # 2. Obtener datos del cuestionario y resultados (similar a descargar_excel)
+            cursor.execute("SELECT titulo FROM cuestionarios WHERE id = %s AND profesor_id = %s",
+                           (cuestionario_id, user_id))
+            cuestionario = cursor.fetchone()
+            if not cuestionario:
+                flash("❌ Cuestionario no encontrado", "error")
+                return redirect(url_for("dashboard_profesor"))
+
+            cursor.execute("""
+                SELECT h.*, GROUP_CONCAT(p.nombre_usuario SEPARATOR ', ') as participantes
+                FROM historial_partidas h
+                LEFT JOIN participantes_partida p ON h.id = p.partida_id
+                WHERE h.cuestionario_id = %s
+                GROUP BY h.id ORDER BY h.fecha_partida DESC
+            """, (cuestionario_id,))
+            resultados = cursor.fetchall()
+
+            if not resultados:
+                flash("⚠️ No hay resultados para exportar", "warning")
+                return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
+
+            # 3. Crear DataFrame y Excel en memoria (igual que en descargar_excel)
+            df = pd.DataFrame(resultados)
+            df.rename(columns={ # Renombrar columnas para claridad
+                'id': 'ID Partida', 'nombre_grupo': 'Grupo', 'puntuacion_final': 'Puntuación',
+                'num_preguntas_total': 'Total Preguntas', 'num_miembros': 'Miembros', 'fecha_partida': 'Fecha'
+            }, inplace=True)
+            df = df[['ID Partida', 'Grupo', 'Puntuación', 'Total Preguntas',
+                     'Miembros', 'Fecha', 'participantes']] # Reordenar si es necesario
+            df['Porcentaje (%)'] = (df['Puntuación'] / (df['Total Preguntas'] * 100) * 100).round(2)
+            df['Preguntas Correctas'] = (df['Puntuación'] / 100).astype(int)
+            df['Preguntas Incorrectas'] = df['Total Preguntas'] - df['Preguntas Correctas']
+
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='Resultados Detallados', index=False)
+                # Aquí podrías añadir la hoja de estadísticas igual que en descargar_excel si quieres
+
+                # Ajustar ancho de columnas (opcional pero recomendado)
+                worksheet = writer.sheets['Resultados Detallados']
+                for column in worksheet.columns:
+                     max_length = 0
+                     column_letter = column[0].column_letter
+                     for cell in column:
+                         try:
+                             if len(str(cell.value)) > max_length:
+                                 max_length = len(str(cell.value))
+                         except:
+                             pass
+                     adjusted_width = min(max_length + 2, 50)
+                     worksheet.column_dimensions[column_letter].width = adjusted_width
+
+            output.seek(0)
+
+            # 4. Preparar nombre de archivo
+            filename = f"Resultados_{cuestionario['titulo'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+            # 5. Llamar a la función del helper para subir el archivo
+            resultado_subida = google_drive_helper.upload_excel_to_drive(credentials, output, filename)
+
+            # 6. Manejar el resultado de la subida
+            if resultado_subida['success']:
+                flash("✅ Archivo exportado a Google Drive exitosamente.", "success")
+                # Pasar datos a la página de éxito
+                return render_template('export_success.html',
+                                       filename=resultado_subida['name'],
+                                       drive_link=resultado_subida['web_link'],
+                                       download_link=resultado_subida['download_link'])
+            else:
+                flash(f"❌ Error al subir a Google Drive: {resultado_subida['error']}", "error")
+                # Si el error es por token inválido, sugerir reconectar
+                if 'invalid_grant' in resultado_subida['error'].lower():
+                    return redirect(url_for('configurar_google_drive'))
+                else:
+                     return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
+
+    except ImportError:
+        flash("❌ Error: Faltan librerías para exportar (pandas, openpyxl, google-api-python-client, etc.).", "error")
+        return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
+    except Exception as e:
+        flash(f"❌ Error inesperado al exportar a Drive: {str(e)}", "error")
+        print(f"Error en exportar_google_drive: {e}")
+        traceback.print_exc() # Imprime el error detallado en tus logs del servidor
+        return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
 
 
 
