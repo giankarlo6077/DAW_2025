@@ -1730,4 +1730,3 @@ def error_interno(error):
 # ---------------- INICIAR APP ----------------
 if __name__ == "__main__":
     app.run(debug=True, port=8080)
-
