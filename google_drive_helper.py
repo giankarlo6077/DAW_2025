@@ -2,29 +2,26 @@
 # Archivo auxiliar para integración con Google Drive
 
 import os
-import io
-# Los imports de 'credentials' y 'flow' ya no son necesarios aquí
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
-# import pickle (Ya no se usa pickle)
 
-# --- INICIO DE LA CORRECCIÓN ---
 # Obtener la ruta absoluta del directorio donde se encuentra este script
-# (p.ej., /home/kahootg4/DAW_2025)
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
-# --- FIN DE LA CORRECCIÓN ---
 
 def upload_excel_to_drive(credentials, file_data, filename):
     """
-    Función simplificada para subir Excel a Drive
+    Función para subir archivo Excel a Google Drive
     
     Args:
-        credentials (google.oauth2.credentials.Credentials): Las credenciales del usuario.
-        file_data (BytesIO): Los datos del archivo Excel en memoria.
-        filename (str): El nombre para el archivo en Google Drive.
+        credentials: Credenciales OAuth2 del usuario
+        file_data: BytesIO con los datos del archivo
+        filename: Nombre del archivo a crear
+    
+    Returns:
+        dict: Resultado de la operación con success, file_id, enlaces, etc.
     """
     try:
-        # Construir el servicio de Drive usando las credenciales del usuario
+        # Construir el servicio de Drive
         service = build('drive', 'v3', credentials=credentials)
         
         # Buscar o crear carpeta "Resultados_Cuestionarios"
@@ -39,6 +36,7 @@ def upload_excel_to_drive(credentials, file_data, filename):
         
         if files:
             folder_id = files[0]['id']
+            print(f"✅ Carpeta encontrada: {folder_id}")
         else:
             # Crear carpeta
             file_metadata = {
@@ -47,12 +45,14 @@ def upload_excel_to_drive(credentials, file_data, filename):
             }
             folder = service.files().create(body=file_metadata, fields='id').execute()
             folder_id = folder.get('id')
+            print(f"✅ Carpeta creada: {folder_id}")
         
         # Subir archivo a esa carpeta
         file_metadata = {
             'name': filename,
             'parents': [folder_id]
         }
+        
         mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         media = MediaIoBaseUpload(file_data, mimetype=mimetype, resumable=True)
         
@@ -62,11 +62,17 @@ def upload_excel_to_drive(credentials, file_data, filename):
             fields='id, name, webViewLink, webContentLink'
         ).execute()
         
-        # Hacer el archivo accesible (opcional, pero útil)
-        service.permissions().create(
-            fileId=file.get('id'),
-            body={'type': 'anyone', 'role': 'reader'}
-        ).execute()
+        print(f"✅ Archivo subido: {file.get('name')} - ID: {file.get('id')}")
+        
+        # Hacer el archivo público (lectura para cualquiera con el enlace)
+        try:
+            service.permissions().create(
+                fileId=file.get('id'),
+                body={'type': 'anyone', 'role': 'reader'}
+            ).execute()
+            print(f"✅ Permisos configurados para: {file.get('id')}")
+        except Exception as perm_error:
+            print(f"⚠️ Advertencia al configurar permisos: {perm_error}")
         
         return {
             'success': True,
@@ -77,61 +83,79 @@ def upload_excel_to_drive(credentials, file_data, filename):
         }
         
     except Exception as e:
-        # Manejar errores comunes de token
-        error_str = str(e)
-        if 'invalid_grant' in error_str.lower():
+        # Manejar errores comunes
+        error_str = str(e).lower()
+        
+        if 'invalid_grant' in error_str:
             error_msg = "El token de Google ha expirado o ha sido revocado. Por favor, vuelve a conectar tu cuenta."
-        elif 'file not found' in error_str.lower():
-             error_msg = f"No se encontró el archivo de credenciales. Asegúrate que 'credentials.json' existe."
+        elif 'credentials' in error_str:
+            error_msg = "Las credenciales de Google no son válidas. Por favor, reconéctate."
+        elif 'quota' in error_str:
+            error_msg = "Se ha excedido la cuota de Google Drive. Intenta más tarde."
         else:
-            error_msg = str(e)
-            
+            error_msg = f"Error al subir archivo: {str(e)}"
+        
+        print(f"❌ Error en upload_excel_to_drive: {error_msg}")
+        import traceback
+        traceback.print_exc()
+        
         return {
             'success': False,
             'error': error_msg
         }
 
+
 # ==============================================================
-# CONFIGURACIÓN INICIAL (Ya no es necesario ejecutar este archivo)
+# CONFIGURACIÓN INICIAL DE GOOGLE DRIVE (DOCUMENTACIÓN)
 # ==============================================================
 """
 PASOS PARA CONFIGURAR GOOGLE DRIVE:
 
-1. Crear proyecto en Google Cloud Console:
-   - Ve a https://console.cloud.google.com/
-   - Crea un nuevo proyecto o selecciona uno existente
+1. Ir a Google Cloud Console:
+   https://console.cloud.google.com/
 
-2. Habilitar Google Drive API:
-   - "APIs & Services" > "Library" > "Google Drive API" > "Enable"
+2. Crear un nuevo proyecto o seleccionar uno existente
 
-3. Crear credenciales OAuth 2.0:
-   - "APIs & Services" > "Credentials" > "Create Credentials" > "OAuth client ID"
-   - Tipo de aplicación: "Aplicación web" (¡IMPORTANTE! Cambiar a "Web application")
-   - Nombre: "Sistema Cuestionarios Web"
+3. Habilitar Google Drive API:
+   - Ir a "APIs y servicios" > "Biblioteca"
+   - Buscar "Google Drive API"
+   - Hacer clic en "Habilitar"
+
+4. Crear credenciales OAuth 2.0:
+   - Ir a "APIs y servicios" > "Credenciales"
+   - Hacer clic en "Crear credenciales" > "ID de cliente de OAuth"
+   - Tipo de aplicación: "Aplicación web"
+   - Nombre: "Sistema Cuestionarios"
    
-4. Configurar Orígenes y URIs de redirección:
-   - En "Orígenes de JavaScript autorizados", añade tu URL:
-     - Para local: http://127.0.0.1:8080
-     - Para PythonAnywhere: https://kahootg4.pythonanywhere.com (O tu URL específica)
-   - En "URIs de redirección autorizados", añade la URL de callback:
-     - Para local: http://127.0.0.1:8080/oauth2callback
-     - Para PythonAnywhere: https://kahootg4.pythonanywhere.com/oauth2callback (O tu URL específica)
+5. Configurar URIs de redirección:
+   - En "Orígenes de JavaScript autorizados":
+     * Para local: http://127.0.0.1:8080
+     * Para PythonAnywhere: https://TUUSUARIO.pythonanywhere.com
    
-5. Descargar JSON:
-   - Descarga el JSON y renómbralo a "credentials.json"
-   - Colócalo en la raíz de tu proyecto (junto a app.py)
+   - En "URIs de redirección autorizados":
+     * Para local: http://127.0.0.1:8080/oauth2callback
+     * Para PythonAnywhere: https://TUUSUARIO.pythonanywhere.com/oauth2callback
 
-6. Configurar pantalla de consentimiento:
-   - "OAuth consent screen" > "External"
-   - Añade el scope: ../auth/drive.file
-   - Añade tu correo como "Usuario de prueba".
+6. Descargar el archivo JSON:
+   - Hacer clic en el botón de descarga
+   - Renombrar a "credentials.json"
+   - Colocar en la raíz del proyecto (junto a app.py)
 
-7. Conectar Cuenta:
-   - Inicia sesión como profesor en tu app.
-   - Ve a la página de exportar.
-   - Haz clic en "Conectar con Google Drive" y sigue los pasos.
-   
-8. ¡YA NO SE NECESITA 'token.pickle'!
-   - El nuevo flujo guarda las credenciales de CADA usuario en la base de datos.
+7. Configurar pantalla de consentimiento:
+   - Ir a "Pantalla de consentimiento de OAuth"
+   - Tipo: "Externo"
+   - Completar información básica
+   - Agregar el alcance: ../auth/drive.file
+   - Agregar tu correo como "Usuario de prueba"
+
+8. Conectar desde la aplicación:
+   - Iniciar sesión como profesor
+   - Ir a "Configuración" o intentar exportar a Drive
+   - Hacer clic en "Conectar con Google Drive"
+   - Seguir los pasos de autorización
+
+IMPORTANTE:
+- El archivo credentials.json NUNCA debe subirse a GitHub
+- Agrégalo al .gitignore
+- Cada profesor debe conectar su propia cuenta de Google
 """
-

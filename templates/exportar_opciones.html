@@ -29,7 +29,7 @@
         .option-card p { color: #666; font-size: 14px; margin-bottom: 20px; line-height: 1.6; }
         .option-card .btn { display: inline-block; padding: 15px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; }
         .option-card .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
-        
+
         /* Botón de Conectar (gris) */
         .btn-connect { background: #f8f9fa; color: #333; border: 2px solid #e0e0e0; }
         .btn-connect:hover { background: #e9ecef; box-shadow: none; }
@@ -77,7 +77,7 @@
         <div class="info-card">
             <h3>📈 Información del Cuestionario</h3>
             <p>{{ cuestionario['titulo'] }}</p>
-            <p><strong>Total de preguntas:</strong> {{ cuestionario['num_preguntas'] }}</p>
+            <p><strong>Total de preguntas:</strong> {{ cuestionario.num_preguntas if cuestionario else 'N/A' }}</p>
             <p><strong>Partidas registradas:</strong></p>
             <div class="stat">{{ total_resultados }}</div>
         </div>
@@ -95,7 +95,7 @@
                 <div class="icon">☁️</div>
                 <h3>Guardar en Google Drive</h3>
                 <p>Guarda el archivo automáticamente en tu Google Drive. Accede desde cualquier dispositivo.</p>
-                
+
                 <!-- LÓGICA MODIFICADA -->
                 {% if is_drive_connected %}
                     <a href="{{ url_for('exportar_google_drive', cuestionario_id=cuestionario_id) }}" class="btn">Subir a Drive</a>
@@ -126,5 +126,5 @@
             <a href="{{ url_for('dashboard_profesor') }}" class="btn-back">← Volver al Dashboard</a>
         </div>
     </div>
-</body> 
+</body>
 </html>

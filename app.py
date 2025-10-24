@@ -1,4 +1,3 @@
-from flask import Flask, render_template, request, redirect, jsonify, flash, url_for, session
 from flask_mail import Mail, Message
 from bd import obtener_conexion
 import random
@@ -9,7 +8,7 @@ from datetime import datetime, timedelta
 # --- IMPORTS MOVIMIENTOS A SUS FUNCIONES ---
 # Mover los imports de pandas/google dentro de las funciones
 # para que la app pueda iniciar aunque no estén instalados.
-from io import BytesIO 
+from io import BytesIO
 import json
 
 app = Flask(__name__)
@@ -535,7 +534,7 @@ def cambiar_datos_profesor():
 def eliminar_cuenta_profesor():
     if "usuario" not in session or session.get("rol") != "profesor":
         return redirect(url_for("login"))
-    
+
     password_actual = request.form.get("password_actual")
     user_id = session["user_id"]
     conexion = obtener_conexion()
@@ -554,15 +553,15 @@ def eliminar_cuenta_profesor():
                 cuestionario_ids = [c['id'] for c in cuestionarios]
                 id_placeholders = ', '.join(['%s'] * len(cuestionario_ids))
                 cursor.execute(f"DELETE FROM preguntas WHERE cuestionario_id IN ({id_placeholders})", tuple(cuestionario_ids))
-            
+
             cursor.execute("DELETE FROM cuestionarios WHERE profesor_id = %s", (user_id,))
             cursor.execute("DELETE FROM usuarios WHERE id = %s", (user_id,))
-            
+
             conexion.commit()
             session.clear()
             flash("✅ Tu cuenta y todos tus datos han sido eliminados permanentemente.", "success")
             return redirect(url_for('login'))
-            
+
     except Exception as e:
         flash("❌ Ocurrió un error al intentar eliminar la cuenta.", "error")
         print(f"Error al eliminar cuenta: {e}")
@@ -576,7 +575,7 @@ def eliminar_cuenta_profesor():
 def dashboard_estudiante():
     if "usuario" not in session or session.get("rol") != "estudiante":
         return redirect(url_for("login"))
-    
+
     grupo_info, miembros, cuestionarios_recientes = None, [], []
     user_id = session.get("user_id")
 
@@ -967,12 +966,12 @@ def partida_grupal(grupo_id):
 @app.route("/resultados_grupo/<int:grupo_id>")
 def resultados_grupo(grupo_id):
     """Muestra la página de resultados y guarda en el historial."""
-    if "usuario" not in session: 
+    if "usuario" not in session:
         return redirect(url_for('login'))
-    
+
     user_id = session.get("user_id")
     conexion = obtener_conexion()
-    
+
     try:
         with conexion.cursor() as cursor:
             # 1. Obtener información del grupo
@@ -986,7 +985,7 @@ def resultados_grupo(grupo_id):
                 if not usuario or usuario['grupo_id'] != grupo_id:
                     flash("❌ No perteneces a este grupo", "error")
                     return redirect(url_for('dashboard_estudiante'))
-            
+
             # 3. Obtener información del cuestionario (usando el active_pin si existe)
             cuestionario = None
             if grupo and grupo['active_pin']:
@@ -999,17 +998,17 @@ def resultados_grupo(grupo_id):
 
             # 5. Si el juego acaba de terminar ('finished'), guardarlo en el historial
             if cuestionario and grupo and grupo.get('game_state') == 'finished':
-                
+
                 # Guardar en la tabla historial_partidas
                 cursor.execute("""
-                    INSERT INTO historial_partidas 
+                    INSERT INTO historial_partidas
                     (grupo_id, cuestionario_id, nombre_grupo, titulo_cuestionario, puntuacion_final, num_preguntas_total, num_miembros)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """, (grupo_id, cuestionario['id'], grupo['nombre_grupo'], cuestionario['titulo'], 
+                """, (grupo_id, cuestionario['id'], grupo['nombre_grupo'], cuestionario['titulo'],
                       grupo['current_score'], cuestionario['num_preguntas'], len(miembros)))
-                
+
                 partida_id = cursor.lastrowid
-                
+
                 # Guardar a los participantes en la tabla participantes_partida
                 for miembro in miembros:
                     cursor.execute("""
@@ -1019,13 +1018,13 @@ def resultados_grupo(grupo_id):
 
                 # Limpiar estado del grupo para futuras partidas
                 cursor.execute("""
-                    UPDATE grupos 
-                    SET active_pin = NULL, 
-                        game_state = 'archived', 
+                    UPDATE grupos
+                    SET active_pin = NULL,
+                        game_state = 'archived',
                         current_question_index = 0
                     WHERE id = %s
                 """, (grupo_id,))
-                
+
                 conexion.commit()
                 print(f"✅ Partida guardada en historial, ID: {partida_id}. Estado del grupo limpiado.")
 
@@ -1043,7 +1042,7 @@ def resultados_grupo(grupo_id):
                     LIMIT 1
                 """, (user_id, grupo_id)) # Asegurarnos que el usuario participó
                 historial = cursor.fetchone()
-                
+
                 if historial:
                     # Si encontramos historial, lo usamos para mostrar los datos
                     cuestionario = {
@@ -1057,26 +1056,26 @@ def resultados_grupo(grupo_id):
                         grupo = {'nombre_grupo': historial['nombre_grupo'], 'current_score': historial['puntuacion_final']}
                     else:
                         grupo['current_score'] = historial['puntuacion_final'] # Asegurarnos de mostrar el score final
-                    
+
                     # Cargar los miembros que JUGARON esa partida
                     cursor.execute("SELECT nombre_usuario FROM participantes_partida WHERE partida_id = %s", (historial['id'],))
                     miembros_historial = cursor.fetchall()
                     miembros = [{'nombre': m['nombre_usuario']} for m in miembros_historial] # Formatear para el template
-                    
+
                     print(f"✅ Mostrando resultados desde historial ID: {historial['id']}")
                 else:
                     # Si no hay ni juego activo ni historial, no podemos mostrar nada
                     flash("❌ No se encontraron resultados de la partida", "error")
                     return redirect(url_for('dashboard_estudiante'))
-            
+
             # Si el grupo existe pero los miembros no (porque ya salieron), rellenar desde historial
             if grupo and not miembros:
                 cursor.execute("""
-                    SELECT p.nombre_usuario 
+                    SELECT p.nombre_usuario
                     FROM participantes_partida p
                     JOIN historial_partidas h ON p.partida_id = h.id
-                    WHERE h.grupo_id = %s 
-                    ORDER BY h.fecha_partida DESC 
+                    WHERE h.grupo_id = %s
+                    ORDER BY h.fecha_partida DESC
                 """, (grupo_id,))
                 miembros_historial = cursor.fetchall()
                 if miembros_historial:
@@ -1091,11 +1090,11 @@ def resultados_grupo(grupo_id):
         flash("❌ Error al cargar los resultados.", "error")
         return redirect(url_for('dashboard_estudiante'))
     finally:
-        if 'conexion' in locals() and conexion.open: 
+        if 'conexion' in locals() and conexion.open:
             conexion.close()
-    
-    return render_template("resultados_grupo.html", 
-                           grupo=grupo, 
+
+    return render_template("resultados_grupo.html",
+                           grupo=grupo,
                            cuestionario=cuestionario,
                            miembros=miembros)
 
@@ -1176,7 +1175,7 @@ def api_get_pregunta(grupo_id):
                 "total": cuestionario['num_preguntas'],
                 "score": juego['current_score'],
                 "tiempo_pregunta": cuestionario['tiempo_pregunta'],
-                "game_state": juego['game_state'], 
+                "game_state": juego['game_state'],
                 "finished": False
             })
 
@@ -1203,14 +1202,14 @@ def api_get_ultima_respuesta(grupo_id):
                 WHERE g.id = %s
             """, (grupo_id,))
             juego = cursor.fetchone()
-            
+
             if not juego:
                 return jsonify({"error": "Juego no encontrado"}), 404
-            
+
             # Si el estado es 'answered', obtener la respuesta de la pregunta ANTERIOR
             if juego['game_state'] == 'answered' and juego['current_question_index'] > 0:
                 pregunta_index = juego['current_question_index'] - 1
-                
+
                 cursor.execute("""
                     SELECT respuesta_correcta
                     FROM preguntas
@@ -1218,18 +1217,18 @@ def api_get_ultima_respuesta(grupo_id):
                     ORDER BY orden
                     LIMIT 1 OFFSET %s
                 """, (juego['cuestionario_id'], pregunta_index))
-                
+
                 pregunta = cursor.fetchone()
-                
+
                 if pregunta:
                     return jsonify({
                         "tiene_respuesta": True,
                         "respuesta_correcta": pregunta['respuesta_correcta'],
                         "nuevo_score": juego['current_score']
                     })
-            
+
             return jsonify({"tiene_respuesta": False})
-            
+
     except Exception as e:
         print(f"Error en api_get_ultima_respuesta: {e}")
         return jsonify({"error": str(e)}), 500
@@ -1294,16 +1293,16 @@ def api_responder(grupo_id):
                                (nuevo_score, grupo_id))
 
             nuevo_index = juego['current_question_index'] + 1
-            
+
             es_ultima_pregunta = (nuevo_index >= juego['num_preguntas'])
-            
+
             nuevo_estado = 'answered'
             if es_ultima_pregunta:
                 nuevo_estado = 'finished'
 
             # Actualizar el índice y el estado
             cursor.execute("""
-                UPDATE grupos 
+                UPDATE grupos
                 SET current_question_index = %s,
                     game_state = %s
                 WHERE id = %s
@@ -1316,7 +1315,7 @@ def api_responder(grupo_id):
                 "es_correcta": es_correcta,
                 "puntos_ganados": puntos_ganados,
                 "respuesta_correcta": pregunta_actual['respuesta_correcta'],
-                "respuesta_seleccionada": respuesta_usuario, 
+                "respuesta_seleccionada": respuesta_usuario,
                 "es_ultima_pregunta": es_ultima_pregunta,
                 "nuevo_index": nuevo_index,
                 "nuevo_score": juego['current_score'] + puntos_ganados if es_correcta else juego['current_score']
@@ -1399,12 +1398,12 @@ def visualizar_cuestionario():
             if not (cuestionario := cursor.fetchone()):
                 flash(f"❌ No se encontró ningún cuestionario con el PIN '{pin}'.", "error")
                 return redirect(url_for("dashboard_estudiante"))
-            
+
             # NUEVA VALIDACIÓN: No permitir visualizar un cuestionario grupal aquí
             if cuestionario['modo_juego'] == 'grupal':
                 flash(f"❌ El PIN '{pin}' es para un juego GRUPAL. Únete a un grupo para jugarlo.", "error")
                 return redirect(url_for("dashboard_estudiante"))
-            
+
             cursor.execute("SELECT * FROM preguntas WHERE cuestionario_id = %s ORDER BY orden", (cuestionario['id'],))
             preguntas = cursor.fetchall()
     finally:
@@ -1420,6 +1419,101 @@ def configurar_google_drive():
 
     # CORRECCIÓN DE ERROR DE SINTAXIS
     return render_template("configurar_drive.html")
+
+@app.route("/google_auth")
+def google_auth():
+    """Inicia el flujo de autenticación con Google"""
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return redirect(url_for("login"))
+
+    try:
+        from google_auth_oauthlib.flow import Flow
+
+        # Crear el flujo de OAuth
+        flow = Flow.from_client_secrets_file(
+            CLIENT_SECRETS_FILE,
+            scopes=SCOPES,
+            redirect_uri=url_for('oauth2callback', _external=True)
+        )
+
+        # Generar URL de autorización
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            prompt='consent'
+        )
+
+        # Guardar el state en la sesión
+        session['state'] = state
+
+        return redirect(authorization_url)
+
+    except FileNotFoundError:
+        flash("❌ Error: No se encontró el archivo credentials.json. Asegúrate de haberlo configurado correctamente.", "error")
+        return redirect(url_for('configurar_google_drive'))
+    except Exception as e:
+        flash(f"❌ Error al conectar con Google: {str(e)}", "error")
+        print(f"Error en google_auth: {e}")
+        import traceback
+        traceback.print_exc()
+        return redirect(url_for('dashboard_profesor'))
+
+
+@app.route("/oauth2callback")
+def oauth2callback():
+    """Callback de Google OAuth - guarda las credenciales en la BD"""
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return redirect(url_for("login"))
+
+    try:
+        from google_auth_oauthlib.flow import Flow
+
+        # Verificar el state para prevenir CSRF
+        state = session.get('state')
+        if not state:
+            flash("❌ Error de autenticación: Estado inválido", "error")
+            return redirect(url_for('dashboard_profesor'))
+
+        # Crear el flujo de OAuth con el mismo redirect_uri
+        flow = Flow.from_client_secrets_file(
+            CLIENT_SECRETS_FILE,
+            scopes=SCOPES,
+            state=state,
+            redirect_uri=url_for('oauth2callback', _external=True)
+        )
+
+        # Intercambiar el código de autorización por credenciales
+        flow.fetch_token(authorization_response=request.url)
+
+        # Obtener las credenciales
+        credentials = flow.credentials
+
+        # Guardar las credenciales en la base de datos
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE usuarios SET google_creds_json = %s WHERE id = %s",
+                    (credentials.to_json(), session['user_id'])
+                )
+                conexion.commit()
+
+            flash("✅ Google Drive conectado exitosamente", "success")
+            print(f"✅ Credenciales guardadas para usuario {session['user_id']}")
+
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+
+        # Redirigir de vuelta a la configuración
+        return redirect(url_for('configurar_google_drive'))
+
+    except Exception as e:
+        flash(f"❌ Error al completar la autenticación: {str(e)}", "error")
+        print(f"Error en oauth2callback: {e}")
+        import traceback
+        traceback.print_exc()
+        return redirect(url_for('dashboard_profesor'))
 
 # CORRECCIÓN DE ERROR DE RUTA DUPLICADA:
 @app.route("/exportar_resultados/<int:cuestionario_id>")
@@ -1449,7 +1543,7 @@ def exportar_resultados(cuestionario_id):
                 WHERE cuestionario_id = %s
             """, (cuestionario_id,))
             total_resultados = cursor.fetchone()['total']
-            
+
             # Verificar si el profesor tiene credenciales de Google
             cursor.execute("SELECT google_creds_json FROM usuarios WHERE id = %s", (session['user_id'],))
             usuario = cursor.fetchone()
@@ -1459,7 +1553,7 @@ def exportar_resultados(cuestionario_id):
     finally:
         if conexion and conexion.open:
             conexion.close()
-            
+
     return render_template("exportar_opciones.html",
                            cuestionario=cuestionario,
                            cuestionario_id=cuestionario_id,
@@ -1610,112 +1704,6 @@ def exportar_google_drive(cuestionario_id):
     if "usuario" not in session or session.get("rol") != "profesor":
         return redirect(url_for("login"))
 
-    # --- CORRECCIÓN: Imports movidos aquí ---
-    try:
-        import pandas as pd
-        import openpyxl
-        from google_drive_helper import upload_excel_to_drive
-        from google.oauth2.credentials import Credentials
-        from google.auth.transport.requests import Request
-    except ImportError as e:
-        error_msg = str(e)
-        if 'google' in error_msg.lower() or 'pandas' in error_msg.lower():
-            flash("❌ Faltan librerías. Ejecuta: pip install google-auth google-auth-oauthlib google-api-python-client pandas openpyxl", "error")
-        else:
-            flash(f"❌ Error: {error_msg}", "error")
-        return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
-    # --- FIN CORRECCIÓN ---
-    
-    conexion = obtener_conexion()
-    try:
-        with conexion.cursor() as cursor:
-            # 1. Obtener credenciales de Google del profesor
-            cursor.execute("SELECT google_creds_json FROM usuarios WHERE id = %s", (session['user_id'],))
-            usuario_creds = cursor.fetchone()
-            
-            if not usuario_creds or not usuario_creds['google_creds_json']:
-                flash("❌ Debes conectar tu cuenta de Google Drive primero.", "error")
-                return redirect(url_for('exportar_resultados', cuestionario_id=cuestionario_id))
-            
-            # 2. Cargar las credenciales
-            creds_json = json.loads(usuario_creds['google_creds_json'])
-            credentials = Credentials.from_authorized_user_info(creds_json, SCOPES)
-            
-            # 3. Verificar si el token ha expirado y refrescarlo si es necesario
-            if credentials.expired and credentials.refresh_token:
-                try:
-                    credentials.refresh(Request())
-                    # Guardar las credenciales actualizadas en la BD
-                    cursor.execute("UPDATE usuarios SET google_creds_json = %s WHERE id = %s", 
-                                   (credentials.to_json(), session['user_id']))
-                    conexion.commit()
-                except Exception as refresh_error:
-                    # Si el refresh_token es inválido (ej. revocado por el usuario)
-                    print(f"Error al refrescar token: {refresh_error}")
-                    flash("❌ Tu conexión con Google Drive ha expirado. Por favor, conéctala de nuevo.", "error")
-                    cursor.execute("UPDATE usuarios SET google_creds_json = NULL WHERE id = %s", (session['user_id'],))
-                    conexion.commit()
-                    return redirect(url_for('exportar_resultados', cuestionario_id=cuestionario_id))
-
-            # 4. Verificar que el cuestionario pertenece al profesor
-            cursor.execute("SELECT titulo FROM cuestionarios WHERE id = %s AND profesor_id = %s", (cuestionario_id, session["user_id"]))
-            cuestionario = cursor.fetchone()
-            if not cuestionario:
-                flash("❌ Cuestionario no encontrado", "error")
-                return redirect(url_for("dashboard_profesor"))
-
-            # 5. Obtener resultados de las partidas
-            cursor.execute("""
-                SELECT
-                    h.id as partida_id, h.nombre_grupo, h.puntuacion_final,
-                    h.num_preguntas_total, h.num_miembros, h.fecha_partida,
-                    GROUP_CONCAT(p.nombre_usuario SEPARATOR ', ') as participantes
-                FROM historial_partidas h
-                LEFT JOIN participantes_partida p ON h.id = p.partida_id
-                WHERE h.cuestionario_id = %s
-                GROUP BY h.id
-                ORDER BY h.fecha_partida DESC
-            """, (cuestionario_id,))
-            resultados = cursor.fetchall()
-
-            if not resultados:
-                flash("⚠️ No hay resultados para exportar", "warning")
-                return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
-
-            # 6. Crear DataFrame y archivo Excel en memoria (igual que en descargar_excel)
-            df = pd.DataFrame(resultados)
-            df.columns = ['ID Partida', 'Grupo', 'Puntuación', 'Total Preguntas', 'Miembros', 'Fecha', 'Participantes']
-            df['Porcentaje (%)'] = (df['Puntuación'] / (df['Total Preguntas'] * 100) * 100).round(2)
-            
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name='Resultados', index=False)
-            output.seek(0)
-            
-            filename = f"Resultados_{cuestionario['titulo'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-
-            # 7. Subir a Google Drive USANDO las credenciales del profesor
-            result = upload_excel_to_drive(credentials, output, filename)
-
-            if result['success']:
-                flash(f"✅ Archivo exportado exitosamente a tu Google Drive", "success")
-                return render_template("export_success.html",
-                                       drive_link=result['web_link'],
-                                       download_link=result['download_link'],
-                                       filename=filename)
-            else:
-                flash(f"❌ Error al subir a Google Drive: {result['error']}", "error")
-                return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
-
-    except Exception as e:
-        flash(f"❌ Error al exportar a Google Drive: {str(e)}", "error")
-        print(f"Error en exportar_google_drive: {e}")
-        import traceback
-        traceback.print_exc()
-        return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
-    finally:
-        if 'conexion' in locals() and conexion.open:
-            conexion.close()
 
 
 # --- MANEJO DE ERRORES ---
