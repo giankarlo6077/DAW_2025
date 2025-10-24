@@ -1,3 +1,4 @@
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_mail import Mail, Message
 from bd import obtener_conexion
 import random
@@ -5,9 +6,7 @@ import string
 import re
 import secrets
 from datetime import datetime, timedelta
-# --- IMPORTS MOVIMIENTOS A SUS FUNCIONES ---
-# Mover los imports de pandas/google dentro de las funciones
-# para que la app pueda iniciar aunque no estén instalados.
+
 from io import BytesIO
 import json
 
