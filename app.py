@@ -559,32 +559,53 @@ def eliminar_cuenta_profesor():
             conexion.close()
 
 # --- RUTAS DE ESTUDIANTE Y GRUPOS ---
-
 @app.route("/dashboard_estudiante")
 def dashboard_estudiante():
     if "usuario" not in session or session.get("rol") != "estudiante":
         return redirect(url_for("login"))
-
-    grupo_info, miembros = None, []
+    grupo_info, miembros, cuestionarios_recientes = None, [], []
     user_id = session.get("user_id")
-    conexion = obtener_conexion()
+
+    # Obtener datos del grupo actual (si existe)
     try:
+        conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("SELECT grupo_id FROM usuarios WHERE id = %s", (user_id,))
-            if usuario_data := cursor.fetchone():
-                if grupo_id := usuario_data.get('grupo_id'):
-                    cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
-                    grupo_info = cursor.fetchone()
-                    cursor.execute("SELECT id, nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
-                    miembros = cursor.fetchall()
+            usuario_data = cursor.fetchone()
+            if usuario_data and usuario_data.get('grupo_id'):
+                grupo_id = usuario_data.get('grupo_id')
+                cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
+                grupo_info = cursor.fetchone()
+                cursor.execute("SELECT id, nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
+                miembros = cursor.fetchall()
     finally:
-        if conexion and conexion.open: conexion.close()
+        if 'conexion' in locals() and conexion.open:
+            conexion.close()
+
+    # Obtener el historial personal
+    try:
+        conexion_historial = obtener_conexion()
+        with conexion_historial.cursor() as cursor:
+            # Esta consulta lee el TÍTULO que guardamos, ya no necesita la tabla 'cuestionarios'
+            cursor.execute("""
+                SELECT h.titulo_cuestionario, h.puntuacion_final, h.fecha_partida, h.nombre_grupo
+                FROM historial_partidas h
+                JOIN participantes_partida p ON h.id = p.partida_id
+                WHERE p.usuario_id = %s
+                ORDER BY h.fecha_partida DESC
+                LIMIT 5
+            """, (user_id,))
+            cuestionarios_recientes = cursor.fetchall()
+    finally:
+        if 'conexion_historial' in locals() and conexion_historial.open:
+            conexion_historial.close()
 
     return render_template("dashboard_estudiante.html",
                            nombre=session["usuario"],
                            grupo=grupo_info,
                            miembros=miembros,
-                           user_id=user_id)
+                           user_id=user_id,
+                           cuestionarios_recientes=cuestionarios_recientes)
 
 @app.route("/crear_grupo", methods=["POST"])
 def crear_grupo():
@@ -815,51 +836,50 @@ def partida_grupal(grupo_id):
 def resultados_grupo(grupo_id):
     if "usuario" not in session:
         return redirect(url_for('login'))
-
     user_id = session.get("user_id")
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # Verificar que el usuario pertenece al grupo
+            # Código para obtener datos del usuario, grupo y cuestionario
             cursor.execute("SELECT grupo_id FROM usuarios WHERE id = %s", (user_id,))
             usuario = cursor.fetchone()
-
             if not usuario or usuario['grupo_id'] != grupo_id:
                 flash("❌ No perteneces a este grupo", "error")
                 return redirect(url_for('dashboard_estudiante'))
-
-            # Obtener información del grupo
             cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
             grupo = cursor.fetchone()
-
             if not grupo:
                 flash("❌ Grupo no encontrado", "error")
                 return redirect(url_for('dashboard_estudiante'))
-
-            # Obtener información del cuestionario usando el PIN que debería estar en el grupo
             cursor.execute("SELECT * FROM cuestionarios WHERE codigo_pin = %s", (grupo['active_pin'],))
             cuestionario = cursor.fetchone()
-
-            if not cuestionario:
-                flash("No se pudo cargar la información completa del cuestionario, pero aquí están tus resultados.", "info")
-
-            # Obtener miembros que participaron
-            cursor.execute("SELECT nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
+            cursor.execute("SELECT id, nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
             miembros = cursor.fetchall()
 
-            # --- BLOQUE ELIMINADO ---
-            # Ya no limpiamos el estado aquí.
-            # La limpieza se hará al iniciar la PRÓXIMA partida.
-            # conexion.commit() <--- Esto también se va si estaba después del execute.
+            if cuestionario and grupo.get('game_state') == 'finished':
+                # Guardamos el resultado en historial_partidas, INCLUYENDO EL TÍTULO
+                cursor.execute("""
+                    INSERT INTO historial_partidas
+                    (grupo_id, cuestionario_id, nombre_grupo, titulo_cuestionario, puntuacion_final, num_preguntas_total, num_miembros)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (grupo_id, cuestionario['id'], grupo['nombre_grupo'], cuestionario['titulo'], grupo['current_score'], cuestionario['num_preguntas'], len(miembros)))
 
+                partida_id = cursor.lastrowid
+                # Guardamos a los participantes
+                for miembro in miembros:
+                    cursor.execute("""
+                        INSERT INTO participantes_partida (partida_id, usuario_id, nombre_usuario)
+                        VALUES (%s, %s, %s)
+                    """, (partida_id, miembro['id'], miembro['nombre']))
+
+                cursor.execute("UPDATE grupos SET game_state = 'archived' WHERE id = %s", (grupo_id,))
+                conexion.commit()
+            if not cuestionario:
+                flash("No se pudo cargar la info del cuestionario, pero aquí están tus resultados.", "info")
     finally:
-        if conexion and conexion.open:
+        if 'conexion' in locals() and conexion.open:
             conexion.close()
-
-    return render_template("resultados_grupo.html",
-                           grupo=grupo,
-                           cuestionario=cuestionario,
-                           miembros=miembros)
+    return render_template("resultados_grupo.html", grupo=grupo, cuestionario=cuestionario, miembros=miembros)
 
 
 # --- API INTERNA PARA JUEGO EN TIEMPO REAL ---

@@ -51,6 +51,52 @@
         .btn-danger { background: #e74c3c; color: white; }
         .btn-danger:hover { background: #c0392b; }
         @media (max-width: 900px) { .grid-container { grid-template-columns: 1fr; } }
+        
+        /* === ESTILOS AÑADIDOS INICIAN AQUÍ === */
+        .recent-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .recent-item {
+            display: flex;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 5px solid #11998e;
+        }
+        .item-icon {
+            font-size: 24px;
+            margin-right: 15px;
+        }
+        .item-details {
+            flex-grow: 1;
+        }
+        .item-details h4 {
+            margin: 0 0 5px 0;
+            color: #333;
+            font-size: 16px;
+        }
+        .item-details p {
+            margin: 0;
+            color: #666;
+            font-size: 12px;
+        }
+        .item-score {
+            text-align: right;
+        }
+        .item-score span {
+            font-size: 24px;
+            font-weight: bold;
+            color: #38ef7d;
+        }
+        .item-score small {
+            display: block;
+            font-size: 12px;
+            color: #666;
+        }
+        /* === ESTILOS AÑADIDOS TERMINAN AQUÍ === */
     </style>
 </head>
 <body>
@@ -118,7 +164,30 @@
                         <p>Debes estar en un grupo para jugar. Crea uno o únete a uno existente.</p>
                     {% endif %}
                 </div>
-            </div>
+                
+                {% if cuestionarios_recientes %}
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2>📜 Cuestionarios Recientes</h2>
+                    </div>
+                    <div class="recent-list">
+                        {% for c in cuestionarios_recientes %}
+                        <div class="recent-item">
+                            <div class="item-icon">📚</div>
+                            <div class="item-details">
+                                <h4>{{ c.titulo_cuestionario }}</h4>                                
+                                <p>Finalizado: {{ c.fecha_partida.strftime('%d/%m/%Y a las %H:%M') }}</p>
+                            </div>
+                            <div class="item-score">
+                                <span>{{ c.puntuacion_final }}</span>
+                                <small>puntos</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                            </div>
             
             <aside class="sidebar">
                 <div class="content-section">
@@ -196,4 +265,3 @@
     </script>
 </body>
 </html>
-
