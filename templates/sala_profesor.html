@@ -23,7 +23,7 @@
         .control-panel { background: white; padding: 25px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); text-align: center; }
         .btn-start-all { padding: 20px 40px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border: none; border-radius: 12px; font-size: 20px; font-weight: bold; cursor: pointer; transition: all 0.3s; }
         .btn-start-all:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4); }
-        .btn-start-all:disabled { background: #6c757d; cursor: not-allowed; transform: none; }
+        .btn-start-all:disabled { background: #6c757d; cursor: not-allowed; transform: none; opacity: 0.5; }
 
         .grupos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
         .grupo-card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); transition: all 0.3s; }
@@ -41,15 +41,14 @@
         .miembros-lista ul { list-style: none; padding: 0; }
         .miembros-lista li { padding: 5px 0; color: #333; font-size: 14px; }
 
-        .empty-state { background: white; padding: 60px 40px; border-radius: 15px; text-align: center; color: #999; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        .empty-state { background: white; padding: 60px 40px; border-radius: 15px; text-align: center; color: #999; box-shadow: 0 5px 20px rgba(0,0,0,0.1); grid-column: 1/-1; }
         .empty-state .icon { font-size: 64px; margin-bottom: 20px; }
-        .empty-state h3 { font-size: 24px; margin-bottom: 10px; }
+        .empty-state h3 { font-size: 24px; margin-bottom: 10px; color: #666; }
         .empty-state p { font-size: 16px; }
 
         .btn-back { display: inline-block; padding: 12px 30px; background: white; color: #667eea; border: 2px solid #667eea; border-radius: 10px; text-decoration: none; font-weight: 600; margin-top: 20px; transition: all 0.3s; }
         .btn-back:hover { background: #667eea; color: white; }
 
-        /* Responsive */
         @media (max-width: 768px) {
             .container { padding: 10px; }
             .header { padding: 20px; }
@@ -90,7 +89,6 @@
             </div>
         </div>
 
-        {% if grupos_esperando %}
         <div class="control-panel">
             <p style="color: #666; margin-bottom: 15px; font-size: 16px;">
                 Cuando todos los grupos estén listos, inicia las partidas
@@ -100,43 +98,45 @@
             </button>
         </div>
 
+        <!-- CONTENEDOR DE GRUPOS - ESTE ES EL ID IMPORTANTE -->
         <div class="grupos-grid" id="grupos-container">
-            {% for grupo in grupos_esperando %}
-            <div class="grupo-card" data-grupo-id="{{ grupo['id'] }}">
-                <h3>{{ grupo['nombre_grupo'] }}</h3>
-                <div class="grupo-info">
-                    <span>Estado:</span>
-                    <span class="estado {{ grupo['game_state'] }}">
-                        {% if grupo['game_state'] == 'waiting' %}⏳ Esperando
-                        {% elif grupo['game_state'] == 'playing' %}▶️ Jugando
-                        {% else %}{{ grupo['game_state'] }}{% endif %}
-                    </span>
-                </div>
-                <div class="grupo-info">
-                    <span>👥 Miembros:</span> {{ grupo['num_miembros'] }}
-                </div>
+            {% if grupos_esperando %}
+                {% for grupo in grupos_esperando %}
+                <div class="grupo-card" data-grupo-id="{{ grupo['id'] }}">
+                    <h3>{{ grupo['nombre_grupo'] }}</h3>
+                    <div class="grupo-info">
+                        <span>Estado:</span>
+                        <span class="estado {{ grupo['game_state'] }}">
+                            {% if grupo['game_state'] == 'waiting' %}⏳ Esperando
+                            {% elif grupo['game_state'] == 'playing' %}▶️ Jugando
+                            {% else %}{{ grupo['game_state'] }}{% endif %}
+                        </span>
+                    </div>
+                    <div class="grupo-info">
+                        <span>👥 Miembros:</span> {{ grupo['num_miembros'] }}
+                    </div>
 
-                {% if grupo['miembros'] %}
-                <div class="miembros-lista">
-                    <p>Participantes:</p>
-                    <ul>
-                        {% for miembro in grupo['miembros'].split(', ') %}
-                        <li>• {{ miembro }}</li>
-                        {% endfor %}
-                    </ul>
+                    {% if grupo['miembros'] %}
+                    <div class="miembros-lista">
+                        <p>Participantes:</p>
+                        <ul>
+                            {% for miembro in grupo['miembros'].split(', ') %}
+                            <li>• {{ miembro }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
+                {% endfor %}
+            {% else %}
+            <div class="empty-state">
+                <div class="icon">⏳</div>
+                <h3>Esperando Grupos</h3>
+                <p>Los grupos aparecerán aquí cuando ingresen el PIN</p>
+                <p style="margin-top: 10px;">Comparte el PIN <strong>{{ cuestionario['codigo_pin'] }}</strong> con tus estudiantes</p>
             </div>
-            {% endfor %}
+            {% endif %}
         </div>
-        {% else %}
-        <div class="empty-state">
-            <div class="icon">⏳</div>
-            <h3>Esperando Grupos</h3>
-            <p>Los grupos aparecerán aquí cuando ingresen el PIN</p>
-            <p style="margin-top: 10px;">Comparte el PIN <strong>{{ cuestionario['codigo_pin'] }}</strong> con tus estudiantes</p>
-        </div>
-        {% endif %}
 
         <div style="text-align: center;">
             <a href="{{ url_for('dashboard_profesor') }}" class="btn-back">← Volver al Dashboard</a>
@@ -146,10 +146,48 @@
     <script>
         const codigoPin = '{{ cuestionario["codigo_pin"] }}';
         let pollInterval;
+        let gruposActuales = [];
 
-        // Actualizar lista de grupos en tiempo real
+        // Función para actualizar los contadores
+        function actualizarContadores(grupos) {
+            const totalGrupos = grupos.length;
+            let totalJugadores = 0;
+            
+            grupos.forEach(g => totalJugadores += g.num_miembros);
+            
+            document.getElementById('total-grupos').textContent = totalGrupos;
+            document.getElementById('total-jugadores').textContent = totalJugadores;
+        }
+
+        // Función para crear el HTML de un grupo
+        function crearGrupoHTML(grupo) {
+            const estadoClase = grupo.game_state;
+            let estadoTexto = '';
+            
+            if (grupo.game_state === 'waiting') {
+                estadoTexto = '⏳ Esperando';
+            } else if (grupo.game_state === 'playing') {
+                estadoTexto = '▶️ Jugando';
+            } else {
+                estadoTexto = grupo.game_state;
+            }
+            
+            const miembros = grupo.miembros ? grupo.miembros.split(', ') : [];
+            const miembrosHTML = miembros.map(m => '<li>• ' + m + '</li>').join('');
+            
+            return '<div class="grupo-card" data-grupo-id="' + grupo.id + '" style="animation: slideIn 0.5s ease;">' +
+                '<h3>' + grupo.nombre_grupo + '</h3>' +
+                '<div class="grupo-info"><span>Estado:</span><span class="estado ' + estadoClase + '">' + estadoTexto + '</span></div>' +
+                '<div class="grupo-info"><span>👥 Miembros:</span> ' + grupo.num_miembros + '</div>' +
+                (miembros.length > 0 ? '<div class="miembros-lista"><p>Participantes:</p><ul>' + miembrosHTML + '</ul></div>' : '') +
+                '</div>';
+        }
+
+        // Función principal para actualizar grupos
         function actualizarGrupos() {
-            fetch(`/api/grupos_esperando/${codigoPin}`)
+            console.log('🔄 Consultando grupos para PIN:', codigoPin);
+            
+            fetch('/api/grupos_esperando/' + codigoPin)
                 .then(response => response.json())
                 .then(grupos => {
                     if (grupos.error) {
@@ -157,28 +195,76 @@
                         return;
                     }
 
-                    // Actualizar contador
-                    document.getElementById('total-grupos').textContent = grupos.length;
+                    console.log('📥 Recibidos ' + grupos.length + ' grupo(s)');
 
-                    let totalJugadores = 0;
-                    grupos.forEach(g => totalJugadores += g.num_miembros);
-                    document.getElementById('total-jugadores').textContent = totalJugadores;
+                    // Actualizar contadores
+                    actualizarContadores(grupos);
 
-                    // Si no hay grupos, mostrar empty state
-                    if (grupos.length === 0) {
-                        const container = document.getElementById('grupos-container');
-                        if (container && !container.classList.contains('empty-shown')) {
-                            location.reload(); // Recargar para mostrar empty state
-                        }
+                    const container = document.getElementById('grupos-container');
+                    if (!container) {
+                        console.error('❌ No se encontró el contenedor grupos-container');
+                        return;
                     }
 
-                    // Actualizar estado de cada grupo
+                    if (grupos.length === 0) {
+                        container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;">' +
+                            '<div class="icon">⏳</div>' +
+                            '<h3>Esperando Grupos</h3>' +
+                            '<p>Los grupos aparecerán aquí cuando ingresen el PIN</p>' +
+                            '<p style="margin-top: 10px;">Comparte el PIN <strong>' + codigoPin + '</strong> con tus estudiantes</p>' +
+                            '</div>';
+                        gruposActuales = [];
+                        return;
+                    }
+
+                    // Comparar con grupos actuales para detectar nuevos
+                    const gruposNuevos = grupos.filter(g => 
+                        !gruposActuales.find(ga => ga.id === g.id)
+                    );
+
+                    // Notificar si hay nuevos grupos
+                    if (gruposNuevos.length > 0 && gruposActuales.length > 0) {
+                        gruposNuevos.forEach(g => {
+                            console.log('🎉 Nuevo grupo: ' + g.nombre_grupo);
+                            mostrarNotificacion('🎉 Nuevo grupo: ' + g.nombre_grupo);
+                        });
+                    }
+
+                    gruposActuales = grupos;
+
+                    // Eliminar empty state si existe
+                    const emptyState = container.querySelector('.empty-state');
+                    if (emptyState) {
+                        emptyState.remove();
+                    }
+
+                    // Obtener IDs actuales en el DOM
+                    const gruposEnDOM = Array.from(container.querySelectorAll('.grupo-card'))
+                        .map(card => parseInt(card.getAttribute('data-grupo-id')));
+
+                    // Eliminar grupos que ya no están
+                    gruposEnDOM.forEach(grupoId => {
+                        if (!grupos.find(g => g.id === grupoId)) {
+                            const card = container.querySelector('[data-grupo-id="' + grupoId + '"]');
+                            if (card) card.remove();
+                        }
+                    });
+
+                    // Agregar o actualizar grupos
                     grupos.forEach(grupo => {
-                        const card = document.querySelector(`[data-grupo-id="${grupo.id}"]`);
-                        if (card) {
+                        const card = container.querySelector('[data-grupo-id="' + grupo.id + '"]');
+                        
+                        if (!card) {
+                            // Crear nueva card
+                            const tempDiv = document.createElement('div');
+                            tempDiv.innerHTML = crearGrupoHTML(grupo);
+                            container.appendChild(tempDiv.firstElementChild);
+                            console.log('➕ Agregado grupo:', grupo.nombre_grupo);
+                        } else {
+                            // Actualizar estado
                             const estadoSpan = card.querySelector('.estado');
                             if (estadoSpan) {
-                                estadoSpan.className = `estado ${grupo.game_state}`;
+                                estadoSpan.className = 'estado ' + grupo.game_state;
                                 if (grupo.game_state === 'waiting') {
                                     estadoSpan.textContent = '⏳ Esperando';
                                 } else if (grupo.game_state === 'playing') {
@@ -187,32 +273,47 @@
                             }
                         }
                     });
+
+                    // Habilitar/deshabilitar botón
+                    const btnIniciar = document.getElementById('btnIniciar');
+                    if (btnIniciar) {
+                        const hayGruposEsperando = grupos.some(g => g.game_state === 'waiting');
+                        btnIniciar.disabled = !hayGruposEsperando;
+                    }
                 })
-                .catch(error => console.error('Error al actualizar grupos:', error));
+                .catch(error => {
+                    console.error('❌ Error al actualizar grupos:', error);
+                });
         }
 
-        // Iniciar polling
-        pollInterval = setInterval(actualizarGrupos, 3000);
+        // Función para mostrar notificaciones
+        function mostrarNotificacion(mensaje) {
+            const notif = document.createElement('div');
+            notif.style.cssText = 'position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); z-index: 9999; animation: slideInRight 0.5s ease; font-weight: 600;';
+            notif.textContent = mensaje;
+            document.body.appendChild(notif);
+            setTimeout(function() {
+                notif.style.animation = 'slideOutRight 0.5s ease';
+                setTimeout(function() { notif.remove(); }, 500);
+            }, 3000);
+        }
 
-        // Iniciar todas las partidas
+        // Función para iniciar partidas
         function iniciarTodasLasPartidas() {
-            if (!confirm('¿Estás seguro de iniciar todas las partidas? Los grupos comenzarán a jugar inmediatamente.')) {
-                return;
-            }
+            if (!confirm('¿Estás seguro de iniciar todas las partidas?')) return;
 
             const btn = document.getElementById('btnIniciar');
             btn.disabled = true;
-            btn.textContent = '⏳ Iniciando partidas...';
+            btn.textContent = '⏳ Iniciando...';
 
-            fetch(`/profesor_iniciar_partidas/${codigoPin}`, {
+            fetch('/profesor_iniciar_partidas/' + codigoPin, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert(`✅ ${data.message}`);
-                    // Actualizar inmediatamente
+                    mostrarNotificacion('✅ ' + data.message);
                     actualizarGrupos();
                     btn.textContent = '✅ Partidas Iniciadas';
                     btn.style.background = '#28a745';
@@ -223,14 +324,26 @@
                 }
             })
             .catch(error => {
-                alert('❌ Error de red: ' + error.message);
+                alert('❌ Error: ' + error.message);
                 btn.disabled = false;
                 btn.textContent = '🚀 Iniciar Todas las Partidas';
             });
         }
 
-        // Limpiar interval al salir
-        window.addEventListener('beforeunload', () => {
+        // Agregar CSS de animaciones
+        const style = document.createElement('style');
+        style.textContent = '@keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } } @keyframes slideInRight { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } } @keyframes slideOutRight { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100px); } }';
+        document.head.appendChild(style);
+
+        // Iniciar polling cada 2 segundos
+        console.log('✅ Iniciando actualización automática cada 2 segundos');
+        pollInterval = setInterval(actualizarGrupos, 2000);
+
+        // Primera actualización inmediata
+        actualizarGrupos();
+
+        // Limpiar al salir
+        window.addEventListener('beforeunload', function() {
             if (pollInterval) clearInterval(pollInterval);
         });
     </script>

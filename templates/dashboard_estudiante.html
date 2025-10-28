@@ -211,7 +211,11 @@
                                 {% endfor %}
                                 </ul>
                             </div>
-                            <a href="{{ url_for('salir_grupo') }}" class="btn btn-danger" onclick="return confirm('¿Estás seguro de que quieres salir del grupo?');">Salir del Grupo</a>
+                            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+    <a href="{{ url_for('salir_grupo') }}" class="btn btn-danger" onclick="return confirm('¿Estás seguro de que quieres salir del grupo?');" style="width: 100%; margin-top: 10px;">
+        🚪 Salir del Grupo
+    </a>
+</div>
                         </div>
                     {% else %}
                         <div class="group-management">
@@ -263,6 +267,107 @@
                     });
             }, 5000); // Revisa cada 5 segundos
         {% endif %}
+
+        {% if grupo %}
+(function() {
+    const grupoId = {{ grupo['id'] }};
+    const userId = {{ user_id }};
+    let miembrosActuales = [];
+    let pollInterval;
+
+    // Función para obtener y actualizar miembros del grupo
+    function actualizarMiembrosGrupo() {
+        fetch('/api/miembros_grupo/' + grupoId)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error al obtener miembros:', data.error);
+                    return;
+                }
+
+                const miembros = data.miembros || [];
+
+                // Detectar nuevos miembros
+                const nuevosIds = miembros.map(m => m.id);
+                const actualesIds = miembrosActuales.map(m => m.id);
+
+                const miembrosNuevos = miembros.filter(m => !actualesIds.includes(m.id));
+
+                // Notificar si hay nuevos miembros
+                if (miembrosNuevos.length > 0 && miembrosActuales.length > 0) {
+                    miembrosNuevos.forEach(m => {
+                        console.log('🎉 Nuevo miembro: ' + m.nombre);
+                        mostrarNotificacionEstudiante('🎉 ' + m.nombre + ' se unió al grupo');
+                    });
+                }
+
+                // Actualizar el contador de miembros
+                const contadorMiembros = document.querySelector('.miembros-lista h4');
+                if (contadorMiembros) {
+                    contadorMiembros.innerHTML = '<span style="font-size: 20px;">👥</span> Miembros (' + miembros.length + ')';
+                }
+
+                // Actualizar la lista de miembros
+                const listaMiembros = document.querySelector('.miembros-lista ul');
+                if (listaMiembros) {
+                    listaMiembros.innerHTML = '';
+
+                    miembros.forEach(miembro => {
+                        const li = document.createElement('li');
+                        li.style.animation = 'slideIn 0.3s ease';
+
+                        const icono = miembro.id === data.lider_id ? '👑' : '👤';
+                        const badge = miembro.id === data.lider_id ?
+                            '<span style="font-size: 11px; background: #ffd700; color: #856404; padding: 3px 8px; border-radius: 5px; font-weight: bold; margin-left: auto;">LÍDER</span>' : '';
+
+                        li.innerHTML = '<span style="font-size: 20px;">' + icono + '</span>' +
+                                      '<span style="flex-grow: 1;">' + miembro.nombre + '</span>' +
+                                      badge;
+
+                        listaMiembros.appendChild(li);
+                    });
+                }
+
+                // Guardar estado actual
+                miembrosActuales = miembros;
+            })
+            .catch(error => {
+                console.error('Error en actualización de miembros:', error);
+            });
+    }
+
+    // Función para mostrar notificaciones
+    function mostrarNotificacionEstudiante(mensaje) {
+        const notif = document.createElement('div');
+        notif.style.cssText = 'position: fixed; top: 80px; right: 20px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); z-index: 9999; animation: slideInRight 0.5s ease; font-weight: 600; max-width: 300px;';
+        notif.textContent = mensaje;
+        document.body.appendChild(notif);
+
+        setTimeout(function() {
+            notif.style.animation = 'slideOutRight 0.5s ease';
+            setTimeout(function() { notif.remove(); }, 500);
+        }, 3000);
+    }
+
+    // Agregar CSS de animaciones
+    const style = document.createElement('style');
+    style.textContent = '@keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } @keyframes slideInRight { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } } @keyframes slideOutRight { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100px); } }';
+    document.head.appendChild(style);
+
+    // Cargar miembros iniciales
+    actualizarMiembrosGrupo();
+
+    // Actualizar cada 3 segundos
+    pollInterval = setInterval(actualizarMiembrosGrupo, 3000);
+
+    // Limpiar al salir
+    window.addEventListener('beforeunload', function() {
+        if (pollInterval) clearInterval(pollInterval);
+    });
+
+    console.log('✅ Actualización automática de miembros activada');
+})();
+{% endif %}
     </script>
 </body>
 </html>

@@ -10,7 +10,6 @@ from io import BytesIO
 import json
 import pandas as pd
 import google.oauth2.credentials
-import google_drive_helper
 from flask import send_file
 import traceback
 
@@ -29,7 +28,7 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = 'cevar4@gmail.com'
-app.config['MAIL_PASSWORD'] = 'rgzl jhyh ceaa snxi' # Considera usar variables de entorno
+app.config['MAIL_PASSWORD'] = 'rgzl jhyh ceaa snxi'
 app.config['MAIL_DEFAULT_SENDER'] = 'cevar4@gmail.com'
 app.config['MAIL_DEBUG'] = True
 
@@ -781,6 +780,45 @@ def juego_grupo():
         if conexion and conexion.open:
             conexion.close()
 
+@app.route("/api/miembros_grupo/<int:grupo_id>")
+def api_miembros_grupo(grupo_id):
+    """Obtiene los miembros de un grupo en tiempo real"""
+    if "usuario" not in session:
+        return jsonify({"error": "No autenticado"}), 403
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Verificar que el grupo existe
+            cursor.execute("SELECT lider_id FROM grupos WHERE id = %s", (grupo_id,))
+            grupo = cursor.fetchone()
+
+            if not grupo:
+                return jsonify({"error": "Grupo no encontrado"}), 404
+
+            # Obtener miembros del grupo
+            cursor.execute("""
+                SELECT id, nombre
+                FROM usuarios
+                WHERE grupo_id = %s
+                ORDER BY id
+            """, (grupo_id,))
+
+            miembros = cursor.fetchall()
+
+            return jsonify({
+                "miembros": miembros,
+                "lider_id": grupo['lider_id'],
+                "total": len(miembros)
+            })
+
+    except Exception as e:
+        print(f"Error en api_miembros_grupo: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
 @app.route("/sala_profesor/<codigo_pin>")
 def sala_profesor(codigo_pin):
     """Sala donde el profesor ve los grupos esperando y puede iniciar la partida"""
@@ -1203,7 +1241,8 @@ def api_get_ultima_respuesta(grupo_id):
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT g.current_question_index, g.current_score, g.game_state, c.id as cuestionario_id
+                SELECT g.current_question_index, g.current_score, g.game_state,
+                       g.ultima_respuesta_correcta, c.id as cuestionario_id
                 FROM grupos g
                 JOIN cuestionarios c ON g.active_pin = c.codigo_pin
                 WHERE g.id = %s
@@ -1228,10 +1267,14 @@ def api_get_ultima_respuesta(grupo_id):
                 pregunta = cursor.fetchone()
 
                 if pregunta:
+                    # Obtener si la última respuesta fue correcta desde la tabla grupos
+                    fue_correcta = juego.get('ultima_respuesta_correcta', False)
+
                     return jsonify({
                         "tiene_respuesta": True,
                         "respuesta_correcta": pregunta['respuesta_correcta'],
-                        "nuevo_score": juego['current_score']
+                        "nuevo_score": juego['current_score'],
+                        "fue_correcta": fue_correcta  # NUEVO: Indicar si fue correcta
                     })
 
             return jsonify({"tiene_respuesta": False})
@@ -1309,11 +1352,12 @@ def api_responder(grupo_id):
 
             # Actualizar el índice y el estado
             cursor.execute("""
-                UPDATE grupos
-                SET current_question_index = %s,
-                    game_state = %s
-                WHERE id = %s
-            """, (nuevo_index, nuevo_estado, grupo_id))
+            UPDATE grupos
+            SET current_question_index = %s,
+            game_state = %s,
+            ultima_respuesta_correcta = %s
+            WHERE id = %s
+             """, (nuevo_index, nuevo_estado, es_correcta, grupo_id))
 
             conexion.commit()
 
@@ -1418,111 +1462,6 @@ def visualizar_cuestionario():
     return render_template("visualizar_cuestionario.html", cuestionario=cuestionario, preguntas=preguntas)
 
 
-@app.route("/configurar_google_drive")
-def configurar_google_drive():
-    """Página de configuración de Google Drive"""
-    if "usuario" not in session or session.get("rol") != "profesor":
-        return redirect(url_for("login"))
-
-    # CORRECCIÓN DE ERROR DE SINTAXIS
-    return render_template("configurar_drive.html")
-
-@app.route("/google_auth")
-def google_auth():
-    """Inicia el flujo de autenticación con Google"""
-    if "usuario" not in session or session.get("rol") != "profesor":
-        return redirect(url_for("login"))
-
-    try:
-        from google_auth_oauthlib.flow import Flow
-
-        # Crear el flujo de OAuth
-        flow = Flow.from_client_secrets_file(
-            CLIENT_SECRETS_FILE,
-            scopes=SCOPES,
-            redirect_uri=url_for('oauth2callback', _external=True)
-        )
-
-        # Generar URL de autorización
-        authorization_url, state = flow.authorization_url(
-            access_type='offline',
-            include_granted_scopes='true',
-            prompt='consent'
-        )
-
-        # Guardar el state en la sesión
-        session['state'] = state
-
-        return redirect(authorization_url)
-
-    except FileNotFoundError:
-        flash("❌ Error: No se encontró el archivo credentials.json. Asegúrate de haberlo configurado correctamente.", "error")
-        return redirect(url_for('configurar_google_drive'))
-    except Exception as e:
-        flash(f"❌ Error al conectar con Google: {str(e)}", "error")
-        print(f"Error en google_auth: {e}")
-        import traceback
-        traceback.print_exc()
-        return redirect(url_for('dashboard_profesor'))
-
-
-@app.route("/oauth2callback")
-def oauth2callback():
-    """Callback de Google OAuth - guarda las credenciales en la BD"""
-    if "usuario" not in session or session.get("rol") != "profesor":
-        return redirect(url_for("login"))
-
-    try:
-        from google_auth_oauthlib.flow import Flow
-
-        # Verificar el state para prevenir CSRF
-        state = session.get('state')
-        if not state:
-            flash("❌ Error de autenticación: Estado inválido", "error")
-            return redirect(url_for('dashboard_profesor'))
-
-        # Crear el flujo de OAuth con el mismo redirect_uri
-        flow = Flow.from_client_secrets_file(
-            CLIENT_SECRETS_FILE,
-            scopes=SCOPES,
-            state=state,
-            redirect_uri=url_for('oauth2callback', _external=True)
-        )
-
-        # Intercambiar el código de autorización por credenciales
-        flow.fetch_token(authorization_response=request.url)
-
-        # Obtener las credenciales
-        credentials = flow.credentials
-
-        # Guardar las credenciales en la base de datos
-        conexion = obtener_conexion()
-        try:
-            with conexion.cursor() as cursor:
-                cursor.execute(
-                    "UPDATE usuarios SET google_creds_json = %s WHERE id = %s",
-                    (credentials.to_json(), session['user_id'])
-                )
-                conexion.commit()
-
-            flash("✅ Google Drive conectado exitosamente", "success")
-            print(f"✅ Credenciales guardadas para usuario {session['user_id']}")
-
-        finally:
-            if conexion and conexion.open:
-                conexion.close()
-
-        # Redirigir de vuelta a la configuración
-        return redirect(url_for('configurar_google_drive'))
-
-    except Exception as e:
-        flash(f"❌ Error al completar la autenticación: {str(e)}", "error")
-        print(f"Error en oauth2callback: {e}")
-        import traceback
-        traceback.print_exc()
-        return redirect(url_for('dashboard_profesor'))
-
-# CORRECCIÓN DE ERROR DE RUTA DUPLICADA:
 @app.route("/exportar_resultados/<int:cuestionario_id>")
 def exportar_resultados(cuestionario_id):
     """Página de opciones de exportación"""
@@ -1530,10 +1469,9 @@ def exportar_resultados(cuestionario_id):
         return redirect(url_for("login"))
 
     conexion = obtener_conexion()
-    is_drive_connected = False
+
     try:
         with conexion.cursor() as cursor:
-            # Verificar que el cuestionario pertenece al profesor
             cursor.execute("""
                 SELECT titulo, num_preguntas FROM cuestionarios
                 WHERE id = %s AND profesor_id = %s
@@ -1544,18 +1482,11 @@ def exportar_resultados(cuestionario_id):
                 flash("❌ Cuestionario no encontrado", "error")
                 return redirect(url_for("dashboard_profesor"))
 
-            # Contar resultados disponibles
             cursor.execute("""
                 SELECT COUNT(*) as total FROM historial_partidas
                 WHERE cuestionario_id = %s
             """, (cuestionario_id,))
             total_resultados = cursor.fetchone()['total']
-
-            # Verificar si el profesor tiene credenciales de Google
-            cursor.execute("SELECT google_creds_json FROM usuarios WHERE id = %s", (session['user_id'],))
-            usuario = cursor.fetchone()
-            if usuario and usuario['google_creds_json']:
-                is_drive_connected = True
 
     finally:
         if conexion and conexion.open:
@@ -1564,8 +1495,7 @@ def exportar_resultados(cuestionario_id):
     return render_template("exportar_opciones.html",
                            cuestionario=cuestionario,
                            cuestionario_id=cuestionario_id,
-                           total_resultados=total_resultados,
-                           is_drive_connected=is_drive_connected) # Pasar esta variable al HTML
+                           total_resultados=total_resultados)
 
 @app.route("/descargar_excel/<int:cuestionario_id>")
 def descargar_excel(cuestionario_id):
@@ -1705,126 +1635,149 @@ def descargar_excel(cuestionario_id):
         traceback.print_exc()
         return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
 
-@app.route("/exportar_google_drive/<int:cuestionario_id>")
-def exportar_google_drive(cuestionario_id):
-    """Exporta los resultados a Google Drive"""
+
+@app.route("/enviar_excel_correo/<int:cuestionario_id>", methods=["POST"])
+def enviar_excel_correo(cuestionario_id):
+    """Envía el archivo Excel por correo electrónico"""
     if "usuario" not in session or session.get("rol") != "profesor":
         return redirect(url_for("login"))
 
-    user_id = session['user_id']
-    conexion = None # Inicializa conexion a None
-
     try:
-        # --- Imports necesarios SOLO para esta función ---
-        from google.oauth2.credentials import Credentials
-        # --- Fin imports locales ---
+        import pandas as pd
 
         conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            # 1. Obtener credenciales de Google del usuario
-            cursor.execute("SELECT google_creds_json FROM usuarios WHERE id = %s", (user_id,))
-            usuario = cursor.fetchone()
-            if not usuario or not usuario.get('google_creds_json'):
-                flash("❌ No tienes conectada tu cuenta de Google Drive.", "error")
-                return redirect(url_for('exportar_resultados', cuestionario_id=cuestionario_id))
+        try:
+            with conexion.cursor() as cursor:
+                # Verificar que el cuestionario pertenece al profesor
+                cursor.execute("""
+                    SELECT titulo FROM cuestionarios
+                    WHERE id = %s AND profesor_id = %s
+                """, (cuestionario_id, session["user_id"]))
 
-            # Cargar las credenciales
-            try:
-                creds_info = json.loads(usuario['google_creds_json'])
-                # IMPORTANTE: Asegúrate que SCOPES esté definido globalmente o aquí
-                credentials = Credentials.from_authorized_user_info(creds_info, SCOPES)
-            except Exception as cred_error:
-                print(f"❌ Error al cargar credenciales: {cred_error}")
-                flash("❌ Hubo un error al cargar tus credenciales de Google. Intenta reconectar tu cuenta.", "error")
-                return redirect(url_for('configurar_google_drive')) # O a donde configures Drive
+                cuestionario = cursor.fetchone()
+                if not cuestionario:
+                    flash("❌ Cuestionario no encontrado", "error")
+                    return redirect(url_for("dashboard_profesor"))
 
-            # 2. Obtener datos del cuestionario y resultados (similar a descargar_excel)
-            cursor.execute("SELECT titulo FROM cuestionarios WHERE id = %s AND profesor_id = %s",
-                           (cuestionario_id, user_id))
-            cuestionario = cursor.fetchone()
-            if not cuestionario:
-                flash("❌ Cuestionario no encontrado", "error")
-                return redirect(url_for("dashboard_profesor"))
+                # Obtener resultados de las partidas
+                cursor.execute("""
+                    SELECT
+                        h.id as partida_id,
+                        h.nombre_grupo,
+                        h.puntuacion_final,
+                        h.num_preguntas_total,
+                        h.num_miembros,
+                        h.fecha_partida,
+                        GROUP_CONCAT(p.nombre_usuario SEPARATOR ', ') as participantes
+                    FROM historial_partidas h
+                    LEFT JOIN participantes_partida p ON h.id = p.partida_id
+                    WHERE h.cuestionario_id = %s
+                    GROUP BY h.id
+                    ORDER BY h.fecha_partida DESC
+                """, (cuestionario_id,))
 
-            cursor.execute("""
-                SELECT h.*, GROUP_CONCAT(p.nombre_usuario SEPARATOR ', ') as participantes
-                FROM historial_partidas h
-                LEFT JOIN participantes_partida p ON h.id = p.partida_id
-                WHERE h.cuestionario_id = %s
-                GROUP BY h.id ORDER BY h.fecha_partida DESC
-            """, (cuestionario_id,))
-            resultados = cursor.fetchall()
+                resultados = cursor.fetchall()
 
-            if not resultados:
-                flash("⚠️ No hay resultados para exportar", "warning")
+                if not resultados:
+                    flash("⚠️ No hay resultados para exportar", "warning")
+                    return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
+
+                # Crear DataFrame
+                df = pd.DataFrame(resultados)
+                df.columns = ['ID Partida', 'Grupo', 'Puntuación', 'Total Preguntas', 'Miembros', 'Fecha', 'Participantes']
+                df['Porcentaje (%)'] = (df['Puntuación'] / (df['Total Preguntas'] * 100) * 100).round(2)
+                df['Preguntas Correctas'] = (df['Puntuación'] / 100).astype(int)
+                df['Preguntas Incorrectas'] = df['Total Preguntas'] - df['Preguntas Correctas']
+
+                # Crear archivo Excel en memoria
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, sheet_name='Resultados Detallados', index=False)
+
+                    stats_data = {
+                        'Métrica': ['Total de Partidas', 'Total de Jugadores', 'Puntuación Promedio', 'Puntuación Máxima', 'Puntuación Mínima', 'Porcentaje Promedio', 'Grupos con +80%', 'Grupos con +60%'],
+                        'Valor': [len(df), df['Miembros'].sum(), df['Puntuación'].mean().round(2), df['Puntuación'].max(), df['Puntuación'].min(), df['Porcentaje (%)'].mean().round(2), len(df[df['Porcentaje (%)'] >= 80]), len(df[df['Porcentaje (%)'] >= 60])]
+                    }
+                    stats_df = pd.DataFrame(stats_data)
+                    stats_df.to_excel(writer, sheet_name='Estadísticas', index=False)
+
+                    for sheet_name in writer.sheets:
+                        worksheet = writer.sheets[sheet_name]
+                        for column in worksheet.columns:
+                            max_length = 0
+                            column_cells = [cell for cell in column]
+                            for cell in column_cells:
+                                try:
+                                    if len(str(cell.value)) > max_length:
+                                        max_length = len(str(cell.value))
+                                except:
+                                    pass
+                            adjusted_width = min(max_length + 2, 50)
+                            worksheet.column_dimensions[column_cells[0].column_letter].width = adjusted_width
+
+                output.seek(0)
+                filename = "Resultados_" + cuestionario['titulo'].replace(' ', '_') + "_" + datetime.now().strftime('%Y%m%d_%H%M%S') + ".xlsx"
+
+                # Preparar variables para el correo
+                correo_destino = session.get('correo')
+                nombre_profesor = session.get('usuario')
+                titulo_cuestionario = cuestionario['titulo']
+                total_partidas = len(df)
+                total_jugadores = int(df['Miembros'].sum())
+                fecha_generacion = datetime.now().strftime('%d/%m/%Y a las %H:%M')
+
+                # Crear el mensaje
+                msg = Message(
+                    subject='Resultados del Cuestionario: ' + titulo_cuestionario,
+                    recipients=[correo_destino]
+                )
+
+                # Construir HTML del correo sin f-strings
+                html_body = '<html><body style="font-family: Arial, sans-serif; background-color: #f5f6fa; padding: 20px;">'
+                html_body += '<div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1);">'
+                html_body += '<div style="text-align: center; margin-bottom: 30px;"><div style="font-size: 48px; margin-bottom: 15px;">📊</div>'
+                html_body += '<h2 style="color: #667eea; margin: 0;">Resultados de Cuestionario</h2></div>'
+                html_body += '<p style="color: #333; font-size: 16px;">Hola <strong>' + nombre_profesor + '</strong>,</p>'
+                html_body += '<p style="color: #666; line-height: 1.6;">Adjunto encontrarás el archivo Excel con los resultados detallados del cuestionario <strong>"' + titulo_cuestionario + '"</strong>.</p>'
+                html_body += '<div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px; margin: 25px 0; border-radius: 8px;">'
+                html_body += '<h3 style="color: #1976d2; margin-top: 0;">📄 Contenido del Archivo</h3><ul style="color: #0d47a1; line-height: 1.8;">'
+                html_body += '<li><strong>Hoja 1:</strong> Resultados detallados de todas las partidas</li>'
+                html_body += '<li><strong>Hoja 2:</strong> Estadísticas generales y promedios</li>'
+                html_body += '<li><strong>Total de partidas:</strong> ' + str(total_partidas) + '</li>'
+                html_body += '<li><strong>Total de jugadores:</strong> ' + str(total_jugadores) + '</li></ul></div>'
+                html_body += '<div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">'
+                html_body += '<p style="color: #856404; margin: 0; font-size: 14px;">💡 <strong>Consejo:</strong> Abre el archivo con Microsoft Excel, Google Sheets o LibreOffice Calc.</p></div>'
+                html_body += '<div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">'
+                html_body += '<p style="color: #999; font-size: 12px; margin: 0;">Sistema de Cuestionarios Interactivos<br>Generado el ' + fecha_generacion + '</p></div>'
+                html_body += '</div></body></html>'
+
+                msg.html = html_body
+
+                # Adjuntar Excel
+                msg.attach(filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', output.getvalue())
+
+                # Enviar
+                with app.app_context():
+                    mail.send(msg)
+
+                print("Correo enviado exitosamente a " + correo_destino)
+                flash("✅ ¡Correo enviado exitosamente a " + correo_destino + "! Revisa tu bandeja de entrada.", "success")
                 return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
 
-            # 3. Crear DataFrame y Excel en memoria (igual que en descargar_excel)
-            df = pd.DataFrame(resultados)
-            df.rename(columns={ # Renombrar columnas para claridad
-                'id': 'ID Partida', 'nombre_grupo': 'Grupo', 'puntuacion_final': 'Puntuación',
-                'num_preguntas_total': 'Total Preguntas', 'num_miembros': 'Miembros', 'fecha_partida': 'Fecha'
-            }, inplace=True)
-            df = df[['ID Partida', 'Grupo', 'Puntuación', 'Total Preguntas',
-                     'Miembros', 'Fecha', 'participantes']] # Reordenar si es necesario
-            df['Porcentaje (%)'] = (df['Puntuación'] / (df['Total Preguntas'] * 100) * 100).round(2)
-            df['Preguntas Correctas'] = (df['Puntuación'] / 100).astype(int)
-            df['Preguntas Incorrectas'] = df['Total Preguntas'] - df['Preguntas Correctas']
-
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name='Resultados Detallados', index=False)
-                # Aquí podrías añadir la hoja de estadísticas igual que en descargar_excel si quieres
-
-                # Ajustar ancho de columnas (opcional pero recomendado)
-                worksheet = writer.sheets['Resultados Detallados']
-                for column in worksheet.columns:
-                     max_length = 0
-                     column_letter = column[0].column_letter
-                     for cell in column:
-                         try:
-                             if len(str(cell.value)) > max_length:
-                                 max_length = len(str(cell.value))
-                         except:
-                             pass
-                     adjusted_width = min(max_length + 2, 50)
-                     worksheet.column_dimensions[column_letter].width = adjusted_width
-
-            output.seek(0)
-
-            # 4. Preparar nombre de archivo
-            filename = f"Resultados_{cuestionario['titulo'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-
-            # 5. Llamar a la función del helper para subir el archivo
-            resultado_subida = google_drive_helper.upload_excel_to_drive(credentials, output, filename)
-
-            # 6. Manejar el resultado de la subida
-            if resultado_subida['success']:
-                flash("✅ Archivo exportado a Google Drive exitosamente.", "success")
-                # Pasar datos a la página de éxito
-                return render_template('export_success.html',
-                                       filename=resultado_subida['name'],
-                                       drive_link=resultado_subida['web_link'],
-                                       download_link=resultado_subida['download_link'])
-            else:
-                flash(f"❌ Error al subir a Google Drive: {resultado_subida['error']}", "error")
-                # Si el error es por token inválido, sugerir reconectar
-                if 'invalid_grant' in resultado_subida['error'].lower():
-                    return redirect(url_for('configurar_google_drive'))
-                else:
-                     return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
 
     except ImportError:
-        flash("❌ Error: Faltan librerías para exportar (pandas, openpyxl, google-api-python-client, etc.).", "error")
+        flash("❌ Error: Necesitas instalar pandas y openpyxl", "error")
         return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
     except Exception as e:
-        flash(f"❌ Error inesperado al exportar a Drive: {str(e)}", "error")
-        print(f"Error en exportar_google_drive: {e}")
-        traceback.print_exc() # Imprime el error detallado en tus logs del servidor
+        flash("❌ Error al enviar el correo: " + str(e), "error")
+        print("Error en enviar_excel_correo: " + str(e))
+        import traceback
+        traceback.print_exc()
         return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
-    finally:
-        if conexion and conexion.open:
-            conexion.close()
+
 
 
 

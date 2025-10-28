@@ -700,9 +700,7 @@
 }
 
 function exportarResultados(cuestionarioId) {
-    if (confirm('¿Deseas exportar los resultados de este cuestionario a Excel?')) {
-        window.location.href = `/exportar_resultados/${cuestionarioId}`;
-    }
+    window.location.href = `/exportar_resultados/${cuestionarioId}`;
 }
 
         function editQuiz(id) {

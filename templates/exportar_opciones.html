@@ -9,7 +9,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
 
-        .container { max-width: 800px; margin: 0 auto; }
+        .container { max-width: 900px; margin: 0 auto; }
 
         .header { background: white; padding: 30px; border-radius: 20px; margin-bottom: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; }
         .header h1 { color: #333; font-size: 28px; margin-bottom: 10px; }
@@ -20,39 +20,47 @@
         .info-card p { color: #666; font-size: 14px; line-height: 1.6; }
         .info-card .stat { font-size: 24px; font-weight: bold; color: #667eea; margin-top: 10px; }
 
-        .export-options { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .export-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 25px; margin-bottom: 30px; }
 
-        .option-card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); text-align: center; transition: all 0.3s; }
-        .option-card:hover { transform: translateY(-5px); box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
-        .option-card .icon { font-size: 64px; margin-bottom: 20px; }
-        .option-card h3 { color: #333; font-size: 22px; margin-bottom: 15px; }
-        .option-card p { color: #666; font-size: 14px; margin-bottom: 20px; line-height: 1.6; }
-        .option-card .btn { display: inline-block; padding: 15px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; }
-        .option-card .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
+        .option-card { background: white; padding: 35px; border-radius: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); text-align: center; transition: all 0.3s; cursor: pointer; border: 3px solid transparent; }
+        .option-card:hover { transform: translateY(-8px); box-shadow: 0 12px 35px rgba(0,0,0,0.15); }
+        
+        .option-card.excel { border-color: #217346; }
+        .option-card.excel:hover { border-color: #1a5c37; }
+        
+        .option-card.email { border-color: #667eea; }
+        .option-card.email:hover { border-color: #5568d3; }
 
-        /* Botón de Conectar (gris) */
-        .btn-connect { background: #f8f9fa; color: #333; border: 2px solid #e0e0e0; }
-        .btn-connect:hover { background: #e9ecef; box-shadow: none; }
-
-
-        .option-card.excel .icon { color: #217346; }
-        .option-card.drive .icon { color: #4285F4; }
+        .option-card .icon { font-size: 72px; margin-bottom: 20px; }
+        .option-card h3 { color: #333; font-size: 24px; margin-bottom: 15px; }
+        .option-card p { color: #666; font-size: 15px; margin-bottom: 25px; line-height: 1.6; }
+        
+        .btn { display: inline-block; padding: 16px 35px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 12px; font-size: 17px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4); }
+        
+        .btn-excel { background: linear-gradient(135deg, #217346 0%, #1a5c37 100%); }
+        .btn-excel:hover { box-shadow: 0 8px 20px rgba(33, 115, 70, 0.4); }
 
         .alert { padding: 15px; border-radius: 10px; margin-bottom: 20px; }
         .alert-warning { background: #fff3cd; border-left: 4px solid #ffc107; color: #856404; }
         .alert-success { background: #d4edda; border-left: 4px solid #28a745; color: #155724; }
         .alert-error { background: #f8d7da; border-left: 4px solid #dc3545; color: #721c24; }
 
+        .info-box { background: #e7f7f9; border-left: 4px solid #17a2b8; padding: 20px; border-radius: 10px; margin: 25px 0; }
+        .info-box h3 { color: #0c5460; font-size: 18px; margin-bottom: 12px; }
+        .info-box ul { padding-left: 20px; color: #0c5460; line-height: 1.8; }
+
         .btn-back { display: inline-block; padding: 12px 30px; background: white; color: #667eea; border: 2px solid #667eea; border-radius: 10px; text-decoration: none; font-weight: 600; margin-top: 20px; transition: all 0.3s; }
         .btn-back:hover { background: #667eea; color: white; }
 
+        /* Loading spinner */
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; display: none; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
         @media (max-width: 768px) {
-            .container { padding: 10px; }
-            .header { padding: 20px; }
-            .header h1 { font-size: 22px; }
             .export-options { grid-template-columns: 1fr; }
             .option-card { padding: 25px; }
-            .option-card .icon { font-size: 48px; }
+            .option-card .icon { font-size: 56px; }
             .option-card h3 { font-size: 20px; }
         }
     </style>
@@ -68,6 +76,7 @@
             {% if messages %}
                 {% for category, message in messages %}
                 <div class="alert alert-{{ 'success' if category == 'success' else 'warning' if category == 'warning' else 'error' }}">
+                    <strong>{{ '✅' if category == 'success' else '⚠️' if category == 'warning' else '❌' }}</strong>
                     {{ message }}
                 </div>
                 {% endfor %}
@@ -76,7 +85,7 @@
 
         <div class="info-card">
             <h3>📈 Información del Cuestionario</h3>
-            <p>{{ cuestionario['titulo'] }}</p>
+            <p><strong>Título:</strong> {{ cuestionario['titulo'] }}</p>
             <p><strong>Total de preguntas:</strong> {{ cuestionario.num_preguntas if cuestionario else 'N/A' }}</p>
             <p><strong>Partidas registradas:</strong></p>
             <div class="stat">{{ total_resultados }}</div>
@@ -84,35 +93,42 @@
 
         {% if total_resultados > 0 %}
         <div class="export-options">
-            <div class="option-card excel" onclick="window.location.href='{{ url_for('descargar_excel', cuestionario_id=cuestionario_id) }}'">
+            <!-- OPCIÓN 1: DESCARGA DIRECTA -->
+            <div class="option-card excel">
                 <div class="icon">📥</div>
-                <h3>Descargar Excel</h3>
-                <p>Descarga el archivo directamente a tu computadora. Incluye resultados detallados y estadísticas.</p>
-                <a href="{{ url_for('descargar_excel', cuestionario_id=cuestionario_id) }}" class="btn">Descargar Ahora</a>
+                <h3>Descarga Inmediata</h3>
+                <p>Descarga el archivo Excel directamente a tu computadora. Obtienes el archivo en segundos.</p>
+                <a href="{{ url_for('descargar_excel', cuestionario_id=cuestionario_id) }}" class="btn btn-excel">
+                    Descargar Excel Ahora
+                </a>
             </div>
 
-            <div class="option-card drive">
-                <div class="icon">☁️</div>
-                <h3>Guardar en Google Drive</h3>
-                <p>Guarda el archivo automáticamente en tu Google Drive. Accede desde cualquier dispositivo.</p>
-
-                <!-- LÓGICA MODIFICADA -->
-                {% if is_drive_connected %}
-                    <a href="{{ url_for('exportar_google_drive', cuestionario_id=cuestionario_id) }}" class="btn">Subir a Drive</a>
-                {% else %}
-                    <a href="{{ url_for('google_auth') }}" class="btn btn-connect">Conectar con Google</a>
-                {% endif %}
-                <!-- FIN DE LA LÓGICA MODIFICADA -->
+            <!-- OPCIÓN 2: ENVIAR POR CORREO -->
+            <div class="option-card email">
+                <div class="icon">📧</div>
+                <h3>Enviar por Correo</h3>
+                <p>Recibe el archivo Excel directamente en tu correo electrónico. Ideal si estás en otro dispositivo.</p>
+                
+                <form method="POST" action="{{ url_for('enviar_excel_correo', cuestionario_id=cuestionario_id) }}" id="formEnviarCorreo" onsubmit="return confirmarEnvio()">
+                    <p style="margin: 15px 0; font-size: 14px; color: #666;">
+                        Se enviará a: <strong>{{ session.correo }}</strong>
+                    </p>
+                    <button type="submit" class="btn" id="btnEnviar">
+                        📧 Enviar a mi Correo
+                    </button>
+                </form>
+                
+                <div class="spinner" id="spinner"></div>
             </div>
         </div>
 
-        <div class="info-card" style="border-left-color: #17a2b8; background: #e7f7f9;">
-            <h3>ℹ️ Qué Incluye el Reporte</h3>
-            <ul style="padding-left: 20px; color: #666;">
-                <li style="margin-bottom: 8px;"><strong>Resultados Detallados:</strong> Lista completa de partidas con grupo, puntuación, participantes y fecha</li>
-                <li style="margin-bottom: 8px;"><strong>Estadísticas Generales:</strong> Promedios, máximos, mínimos y distribución de resultados</li>
-                <li style="margin-bottom: 8px;"><strong>Porcentajes:</strong> Cálculo automático del porcentaje de aciertos</li>
-                <li><strong>Formato Profesional:</strong> Archivo Excel listo para imprimir o presentar</li>
+        <div class="info-box">
+            <h3>ℹ️ Qué Incluye el Reporte Excel</h3>
+            <ul>
+                <li><strong>Hoja 1 - Resultados Detallados:</strong> Lista completa de todas las partidas con grupo, puntuación, participantes, fecha y porcentajes</li>
+                <li><strong>Hoja 2 - Estadísticas Generales:</strong> Promedios, máximos, mínimos, grupos destacados y distribución de resultados</li>
+                <li><strong>Formato Profesional:</strong> Columnas ajustadas automáticamente, listo para imprimir o presentar</li>
+                <li><strong>Cálculos Automáticos:</strong> Porcentaje de aciertos, preguntas correctas e incorrectas</li>
             </ul>
         </div>
         {% else %}
@@ -126,5 +142,19 @@
             <a href="{{ url_for('dashboard_profesor') }}" class="btn-back">← Volver al Dashboard</a>
         </div>
     </div>
+
+    <script>
+        function confirmarEnvio() {
+            const correo = "{{ session.correo }}";
+            if (confirm(`¿Enviar el archivo Excel a ${correo}?\n\nRecibirás un correo con el archivo adjunto en unos momentos.`)) {
+                // Mostrar spinner y deshabilitar botón
+                document.getElementById('spinner').style.display = 'block';
+                document.getElementById('btnEnviar').disabled = true;
+                document.getElementById('btnEnviar').textContent = '⏳ Enviando...';
+                return true;
+            }
+            return false;
+        }
+    </script>
 </body>
 </html>

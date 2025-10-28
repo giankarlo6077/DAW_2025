@@ -237,6 +237,28 @@
             }
         }
 
+        function mostrarResultadoParaMiembro(respuestaCorrecta, fueCorrecta, nuevoScore) {
+    // Marcar la respuesta correcta siempre
+    const btnCorrecto = document.querySelector(`[data-option="${respuestaCorrecta}"]`);
+    if (btnCorrecto) {
+        btnCorrecto.classList.add('correct');
+    }
+
+    // Actualizar puntuación
+    document.getElementById('score').textContent = `Puntuación: ${nuevoScore}`;
+
+    // Mostrar mensaje apropiado
+    if (fueCorrecta) {
+        document.getElementById('feedback-message').innerHTML = `✅ ¡El equipo acertó! +100 puntos`;
+        document.getElementById('feedback-message').style.color = '#28a745';
+        console.log('✅ El líder respondió correctamente');
+    } else {
+        document.getElementById('feedback-message').innerHTML = `❌ El equipo falló. La respuesta correcta era ${respuestaCorrecta}`;
+        document.getElementById('feedback-message').style.color = '#dc3545';
+        console.log('❌ El líder respondió incorrectamente. Correcta era:', respuestaCorrecta);
+    }
+}
+
         function iniciarTemporizador() {
             let tiempoRestante = tiempoPorPregunta;
             const timerBar = document.getElementById('timer-bar');
@@ -292,15 +314,17 @@
                             fetch(`/api/get_ultima_respuesta/${grupoId}`)
                                 .then(r => r.json())
                                 .then(respData => {
-                                    if (respData.tiene_respuesta && !respuestaEnviada) {
+                                   if (respData.tiene_respuesta && !respuestaEnviada) {
                                         console.log('📥 Mostrando respuesta del líder');
                                         respuestaEnviada = true;
                                         clearInterval(timerInterval);
                                         deshabilitarOpciones();
 
-                                        // Mostrar resultado (sin saber cuál fue la selección del líder)
-                                        mostrarResultado(null, respData.respuesta_correcta, false, 0);
-                                        document.getElementById('score').textContent = `Puntuación: ${respData.nuevo_score}`;
+                                        // CORRECCIÓN: Usar fue_correcta para determinar el feedback
+                                        const fueCorrecta = respData.fue_correcta || false;
+
+                                        // Mostrar resultado sin saber cuál fue la selección del líder
+                                        mostrarResultadoParaMiembro(respData.respuesta_correcta, fueCorrecta, respData.nuevo_score);
 
                                         // Esperar y cargar siguiente pregunta
                                         setTimeout(() => {
