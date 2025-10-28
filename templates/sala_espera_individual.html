@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sala de Espera - Individual</title>
+  <style>
+    body {
+      font-family: "Poppins", sans-serif;
+      background: linear-gradient(135deg, #004aad, #0084ff);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+    }
+
+    .container {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 40px 60px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(10px);
+      max-width: 500px;
+    }
+
+    h1 {
+      font-size: 1.8em;
+      margin-bottom: 10px;
+    }
+
+    p {
+      font-size: 1.1em;
+      margin-bottom: 30px;
+    }
+
+    .loader {
+      border: 6px solid rgba(255, 255, 255, 0.3);
+      border-top: 6px solid #fff;
+      border-radius: 50%;
+      width: 70px;
+      height: 70px;
+      animation: spin 1.5s linear infinite;
+      margin: 20px auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .student-info {
+      margin-bottom: 25px;
+      font-size: 1.1em;
+      font-weight: 500;
+    }
+
+    .exit-btn {
+      background-color: #ff5252;
+      border: none;
+      color: white;
+      padding: 10px 25px;
+      border-radius: 10px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    .exit-btn:hover {
+      background-color: #e43e3e;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🕒 Sala de Espera</h1>
+    <div class="student-info">
+      Bienvenido, <strong>{{ nombre_estudiante }}</strong>
+    </div>
+
+    <p>Por favor espera mientras el docente inicia el cuestionario individual.</p>
+    <div class="loader"></div>
+
+    <button class="exit-btn" onclick="salir()">Salir</button>
+  </div>
+
+  <script>
+    // ✅ Este script consulta cada 3 segundos si el cuestionario cambió de estado
+    document.addEventListener("DOMContentLoaded", () => {
+      const pin = "{{ cuestionario.codigo_pin }}";  // asegurarse de pasarlo desde Flask
+
+      setInterval(() => {
+        fetch(`/estado_cuestionario/${pin}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.iniciado) {
+            window.location.href = "/juego_individual";
+            }
+          })
+          .catch(err => console.error("Error al verificar estado:", err));
+      }, 3000);
+    });
+
+    function salir() {
+      if (confirm("¿Seguro que deseas salir de la sala de espera?")) {
+        window.location.href = "/dashboard_estudiante";
+      }
+    }
+  </script>
+</body>
+</html>

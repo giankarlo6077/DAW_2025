@@ -55,69 +55,24 @@
     </div>
 
     <script>
-        const grupoId = {{ grupo['id'] }};
-        const esLider = {{ 'true' if user_id == grupo['lider_id'] else 'false' }};
 
-        // --- LÓGICA PARA EL LÍDER ---
-        if (esLider) {
-            function iniciarPartida() {
-                const boton = document.querySelector('.btn-start');
-                boton.disabled = true;
-                boton.textContent = 'Iniciando...';
+    const grupoId = "{{ grupo_id }}";  // Flask te pasa este dato
+const checkEstado = async () => {
+    try {
+        const response = await fetch(`/estado_juego_grupo/${grupoId}`);
+        const data = await response.json();
 
-                fetch(`/iniciar_partida_grupal/${grupoId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // El backend cambia el estado, y la redirección ocurre para todos (incluido el líder)
-                        // gracias al sondeo que ahora también hará el líder.
-                        // Para una respuesta más rápida para el líder, redirigimos inmediatamente.
-                        window.location.href = `/partida_grupal/${grupoId}`;
-                    } else {
-                        alert('No se pudo iniciar la partida. Intenta de nuevo.');
-                        boton.disabled = false;
-                        boton.textContent = '🚀 ¡Comenzar Cuestionario!';
-                    }
-                })
-                .catch(err => {
-                     alert('Ocurrió un error de red. Intenta de nuevo.');
-                     console.error(err);
-                     boton.disabled = false;
-                     boton.textContent = '🚀 ¡Comenzar Cuestionario!';
-                });
-            }
+        if (data.iniciado) {
+            // Cuando el profesor inicia el cuestionario, redirige a todos
+            window.location.href = `/juego_en_vivo_grupo/${grupoId}`;
         }
+    } catch (err) {
+        console.error("Error verificando estado del juego:", err);
+    }
+};
 
-        // --- LÓGICA DE SONDEO PARA TODOS LOS MIEMBROS (INCLUIDO EL LÍDER) ---
-        // Esto asegura que si algo cambia (como que el grupo se disuelve), todos reaccionen.
-        const pollInterval = setInterval(() => {
-            fetch(`/api/estado_grupo/${grupoId}`)
-                .then(response => response.json())
-                .then(data => {
-                    // Si data es null, el grupo fue eliminado.
-                    if (!data) {
-                        clearInterval(pollInterval);
-                        // Solo muestra la alerta a los no-líderes para evitar redundancia si el líder lo disolvió.
-                        if (!esLider) {
-                           alert("El líder ha disuelto el grupo.");
-                        }
-                        window.location.href = "{{ url_for('dashboard_estudiante') }}";
-                        return;
-                    }
-                    // Si el juego ha comenzado, todos se unen.
-                    if (data.game_state === 'playing') {
-                        clearInterval(pollInterval);
-                        window.location.href = `/partida_grupal/${grupoId}`;
-                    }
-                })
-                .catch(err => {
-                    console.error("Error en el sondeo de estado:", err);
-                    clearInterval(pollInterval); // Detener si hay un error de red
-                });
-        }, 3000); // Revisa cada 3 segundos
+// Verifica el estado cada 2 segundos
+setInterval(checkEstado, 2000);
     </script>
 </body>
 </html>
