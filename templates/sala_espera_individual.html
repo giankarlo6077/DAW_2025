@@ -88,27 +88,19 @@
   </div>
 
   <script>
-    // ✅ Este script consulta cada 3 segundos si el cuestionario cambió de estado
-    document.addEventListener("DOMContentLoaded", () => {
-      const pin = "{{ cuestionario.codigo_pin }}";  // asegurarse de pasarlo desde Flask
-
-      setInterval(() => {
-        fetch(`/estado_cuestionario/${pin}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.iniciado) {
-            window.location.href = "/juego_individual";
+    const userId = {{ user_id }};
+    function verificarEstado() {
+    fetch(`/api/estado_individual/${userId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.estado === "playing") {
+                window.location.href = `/partida_individual/${data.codigo_pin}`;
             }
-          })
-          .catch(err => console.error("Error al verificar estado:", err));
-      }, 3000);
-    });
-
-    function salir() {
-      if (confirm("¿Seguro que deseas salir de la sala de espera?")) {
-        window.location.href = "/dashboard_estudiante";
-      }
+        })
+        .catch(err => console.error("Error al verificar estado:", err));
     }
-  </script>
+    setInterval(verificarEstado, 3000); // cada 3 segundos
+</script>
+
 </body>
 </html>

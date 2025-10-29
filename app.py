@@ -1143,6 +1143,281 @@ def resultados_grupo(grupo_id):
                            cuestionario=cuestionario,
                            miembros=miembros)
 
+
+# --- RUTA PARA SALA PROFESOR INDIVIDUAL ---
+@app.route("/sala_profesor_individual/<codigo_pin>")
+def sala_profesor_individual(codigo_pin):
+    """Sala donde el profesor ve los estudiantes esperando (modo individual)"""
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return redirect(url_for("login"))
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener información del cuestionario
+            cursor.execute("""
+                SELECT * FROM cuestionarios
+                WHERE codigo_pin = %s AND profesor_id = %s
+            """, (codigo_pin, session["user_id"]))
+            cuestionario = cursor.fetchone()
+
+            if not cuestionario:
+                flash("❌ Cuestionario no encontrado", "error")
+                return redirect(url_for("dashboard_profesor"))
+
+            # Verificar que sea modo individual
+            if cuestionario['modo_juego'] != 'individual':
+                flash("❌ Este cuestionario es grupal, no individual", "error")
+                return redirect(url_for("dashboard_profesor"))
+
+            return render_template("sala_profesor_individual.html",
+                                   cuestionario=cuestionario)
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
+# --- API PARA OBTENER ESTUDIANTES ESPERANDO (INDIVIDUAL) ---
+@app.route("/api/estudiantes_esperando/<codigo_pin>")
+def api_estudiantes_esperando(codigo_pin):
+    """Obtiene la lista de estudiantes esperando en tiempo real"""
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return jsonify({"error": "No autorizado"}), 403
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener estudiantes que están esperando para este cuestionario
+            cursor.execute("""
+                SELECT u.id, u.nombre, se.estado, se.fecha_ingreso
+                FROM salas_espera se
+                JOIN usuarios u ON se.usuario_id = u.id
+                WHERE se.codigo_pin = %s
+                ORDER BY se.fecha_ingreso ASC
+            """, (codigo_pin,))
+
+            estudiantes = cursor.fetchall()
+
+            # Formatear timestamp
+            for est in estudiantes:
+                if est['fecha_ingreso']:
+                    tiempo_transcurrido = datetime.now() - est['fecha_ingreso']
+                    segundos = int(tiempo_transcurrido.total_seconds())
+                    if segundos < 60:
+                        est['timestamp'] = f'Hace {segundos}s'
+                    elif segundos < 3600:
+                        est['timestamp'] = f'Hace {segundos // 60}m'
+                    else:
+                        est['timestamp'] = est['fecha_ingreso'].strftime('%H:%M')
+
+            return jsonify(estudiantes)
+    except Exception as e:
+        print(f"Error en api_estudiantes_esperando: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
+# --- API PARA INICIAR PARTIDAS INDIVIDUALES ---
+@app.route("/profesor_iniciar_individuales/<codigo_pin>", methods=["POST"])
+def profesor_iniciar_individuales(codigo_pin):
+    """El profesor inicia todas las partidas individuales"""
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Verificar que el cuestionario pertenece al profesor
+            cursor.execute("""
+                SELECT id FROM cuestionarios
+                WHERE codigo_pin = %s AND profesor_id = %s
+            """, (codigo_pin, session["user_id"]))
+
+            if not cursor.fetchone():
+                return jsonify({"success": False, "message": "Cuestionario no encontrado"}), 404
+
+            # Cambiar estado de todos los estudiantes en espera a "playing"
+            cursor.execute("""
+                UPDATE salas_espera
+                SET estado = 'playing'
+                WHERE codigo_pin = %s AND estado = 'waiting'
+            """, (codigo_pin,))
+
+            estudiantes_iniciados = cursor.rowcount
+            conexion.commit()
+
+            print(f"✅ Profesor inició {estudiantes_iniciados} partida(s) individual(es) - PIN: {codigo_pin}")
+
+            return jsonify({
+                "success": True,
+                "message": f"Se iniciaron {estudiantes_iniciados} partida(s)",
+                "estudiantes_iniciados": estudiantes_iniciados
+            })
+
+    except Exception as e:
+        print(f"❌ Error al iniciar partidas individuales: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
+# --- API PARA CONSULTAR ESTADO DEL ESTUDIANTE INDIVIDUAL ---
+@app.route("/api/estado_individual/<int:usuario_id>")
+def api_estado_individual(usuario_id):
+    """Devuelve el estado actual del estudiante en la sala de espera individual"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT estado, codigo_pin
+                FROM salas_espera
+                WHERE usuario_id = %s
+            """, (usuario_id,))
+            registro = cursor.fetchone()
+            if not registro:
+                return jsonify({"error": "No encontrado"}), 404
+            return jsonify({
+                "estado": registro['estado'],
+                "codigo_pin": registro['codigo_pin']
+            })
+    except Exception as e:
+        print(f"❌ Error en api_estado_individual: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
+# --- RUTA PARA SALA DE ESPERA INDIVIDUAL ---
+@app.route("/sala_espera_individual/<codigo_pin>")
+def sala_espera_individual(codigo_pin):
+    """Muestra la sala de espera para estudiantes en modo individual"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return redirect(url_for("login"))
+    user_id = session["user_id"]
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Verificar o insertar el registro del usuario en salas_espera
+            cursor.execute("""
+                SELECT * FROM salas_espera WHERE usuario_id = %s AND codigo_pin = %s
+            """, (user_id, codigo_pin))
+            registro = cursor.fetchone()
+            if not registro:
+                cursor.execute("""
+                    INSERT INTO salas_espera (usuario_id, codigo_pin, estado, fecha_ingreso)
+                    VALUES (%s, %s, 'waiting', NOW())
+                """, (user_id, codigo_pin))
+                conexion.commit()
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+    return render_template("sala_espera_individual.html",
+                           user_id=user_id,
+                           codigo_pin=codigo_pin,
+                           nombre=session["usuario"])
+
+
+# --- RUTA PARA PARTIDA INDIVIDUAL ---
+@app.route("/partida_individual/<codigo_pin>")
+def partida_individual(codigo_pin):
+    """Carga el cuestionario individual cuando inicia la partida"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return redirect(url_for("login"))
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("SELECT * FROM cuestionarios WHERE codigo_pin = %s", (codigo_pin,))
+            cuestionario = cursor.fetchone()
+            if not cuestionario:
+                flash("❌ Cuestionario no encontrado", "error")
+                return redirect(url_for("dashboard_estudiante"))
+            cursor.execute("""
+                SELECT * FROM preguntas WHERE cuestionario_id = %s ORDER BY orden
+            """, (cuestionario['id'],))
+            preguntas = cursor.fetchall()
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+    return render_template("partida_individual.html",
+                           cuestionario=cuestionario,
+                           preguntas=preguntas,
+                           nombre=session["usuario"])
+
+# --- RUTA PARA UNIRSE A UN CUESTIONARIO INDIVIDUAL ---
+@app.route("/unirse_individual", methods=["POST"])
+def unirse_individual():
+    """El estudiante se une a un cuestionario individual usando el código PIN"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return redirect(url_for("login"))
+
+    codigo_pin = request.form.get("codigo_pin")
+    user_id = session["user_id"]
+
+    if not codigo_pin:
+        flash("❌ Debes ingresar un código PIN", "error")
+        return redirect(url_for("dashboard_estudiante"))
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Verificar que el cuestionario exista y sea modo individual
+            cursor.execute("""
+                SELECT id, modo_juego, profesor_id
+                FROM cuestionarios
+                WHERE codigo_pin = %s
+            """, (codigo_pin,))
+            cuestionario = cursor.fetchone()
+
+            if not cuestionario:
+                flash("❌ Código PIN no válido", "error")
+                return redirect(url_for("dashboard_estudiante"))
+
+            if cuestionario["modo_juego"] != "individual":
+                flash("⚠️ Este PIN no corresponde a un cuestionario individual", "warning")
+                return redirect(url_for("dashboard_estudiante"))
+
+            # Registrar o actualizar al estudiante en la sala de espera
+            cursor.execute("""
+                SELECT * FROM salas_espera
+                WHERE usuario_id = %s AND codigo_pin = %s
+            """, (user_id, codigo_pin))
+            registro = cursor.fetchone()
+
+            if not registro:
+                cursor.execute("""
+                    INSERT INTO salas_espera (usuario_id, codigo_pin, estado, fecha_ingreso)
+                    VALUES (%s, %s, 'waiting', NOW())
+                """, (user_id, codigo_pin))
+            else:
+                cursor.execute("""
+                    UPDATE salas_espera
+                    SET estado = 'waiting', fecha_ingreso = NOW()
+                    WHERE usuario_id = %s AND codigo_pin = %s
+                """, (user_id, codigo_pin))
+
+            conexion.commit()
+
+        # ✅ Redirigir a la sala de espera individual
+        return redirect(url_for("sala_espera_individual", codigo_pin=codigo_pin))
+
+    except Exception as e:
+        print(f"❌ Error al unirse a cuestionario individual: {e}")
+        flash("Error al intentar unirse al cuestionario", "error")
+        return redirect(url_for("dashboard_estudiante"))
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
+
 # --- API INTERNA PARA JUEGO EN TIEMPO REAL ---
 
 @app.route("/api/estado_grupo/<int:grupo_id>")
@@ -1459,7 +1734,7 @@ def visualizar_cuestionario():
             preguntas = cursor.fetchall()
     finally:
         if conexion and conexion.open: conexion.close()
-    return render_template("visualizar_cuestionario.html", cuestionario=cuestionario, preguntas=preguntas)
+    return render_template("sala_espera_individual.html", cuestionario=cuestionario, preguntas=preguntas)
 
 
 @app.route("/exportar_resultados/<int:cuestionario_id>")

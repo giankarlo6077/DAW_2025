@@ -699,6 +699,14 @@
     }
 }
 
+function startQuiz(code, modoJuego) {
+    if (modoJuego === 'grupal') {
+        window.location.href = `/sala_profesor/${code}`;
+    } else {
+        window.location.href = `/sala_profesor_individual/${code}`;
+    }
+}
+
 function exportarResultados(cuestionarioId) {
     window.location.href = `/exportar_resultados/${cuestionarioId}`;
 }

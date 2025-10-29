@@ -139,11 +139,9 @@
                     <div class="section-header">
                         <h2>🎯 Unirse a un Cuestionario (Individual)</h2>
                     </div>
-                    <form action="{{ url_for('visualizar_cuestionario') }}" method="POST">
-                        <div class="pin-input-container">
-                            <input type="text" name="pin" class="pin-input" placeholder="Ingresar PIN del Cuestionario" maxlength="6" required>
-                            <button type="submit" class="btn-join">Visualizar</button>
-                        </div>
+                    <form action="{{ url_for('unirse_individual') }}" method="POST">
+                        <input type="text" name="codigo_pin" placeholder="Código PIN" required>
+                            <button type="submit">Unirse</button>
                     </form>
                 </div>
 

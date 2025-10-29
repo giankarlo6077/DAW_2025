@@ -54,25 +54,39 @@
         <a href="{{ url_for('salir_grupo') }}" class="btn-exit" onclick="return confirm('¿Estás seguro de que quieres salir del grupo?');">Salir del Grupo</a>
     </div>
 
-    <script>
+  <script>
+        const grupoId = {{ grupo['id'] }};
+        let pollInterval;
 
-    const grupoId = "{{ grupo_id }}";  // Flask te pasa este dato
-const checkEstado = async () => {
-    try {
-        const response = await fetch(`/estado_juego_grupo/${grupoId}`);
-        const data = await response.json();
+        console.log('✅ Sala de espera - Grupo ID:', grupoId);
 
-        if (data.iniciado) {
-            // Cuando el profesor inicia el cuestionario, redirige a todos
-            window.location.href = `/juego_en_vivo_grupo/${grupoId}`;
+        function verificarEstadoJuego() {
+            fetch(`/api/estado_grupo/${grupoId}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('📡 Estado del grupo:', data);
+
+                    if (data && data.game_state === 'playing') {
+                        console.log('🎮 El juego ha iniciado, redirigiendo...');
+                        clearInterval(pollInterval);
+                        window.location.href = `/partida_grupal/${grupoId}`;
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error al verificar estado:', error);
+                });
         }
-    } catch (err) {
-        console.error("Error verificando estado del juego:", err);
-    }
-};
 
-// Verifica el estado cada 2 segundos
-setInterval(checkEstado, 2000);
+        // Verificar cada 2 segundos
+        pollInterval = setInterval(verificarEstadoJuego, 2000);
+
+        // Primera verificación inmediata
+        verificarEstadoJuego();
+
+        // Limpiar al salir
+        window.addEventListener('beforeunload', function() {
+            if (pollInterval) clearInterval(pollInterval);
+        });
     </script>
 </body>
 </html>
