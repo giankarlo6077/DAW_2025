@@ -1327,30 +1327,127 @@ def sala_espera_individual(codigo_pin):
 @app.route("/partida_individual/<codigo_pin>")
 def partida_individual(codigo_pin):
     """Carga el cuestionario individual cuando inicia la partida"""
+    print("\n" + "="*70)
+    print("🎮 INICIANDO PARTIDA INDIVIDUAL")
+    print(f"📌 PIN recibido: {codigo_pin}")
+    print("="*70)
+
+    # Verificar sesión
     if "usuario" not in session or session.get("rol") != "estudiante":
+        print("❌ Usuario no autorizado o no es estudiante")
         return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+    nombre_estudiante = session["usuario"]
+    print(f"👤 Usuario: {nombre_estudiante} (ID: {user_id})")
 
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT * FROM cuestionarios WHERE codigo_pin = %s", (codigo_pin,))
+            print("\n📊 Consultando base de datos...")
+
+            # Query MUY simple - solo lo esencial
+            query = "SELECT * FROM cuestionarios WHERE codigo_pin = %s"
+            print(f"🔍 Query: {query}")
+            print(f"🔍 Parámetro: {codigo_pin}")
+
+            cursor.execute(query, (codigo_pin,))
             cuestionario = cursor.fetchone()
-            if not cuestionario:
-                flash("❌ Cuestionario no encontrado", "error")
+
+            print(f"\n📋 Resultado de cuestionario:")
+            if cuestionario:
+                print(f"   ✅ Cuestionario encontrado!")
+                print(f"   - ID: {cuestionario.get('id', 'N/A')}")
+                print(f"   - Título: {cuestionario.get('titulo', 'N/A')}")
+                print(f"   - PIN: {cuestionario.get('codigo_pin', 'N/A')}")
+                print(f"   - Columnas disponibles: {list(cuestionario.keys())}")
+            else:
+                print(f"   ❌ NO se encontró cuestionario con PIN: {codigo_pin}")
+                print("\n🔍 Verificando cuestionarios en BD...")
+                cursor.execute("SELECT codigo_pin, titulo FROM cuestionarios LIMIT 5")
+                todos = cursor.fetchall()
+                print(f"   PINs disponibles en BD:")
+                for c in todos:
+                    print(f"      - {c.get('codigo_pin')} : {c.get('titulo')}")
+
+                flash("❌ Cuestionario no encontrado. Verifica el código PIN.", "error")
                 return redirect(url_for("dashboard_estudiante"))
+
+            # Obtener preguntas
+            print(f"\n📝 Consultando preguntas del cuestionario {cuestionario['id']}...")
             cursor.execute("""
-                SELECT * FROM preguntas WHERE cuestionario_id = %s ORDER BY orden
+                SELECT * FROM preguntas
+                WHERE cuestionario_id = %s
+                ORDER BY id
             """, (cuestionario['id'],))
             preguntas = cursor.fetchall()
+
+            print(f"   ✅ Preguntas encontradas: {len(preguntas)}")
+            if preguntas:
+                print(f"   - Primera pregunta: {preguntas[0].get('pregunta', 'N/A')[:50]}...")
+                print(f"   - Columnas de pregunta: {list(preguntas[0].keys())}")
+            else:
+                print(f"   ❌ NO hay preguntas para este cuestionario")
+                flash("❌ Este cuestionario no tiene preguntas disponibles", "error")
+                return redirect(url_for("dashboard_estudiante"))
+
+            # Agregar campos por defecto si no existen
+            print("\n⚙️ Configurando valores por defecto...")
+            if 'tiempo_limite' not in cuestionario or cuestionario['tiempo_limite'] is None:
+                cuestionario['tiempo_limite'] = 60
+                print(f"   ⏱️ tiempo_limite = 60 (por defecto)")
+            else:
+                print(f"   ⏱️ tiempo_limite = {cuestionario['tiempo_limite']} (de BD)")
+
+            if 'puntos_por_pregunta' not in cuestionario or cuestionario['puntos_por_pregunta'] is None:
+                cuestionario['puntos_por_pregunta'] = 10
+                print(f"   🎯 puntos_por_pregunta = 10 (por defecto)")
+
+            # Agregar puntos a preguntas si no tienen
+            for i, pregunta in enumerate(preguntas):
+                if 'puntos' not in pregunta or pregunta['puntos'] is None:
+                    pregunta['puntos'] = 10
+
+            print(f"\n✅ Configuración completa!")
+            print(f"   - Cuestionario: {cuestionario['titulo']}")
+            print(f"   - Preguntas: {len(preguntas)}")
+            print(f"   - Tiempo: {cuestionario['tiempo_limite']}s")
+            print(f"   - Estudiante: {nombre_estudiante}")
+
+    except Exception as e:
+        print(f"\n❌❌❌ ERROR EN PARTIDA_INDIVIDUAL ❌❌❌")
+        print(f"Tipo de error: {type(e).__name__}")
+        print(f"Mensaje: {str(e)}")
+        import traceback
+        print("Stack trace completo:")
+        traceback.print_exc()
+        print("="*70 + "\n")
+
+        flash(f"Error al cargar el cuestionario: {str(e)}", "error")
+        return redirect(url_for("dashboard_estudiante"))
     finally:
         if conexion and conexion.open:
             conexion.close()
 
-    return render_template("partida_individual.html",
-                           cuestionario=cuestionario,
-                           preguntas=preguntas,
-                           nombre=session["usuario"])
-
+    # Intentar renderizar
+    print(f"\n🎨 Renderizando juego_individual.html...")
+    try:
+        return render_template("juego_individual.html",
+                               cuestionario=cuestionario,
+                               preguntas=preguntas,
+                               nombre_estudiante=nombre_estudiante)
+    except Exception as render_error:
+        print(f"❌ Error al renderizar template: {render_error}")
+        print(f"   Intentando con partida_individual.html...")
+        try:
+            return render_template("partida_individual.html",
+                                   cuestionario=cuestionario,
+                                   preguntas=preguntas,
+                                   nombre=nombre_estudiante)
+        except Exception as e2:
+            print(f"❌ Tampoco funciona partida_individual.html: {e2}")
+            flash("Error: No se encontró la plantilla del juego", "error")
+            return redirect(url_for("dashboard_estudiante"))
 # --- RUTA PARA UNIRSE A UN CUESTIONARIO INDIVIDUAL ---
 @app.route("/unirse_individual", methods=["POST"])
 def unirse_individual():
@@ -2053,6 +2150,192 @@ def enviar_excel_correo(cuestionario_id):
         traceback.print_exc()
         return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
 
+# --- GUARDAR RESPUESTA INDIVIDUAL ---
+@app.route("/guardar_respuesta_individual", methods=["POST"])
+def guardar_respuesta_individual():
+    """Guarda la respuesta de una pregunta individual y devuelve si fue correcta"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    try:
+        data = request.get_json()
+        pregunta_id = data.get('pregunta_id')
+        respuesta = data.get('respuesta')
+        tiempo_respuesta = data.get('tiempo_respuesta', 0)
+
+        user_id = session["user_id"]
+        historial_id = session.get('historial_individual_id')
+
+        if not historial_id:
+            return jsonify({"success": False, "message": "No hay sesión activa"}), 400
+
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                # Obtener la pregunta y su respuesta correcta
+                cursor.execute("""
+                    SELECT respuesta_correcta, puntos
+                    FROM preguntas
+                    WHERE id = %s
+                """, (pregunta_id,))
+                pregunta = cursor.fetchone()
+
+                if not pregunta:
+                    return jsonify({"success": False, "message": "Pregunta no encontrada"}), 404
+
+                # Verificar si es correcta
+                es_correcta = (respuesta == pregunta['respuesta_correcta'])
+                puntos_obtenidos = pregunta['puntos'] if es_correcta else 0
+
+                # Guardar la respuesta
+                cursor.execute("""
+                    INSERT INTO respuestas_individuales
+                    (historial_id, pregunta_id, respuesta_estudiante, correcta, puntos, tiempo_respuesta)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                    respuesta_estudiante = VALUES(respuesta_estudiante),
+                    correcta = VALUES(correcta),
+                    puntos = VALUES(puntos),
+                    tiempo_respuesta = VALUES(tiempo_respuesta)
+                """, (historial_id, pregunta_id, respuesta, es_correcta, puntos_obtenidos, tiempo_respuesta))
+
+                # Actualizar puntuación total en el historial
+                if es_correcta:
+                    cursor.execute("""
+                        UPDATE historial_individual
+                        SET puntuacion = puntuacion + %s
+                        WHERE id = %s
+                    """, (puntos_obtenidos, historial_id))
+
+                conexion.commit()
+
+                return jsonify({
+                    "success": True,
+                    "correcta": es_correcta,
+                    "respuesta_correcta": pregunta['respuesta_correcta'],
+                    "puntos": puntos_obtenidos
+                })
+
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+
+    except Exception as e:
+        print(f"❌ Error al guardar respuesta individual: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# --- FINALIZAR CUESTIONARIO INDIVIDUAL ---
+@app.route("/finalizar_cuestionario_individual", methods=["POST"])
+def finalizar_cuestionario_individual():
+    """Finaliza el cuestionario individual y guarda los resultados finales"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    try:
+        data = request.get_json()
+        puntuacion_final = data.get('puntuacion_final', 0)
+        tiempo_total = data.get('tiempo_total', 0)
+
+        historial_id = session.get('historial_individual_id')
+        user_id = session["user_id"]
+
+        if not historial_id:
+            return jsonify({"success": False, "message": "No hay sesión activa"}), 400
+
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                # Actualizar el historial como finalizado
+                cursor.execute("""
+                    UPDATE historial_individual
+                    SET finalizado = TRUE,
+                        fecha_fin = NOW(),
+                        tiempo_total = %s,
+                        puntuacion = %s
+                    WHERE id = %s AND estudiante_id = %s
+                """, (tiempo_total, puntuacion_final, historial_id, user_id))
+
+                # Eliminar al estudiante de la sala de espera
+                cursor.execute("""
+                    DELETE FROM salas_espera
+                    WHERE usuario_id = %s
+                """, (user_id,))
+
+                conexion.commit()
+
+                print(f"✅ Estudiante {session['usuario']} finalizó cuestionario individual")
+                print(f"   - Puntuación: {puntuacion_final}")
+                print(f"   - Tiempo: {tiempo_total}s")
+
+                return jsonify({
+                    "success": True,
+                    "historial_id": historial_id,
+                    "message": "Cuestionario finalizado correctamente"
+                })
+
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+
+    except Exception as e:
+        print(f"❌ Error al finalizar cuestionario individual: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# --- RUTA PARA VER RESULTADOS INDIVIDUALES ---
+@app.route("/resultados_individual/<int:historial_id>")
+def resultados_individual(historial_id):
+    """Muestra los resultados del cuestionario individual"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener el historial
+            cursor.execute("""
+                SELECT h.*, c.titulo, c.tiempo_limite,
+                       (SELECT COUNT(*) FROM preguntas WHERE cuestionario_id = c.id) as total_preguntas
+                FROM historial_individual h
+                JOIN cuestionarios c ON h.cuestionario_id = c.id
+                WHERE h.id = %s AND h.estudiante_id = %s
+            """, (historial_id, user_id))
+            historial = cursor.fetchone()
+
+            if not historial:
+                flash("❌ Resultados no encontrados", "error")
+                return redirect(url_for("dashboard_estudiante"))
+
+            # Obtener las respuestas detalladas
+            cursor.execute("""
+                SELECT r.*, p.pregunta, p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d,
+                       p.respuesta_correcta
+                FROM respuestas_individuales r
+                JOIN preguntas p ON r.pregunta_id = p.id
+                WHERE r.historial_id = %s
+                ORDER BY p.id
+            """, (historial_id,))
+            respuestas = cursor.fetchall()
+
+            # Calcular estadísticas
+            correctas = sum(1 for r in respuestas if r['correcta'])
+            incorrectas = len(respuestas) - correctas
+            porcentaje = (correctas / historial['total_preguntas'] * 100) if historial['total_preguntas'] > 0 else 0
+
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+    return render_template("resultados_individual.html",
+                           historial=historial,
+                           respuestas=respuestas,
+                           correctas=correctas,
+                           incorrectas=incorrectas,
+                           porcentaje=porcentaje,
+                           nombre=session["usuario"])
 
 
 

@@ -7,7 +7,7 @@
   <style>
     body {
       font-family: "Poppins", sans-serif;
-      background: linear-gradient(135deg, #004aad, #0084ff);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: #fff;
       display: flex;
       flex-direction: column;
@@ -19,31 +19,65 @@
     }
 
     .container {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 20px;
-      padding: 40px 60px;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-      backdrop-filter: blur(10px);
-      max-width: 500px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 25px;
+      padding: 50px 70px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(15px);
+      max-width: 550px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .game-icon {
+      font-size: 60px;
+      margin-bottom: 20px;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
     }
 
     h1 {
-      font-size: 1.8em;
-      margin-bottom: 10px;
+      font-size: 2em;
+      margin-bottom: 15px;
+      font-weight: 600;
+    }
+
+    .student-info {
+      margin-bottom: 30px;
+      font-size: 1.2em;
+      font-weight: 500;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 15px 25px;
+      border-radius: 15px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .student-info strong {
+      color: #ffd700;
+      font-size: 1.1em;
     }
 
     p {
       font-size: 1.1em;
       margin-bottom: 30px;
+      line-height: 1.6;
+      opacity: 0.95;
+    }
+
+    .loader-container {
+      margin: 30px 0;
     }
 
     .loader {
-      border: 6px solid rgba(255, 255, 255, 0.3);
+      border: 6px solid rgba(255, 255, 255, 0.2);
       border-top: 6px solid #fff;
       border-radius: 50%;
-      width: 70px;
-      height: 70px;
-      animation: spin 1.5s linear infinite;
+      width: 80px;
+      height: 80px;
+      animation: spin 1.2s linear infinite;
       margin: 20px auto;
     }
 
@@ -52,55 +86,135 @@
       100% { transform: rotate(360deg); }
     }
 
-    .student-info {
-      margin-bottom: 25px;
-      font-size: 1.1em;
-      font-weight: 500;
+    .status-text {
+      font-size: 0.95em;
+      opacity: 0.85;
+      margin-top: 15px;
+    }
+
+    .dots {
+      display: inline-block;
+      animation: blink 1.5s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
     }
 
     .exit-btn {
-      background-color: #ff5252;
+      background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
       border: none;
       color: white;
-      padding: 10px 25px;
-      border-radius: 10px;
-      font-size: 1em;
+      padding: 14px 35px;
+      border-radius: 12px;
+      font-size: 1.05em;
+      font-weight: 600;
       cursor: pointer;
-      transition: background-color 0.3s ease;
+      transition: all 0.3s ease;
+      box-shadow: 0 5px 15px rgba(238, 90, 111, 0.3);
+      margin-top: 20px;
     }
 
     .exit-btn:hover {
-      background-color: #e43e3e;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(238, 90, 111, 0.5);
+      background: linear-gradient(135deg, #ee5a6f 0%, #ff6b6b 100%);
+    }
+
+    .exit-btn:active {
+      transform: translateY(0px);
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .container {
+        padding: 40px 30px;
+        max-width: 90%;
+      }
+
+      h1 {
+        font-size: 1.6em;
+      }
+
+      .game-icon {
+        font-size: 50px;
+      }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>🕒 Sala de Espera</h1>
+    <div class="game-icon">🎮</div>
+    <h1>Sala de Espera</h1>
+    
     <div class="student-info">
-      Bienvenido, <strong>{{ nombre_estudiante }}</strong>
+      👋 Bienvenido, <strong>{{ nombre_estudiante }}</strong>
     </div>
 
-    <p>Por favor espera mientras el docente inicia el cuestionario individual.</p>
-    <div class="loader"></div>
+    <p>Estás en la sala de espera. El profesor iniciará el cuestionario pronto.</p>
+    
+    <div class="loader-container">
+      <div class="loader"></div>
+      <div class="status-text">
+        ¡INICIANDO CUESTIONARIO<span class="dots">...</span>
+      </div>
+    </div>
 
-    <button class="exit-btn" onclick="salir()">Salir</button>
+    <button class="exit-btn" onclick="salir()">🚪 Salir de la Sala</button>
   </div>
 
   <script>
     const userId = {{ user_id }};
+    const codigoPin = '{{ codigo_pin }}';
+
+    // Función para verificar el estado
     function verificarEstado() {
-    fetch(`/api/estado_individual/${userId}`)
+      fetch(`/api/estado_individual/${userId}`)
         .then(r => r.json())
         .then(data => {
-            if (data.estado === "playing") {
-                window.location.href = `/partida_individual/${data.codigo_pin}`;
-            }
+          if (data.estado === "playing") {
+            window.location.href = `/partida_individual/${data.codigo_pin}`;
+          }
         })
         .catch(err => console.error("Error al verificar estado:", err));
     }
-    setInterval(verificarEstado, 3000); // cada 3 segundos
-</script>
+
+    // Verificar estado cada 3 segundos
+    const intervalId = setInterval(verificarEstado, 3000);
+
+    // Función para salir de la sala
+    function salir() {
+      if (confirm('¿Estás seguro de que deseas salir de la sala de espera?')) {
+        // Detener la verificación del estado
+        clearInterval(intervalId);
+        
+        // Eliminar el registro de la sala de espera
+        fetch(`/api/salir_sala_individual/${userId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ codigo_pin: codigoPin })
+        })
+        .then(response => response.json())
+        .then(data => {
+          // Redirigir al dashboard
+          window.location.href = '/dashboard_estudiante';
+        })
+        .catch(err => {
+          console.error("Error al salir:", err);
+          // Redirigir de todas formas
+          window.location.href = '/dashboard_estudiante';
+        });
+      }
+    }
+
+    // Limpiar intervalo al salir de la página
+    window.addEventListener('beforeunload', function() {
+      clearInterval(intervalId);
+    });
+  </script>
 
 </body>
 </html>
