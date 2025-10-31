@@ -601,23 +601,50 @@ def dashboard_estudiante():
         if 'conexion' in locals() and conexion.open:
             conexion.close()
 
-    # Obtener el historial personal
-    try:
-        conexion_historial = obtener_conexion()
-        with conexion_historial.cursor() as cursor:
-            # Esta consulta lee el TÍTULO que guardamos, ya no necesita la tabla 'cuestionarios'
-            cursor.execute("""
-                SELECT h.titulo_cuestionario, h.puntuacion_final, h.fecha_partida, h.nombre_grupo
-                FROM historial_partidas h
-                JOIN participantes_partida p ON h.id = p.partida_id
-                WHERE p.usuario_id = %s
-                ORDER BY h.fecha_partida DESC
-                LIMIT 5
-            """, (user_id,))
-            cuestionarios_recientes = cursor.fetchall()
-    finally:
-        if 'conexion_historial' in locals() and conexion_historial.open:
-            conexion_historial.close()
+    # Obtener el historial personal (GRUPALES + INDIVIDUALES)
+try:
+    conexion_historial = obtener_conexion()
+    with conexion_historial.cursor() as cursor:
+        # 1. Obtener historial de partidas GRUPALES
+    cursor.execute("""
+    SELECT
+        c.titulo as titulo_cuestionario,
+        hi.puntuacion as puntuacion_final,
+        hi.fecha_inicio as fecha_partida,
+        NULL as nombre_grupo,
+        'individual' as tipo
+    FROM historial_individual hi
+    JOIN cuestionarios c ON hi.cuestionario_id = c.id
+    WHERE hi.usuario_id = %s AND hi.finalizado = TRUE
+    ORDER BY hi.fecha_inicio DESC
+    LIMIT 5
+""", (user_id,))
+        partidas_grupales = cursor.fetchall()
+
+        # 2. Obtener historial de partidas INDIVIDUALES
+        cursor.execute("""
+            SELECT
+                c.titulo as titulo_cuestionario,
+                hi.puntuacion as puntuacion_final,
+                hi.fecha_inicio as fecha_partida,
+                NULL as nombre_grupo,
+                'individual' as tipo
+            FROM historial_individual hi
+            JOIN cuestionarios c ON hi.cuestionario_id = c.id
+            WHERE hi.estudiante_id = %s AND hi.finalizado = TRUE
+            ORDER BY hi.fecha_inicio DESC
+            LIMIT 5
+        """, (user_id,))
+        partidas_individuales = cursor.fetchall()
+
+        # 3. Combinar ambas listas y ordenar por fecha
+        cuestionarios_recientes = list(partidas_grupales) + list(partidas_individuales)
+        cuestionarios_recientes.sort(key=lambda x: x['fecha_partida'], reverse=True)
+        cuestionarios_recientes = cuestionarios_recientes[:5]  # Mantener solo los 5 más recientes
+
+finally:
+    if 'conexion_historial' in locals() and conexion_historial.open:
+        conexion_historial.close()
 
     return render_template("dashboard_estudiante.html",
                            nombre=session["usuario"],
@@ -1448,7 +1475,7 @@ def partida_individual(codigo_pin):
             print(f"\n💾 Creando historial individual...")
             cursor.execute("""
                 INSERT INTO historial_individual
-                (estudiante_id, cuestionario_id, fecha_inicio, puntuacion, finalizado)
+                (usuario_id, cuestionario_id, fecha_inicio, puntuacion, finalizado)
                 VALUES (%s, %s, NOW(), 0, FALSE)
             """, (user_id, cuestionario['id']))
             conexion.commit()
@@ -2307,13 +2334,13 @@ def finalizar_cuestionario_individual():
             with conexion.cursor() as cursor:
                 # Actualizar el historial como finalizado
                 cursor.execute("""
-                    UPDATE historial_individual
-                    SET finalizado = TRUE,
-                        fecha_fin = NOW(),
-                        tiempo_total = %s,
-                        puntuacion = %s
-                    WHERE id = %s AND estudiante_id = %s
-                """, (tiempo_total, puntuacion_final, historial_id, user_id))
+    UPDATE historial_individual
+    SET finalizado = TRUE,
+        fecha_fin = NOW(),
+        tiempo_total = %s,
+        puntuacion = %s
+    WHERE id = %s AND usuario_id = %s
+""", (tiempo_total, puntuacion_final, historial_id, user_id))
 
                 # Eliminar al estudiante de la sala de espera
                 cursor.execute("""
@@ -2355,13 +2382,13 @@ def resultados_individual(historial_id):
     try:
         with conexion.cursor() as cursor:
             # Obtener el historial
-            cursor.execute("""
-                SELECT h.*, c.titulo, c.tiempo_limite,
-                       (SELECT COUNT(*) FROM preguntas WHERE cuestionario_id = c.id) as total_preguntas
-                FROM historial_individual h
-                JOIN cuestionarios c ON h.cuestionario_id = c.id
-                WHERE h.id = %s AND h.estudiante_id = %s
-            """, (historial_id, user_id))
+           cursor.execute("""
+    SELECT h.*, c.titulo, c.tiempo_limite,
+           (SELECT COUNT(*) FROM preguntas WHERE cuestionario_id = c.id) as total_preguntas
+    FROM historial_individual h
+    JOIN cuestionarios c ON h.cuestionario_id = c.id
+    WHERE h.id = %s AND h.usuario_id = %s
+""", (historial_id, user_id))
             historial = cursor.fetchone()
 
             if not historial:
