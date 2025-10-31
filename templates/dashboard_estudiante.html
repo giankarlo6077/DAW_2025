@@ -137,30 +137,39 @@
             <div class="main-content">
                 <div class="content-section">
                     <div class="section-header">
-                        <h2>🎯 Unirse a un Cuestionario (Individual)</h2>
+                        <h2>👤 Unirse a Cuestionario Individual</h2>
                     </div>
+                    <p style="color: #666; margin-bottom: 15px;">Ingresa el PIN del cuestionario para jugar de manera individual</p>
                     <form action="{{ url_for('unirse_individual') }}" method="POST">
-                        <input type="text" name="codigo_pin" placeholder="Código PIN" required>
-                            <button type="submit">Unirse</button>
+                        <div class="pin-input-container">
+                            <input type="text" name="codigo_pin" class="pin-input" placeholder="Ingresa el Código PIN" maxlength="6" required style="text-transform: uppercase;">
+                            <button type="submit" class="btn-join">🎯 Unirse</button>
+                        </div>
                     </form>
                 </div>
 
                 <div class="content-section">
                     <div class="section-header">
-                        <h2>🚀 Iniciar Cuestionario Grupal</h2>
+                        <h2>👥 Iniciar Cuestionario Grupal</h2>
                     </div>
                     {% if grupo and user_id == grupo['lider_id'] %}
-                        <p>Como líder, ingresa el PIN para iniciar la partida para tu grupo.</p>
+                        <p style="color: #666; margin-bottom: 15px;">Como líder, ingresa el PIN para iniciar la partida para tu grupo</p>
                         <form action="{{ url_for('juego_grupo') }}" method="POST">
                             <div class="pin-input-container">
-                                <input type="text" name="pin" class="pin-input" placeholder="Ingresar PIN del Cuestionario" maxlength="6" required>
-                                <button type="submit" class="btn-join">Iniciar Juego Grupal</button>
+                                <input type="text" name="pin" class="pin-input" placeholder="Ingresar PIN del Cuestionario" maxlength="6" required style="text-transform: uppercase;">
+                                <button type="submit" class="btn-join">🚀 Iniciar Juego Grupal</button>
                             </div>
                         </form>
                     {% elif grupo %}
-                        <p>Solo el líder del grupo puede iniciar un cuestionario. ¡Espera a que comience la partida!</p>
+                        <div style="text-align: center; padding: 30px; background: #e8f5e9; border-radius: 10px; color: #2e7d32;">
+                            <p style="font-size: 18px; margin: 0;">⏳ Solo el líder del grupo puede iniciar un cuestionario</p>
+                            <p style="margin: 10px 0 0 0; opacity: 0.8;">¡Espera a que comience la partida!</p>
+                        </div>
                     {% else %}
-                        <p>Debes estar en un grupo para jugar. Crea uno o únete a uno existente.</p>
+                        <div style="text-align: center; padding: 30px; background: #fff3cd; border-radius: 10px; color: #856404;">
+                            <p style="font-size: 18px; margin: 0;">⚠️ Debes estar en un grupo para jugar</p>
+                            <p style="margin: 10px 0 0 0; opacity: 0.8;">Crea uno o únete a uno existente en el panel lateral →</p>
+                        </div>
                     {% endif %}
                 </div>
 
