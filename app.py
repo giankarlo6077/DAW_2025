@@ -602,50 +602,51 @@ def dashboard_estudiante():
             conexion.close()
 
     # Obtener el historial personal (GRUPALES + INDIVIDUALES)
-try:
-    conexion_historial = obtener_conexion()
-    with conexion_historial.cursor() as cursor:
-        # 1. Obtener historial de partidas GRUPALES
-    cursor.execute("""
-    SELECT
-        c.titulo as titulo_cuestionario,
-        hi.puntuacion as puntuacion_final,
-        hi.fecha_inicio as fecha_partida,
-        NULL as nombre_grupo,
-        'individual' as tipo
-    FROM historial_individual hi
-    JOIN cuestionarios c ON hi.cuestionario_id = c.id
-    WHERE hi.usuario_id = %s AND hi.finalizado = TRUE
-    ORDER BY hi.fecha_inicio DESC
-    LIMIT 5
-""", (user_id,))
-        partidas_grupales = cursor.fetchall()
+    try:
+        conexion_historial = obtener_conexion()
+        with conexion.cursor() as cursor:
+            # 1. Obtener historial de partidas GRUPALES (CORREGIDO)
+            cursor.execute("""
+                SELECT 
+                    h.titulo_cuestionario, 
+                    h.puntuacion_final, 
+                    h.fecha_partida, 
+                    h.nombre_grupo,
+                    'grupal' as tipo
+                FROM historial_partidas h
+                JOIN participantes_partida p ON h.id = p.partida_id
+                WHERE p.usuario_id = %s
+                ORDER BY h.fecha_partida DESC
+                LIMIT 5
+            """, (user_id,))
+            partidas_grupales = cursor.fetchall()
+    
+            # 2. Obtener historial de partidas INDIVIDUALES (CORREGIDO)
+            cursor.execute("""
+                SELECT 
+                    c.titulo as titulo_cuestionario,
+                    hi.puntuacion as puntuacion_final,
+                    hi.fecha_inicio as fecha_partida,
+                    NULL as nombre_grupo,
+                    'individual' as tipo
+                FROM historial_individual hi
+                JOIN cuestionarios c ON hi.cuestionario_id = c.id
+                WHERE hi.usuario_id = %s AND hi.finalizado = TRUE
+                ORDER BY hi.fecha_inicio DESC
+                LIMIT 5
+            """, (user_id,))
+            partidas_individuales = cursor.fetchall()
+    
+            # 3. Combinar ambas listas y ordenar por fecha
+            cuestionarios_recientes = list(partidas_grupales) + list(partidas_individuales)
+            cuestionarios_recientes.sort(key=lambda x: x['fecha_partida'], reverse=True)
+            cuestionarios_recientes = cuestionarios_recientes[:5]  # Mantener solo los 5 más recientes
+    
+    finally:
+        if 'conexion_historial' in locals() and conexion_historial.open:
+            conexion_historial.close()
 
-        # 2. Obtener historial de partidas INDIVIDUALES
-        cursor.execute("""
-            SELECT
-                c.titulo as titulo_cuestionario,
-                hi.puntuacion as puntuacion_final,
-                hi.fecha_inicio as fecha_partida,
-                NULL as nombre_grupo,
-                'individual' as tipo
-            FROM historial_individual hi
-            JOIN cuestionarios c ON hi.cuestionario_id = c.id
-            WHERE hi.estudiante_id = %s AND hi.finalizado = TRUE
-            ORDER BY hi.fecha_inicio DESC
-            LIMIT 5
-        """, (user_id,))
-        partidas_individuales = cursor.fetchall()
-
-        # 3. Combinar ambas listas y ordenar por fecha
-        cuestionarios_recientes = list(partidas_grupales) + list(partidas_individuales)
-        cuestionarios_recientes.sort(key=lambda x: x['fecha_partida'], reverse=True)
-        cuestionarios_recientes = cuestionarios_recientes[:5]  # Mantener solo los 5 más recientes
-
-finally:
-    if 'conexion_historial' in locals() and conexion_historial.open:
-        conexion_historial.close()
-
+    # (CORREGIDO) - Este return AHORA está fuera del bloque 'finally'
     return render_template("dashboard_estudiante.html",
                            nombre=session["usuario"],
                            grupo=grupo_info,
@@ -1473,11 +1474,13 @@ def partida_individual(codigo_pin):
 
             # ✅ CREAR HISTORIAL INDIVIDUAL
             print(f"\n💾 Creando historial individual...")
+            # --- CORRECCIÓN AQUÍ ---
             cursor.execute("""
                 INSERT INTO historial_individual
                 (usuario_id, cuestionario_id, fecha_inicio, puntuacion, finalizado)
                 VALUES (%s, %s, NOW(), 0, FALSE)
             """, (user_id, cuestionario['id']))
+            # --- FIN DE LA CORRECCIÓN ---
             conexion.commit()
             historial_id = cursor.lastrowid
 
@@ -2333,14 +2336,16 @@ def finalizar_cuestionario_individual():
         try:
             with conexion.cursor() as cursor:
                 # Actualizar el historial como finalizado
+                # --- CORRECCIÓN AQUÍ ---
                 cursor.execute("""
-    UPDATE historial_individual
-    SET finalizado = TRUE,
-        fecha_fin = NOW(),
-        tiempo_total = %s,
-        puntuacion = %s
-    WHERE id = %s AND usuario_id = %s
-""", (tiempo_total, puntuacion_final, historial_id, user_id))
+                    UPDATE historial_individual
+                    SET finalizado = TRUE,
+                        fecha_fin = NOW(),
+                        tiempo_total = %s,
+                        puntuacion = %s
+                    WHERE id = %s AND usuario_id = %s
+                """, (tiempo_total, puntuacion_final, historial_id, user_id))
+                # --- FIN DE LA CORRECCIÓN ---
 
                 # Eliminar al estudiante de la sala de espera
                 cursor.execute("""
@@ -2382,13 +2387,15 @@ def resultados_individual(historial_id):
     try:
         with conexion.cursor() as cursor:
             # Obtener el historial
-           cursor.execute("""
-    SELECT h.*, c.titulo, c.tiempo_limite,
-           (SELECT COUNT(*) FROM preguntas WHERE cuestionario_id = c.id) as total_preguntas
-    FROM historial_individual h
-    JOIN cuestionarios c ON h.cuestionario_id = c.id
-    WHERE h.id = %s AND h.usuario_id = %s
-""", (historial_id, user_id))
+            # --- CORRECCIÓN AQUÍ ---
+            cursor.execute("""
+                SELECT h.*, c.titulo, c.tiempo_limite,
+                       (SELECT COUNT(*) FROM preguntas WHERE cuestionario_id = c.id) as total_preguntas
+                FROM historial_individual h
+                JOIN cuestionarios c ON h.cuestionario_id = c.id
+                WHERE h.id = %s AND h.usuario_id = %s
+            """, (historial_id, user_id))
+            # --- FIN DE LA CORRECCIÓN ---
             historial = cursor.fetchone()
 
             if not historial:
