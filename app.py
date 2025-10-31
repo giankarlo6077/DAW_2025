@@ -2446,22 +2446,27 @@ def finalizar_cuestionario_individual():
 
         return jsonify({"success": False, "message": str(e)}), 500
 
-# --- RUTA PARA VER RESULTADOS INDIVIDUALES ---
+# --- RUTA PARA VER RESULTADOS INDIVIDUALES (CORREGIDA CON DEBUG) ---
 @app.route("/resultados_individual/<int:historial_id>")
 def resultados_individual(historial_id):
     """Muestra los resultados del cuestionario individual"""
-    print(f"\n📊 Cargando resultados para historial ID: {historial_id}")
+    print(f"\n{'='*70}")
+    print(f"📊 CARGANDO RESULTADOS INDIVIDUALES")
+    print(f"📋 Historial ID: {historial_id}")
+    print(f"{'='*70}\n")
 
     if "usuario" not in session or session.get("rol") != "estudiante":
         print("❌ No autorizado")
         return redirect(url_for("login"))
 
     user_id = session["user_id"]
+    print(f"👤 Usuario ID: {user_id}")
 
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # Obtener el historial con información del cuestionario
+            # 1. Obtener el historial con información del cuestionario
+            print("\n📥 Consultando historial...")
             cursor.execute("""
                 SELECT h.*,
                        c.titulo as titulo_cuestionario,
@@ -2479,13 +2484,16 @@ def resultados_individual(historial_id):
                 flash("❌ Resultados no encontrados", "error")
                 return redirect(url_for("dashboard_estudiante"))
 
-            print(f"✅ Historial encontrado: {historial['titulo_cuestionario']}")
+            print(f"✅ Historial encontrado:")
+            print(f"   - Cuestionario: {historial['titulo_cuestionario']}")
+            print(f"   - Puntuación final: {historial['puntuacion_final']}")
+            print(f"   - Total preguntas: {historial['num_preguntas_total']}")
 
-            # Obtener las respuestas detalladas con información de las preguntas
+            # 2. Obtener las respuestas detalladas
+            print("\n📥 Consultando respuestas...")
             cursor.execute("""
-                SELECT r.respuesta_estudiante, r.tiempo_respuesta,
-                p.pregunta, p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d, p.respuesta_correcta,
-                (r.respuesta_estudiante = p.respuesta_correcta) as es_correcta  -- <--- ¡ASÍ SE CALCULA!
+                SELECT r.respuesta_estudiante, r.tiempo_respuesta, r.es_correcta, r.puntos,
+                       p.pregunta, p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d, p.respuesta_correcta
                 FROM respuestas_individuales r
                 JOIN preguntas p ON r.pregunta_id = p.id
                 WHERE r.historial_id = %s
@@ -2495,32 +2503,73 @@ def resultados_individual(historial_id):
 
             print(f"✅ Respuestas cargadas: {len(respuestas)}")
 
-            # Calcular estadísticas
-            correctas = sum(1 for r in respuestas if r['es_correcta'])
-            incorrectas = len(respuestas) - correctas
-            porcentaje = (correctas / historial['num_preguntas_total'] * 100) if historial['num_preguntas_total'] > 0 else 0
+            # 3. Debug: Imprimir primera respuesta para verificar estructura
+            if respuestas:
+                print(f"\n🔍 DEBUG - Primera respuesta:")
+                primera = respuestas[0]
+                print(f"   - Pregunta: {primera.get('pregunta', 'N/A')[:50]}...")
+                print(f"   - Respuesta estudiante: {primera.get('respuesta_estudiante', 'N/A')}")
+                print(f"   - Respuesta correcta: {primera.get('respuesta_correcta', 'N/A')}")
+                print(f"   - Es correcta: {primera.get('es_correcta', 'N/A')}")
+                print(f"   - Puntos: {primera.get('puntos', 'N/A')}")
 
-            print(f"📊 Estadísticas:")
+            # 4. Calcular estadísticas de forma segura
+            print("\n📊 Calculando estadísticas...")
+            correctas = 0
+            incorrectas = 0
+
+            for r in respuestas:
+                es_correcta = r.get('es_correcta', False)
+                if es_correcta:
+                    correctas += 1
+                else:
+                    incorrectas += 1
+
+            # Calcular porcentaje
+            if historial['num_preguntas_total'] > 0:
+                porcentaje = round((correctas / historial['num_preguntas_total']) * 100, 1)
+            else:
+                porcentaje = 0
+
+            print(f"✅ Estadísticas calculadas:")
             print(f"   - Correctas: {correctas}")
             print(f"   - Incorrectas: {incorrectas}")
-            print(f"   - Porcentaje: {porcentaje:.2f}%")
+            print(f"   - Porcentaje: {porcentaje}%")
+
+            # 5. Formatear fecha de forma segura
+            try:
+                fecha_realizacion_str = historial['fecha_realizacion'].strftime('%d/%m/%Y a las %H:%M')
+                print(f"✅ Fecha formateada: {fecha_realizacion_str}")
+            except Exception as e:
+                print(f"⚠️ Error al formatear fecha: {e}")
+                fecha_realizacion_str = "Fecha no disponible"
+
+            print(f"\n✅ Todo listo para renderizar template")
 
     except Exception as e:
-        print(f"❌ Error al cargar resultados: {e}")
+        print(f"\n❌❌❌ ERROR CRÍTICO ❌❌❌")
+        print(f"Tipo: {type(e).__name__}")
+        print(f"Mensaje: {str(e)}")
         import traceback
+        print("\n📋 Traceback completo:")
         traceback.print_exc()
-        flash("❌ Error al cargar los resultados", "error")
+        print(f"{'='*70}\n")
+
+        flash("❌ Error al cargar los resultados. Revisa la consola para más detalles.", "error")
         return redirect(url_for("dashboard_estudiante"))
     finally:
         if conexion and conexion.open:
             conexion.close()
 
+    # 6. Renderizar template con todas las variables
+    print(f"🎨 Renderizando template con {len(respuestas)} respuestas\n")
     return render_template("resultados_individual.html",
                            historial=historial,
-                           respuestas=respuestas)
-
-
-
+                           respuestas=respuestas,
+                           correctas=correctas,
+                           incorrectas=incorrectas,
+                           porcentaje=porcentaje,
+                           fecha_realizacion_str=fecha_realizacion_str)
 
 
 # --- MANEJO DE ERRORES ---
