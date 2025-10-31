@@ -581,100 +581,156 @@ def dashboard_estudiante():
     if "usuario" not in session or session.get("rol") != "estudiante":
         return redirect(url_for("login"))
 
-    grupo_info, miembros, cuestionarios_recientes = None, [], []
+    # Variables por defecto
+    grupo_info = None
+    miembros = []
+    cuestionarios_recientes = []
     user_id = session.get("user_id")
 
-    # === BLOQUE 1: Obtener datos del grupo actual ===
+    print(f"\n{'='*70}")
+    print(f"📊 CARGANDO DASHBOARD ESTUDIANTE")
+    print(f"👤 Usuario: {session['usuario']} (ID: {user_id})")
+    print(f"{'='*70}\n")
+
+    # === BLOQUE 1: Información del grupo ===
     try:
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
+                # Obtener grupo del usuario
                 cursor.execute("SELECT grupo_id FROM usuarios WHERE id = %s", (user_id,))
                 usuario_data = cursor.fetchone()
-                
+
                 if usuario_data and usuario_data.get('grupo_id'):
-                    grupo_id = usuario_data.get('grupo_id')
+                    grupo_id = usuario_data['grupo_id']
+
+                    # Información del grupo
                     cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
                     grupo_info = cursor.fetchone()
+
+                    # Miembros del grupo
                     cursor.execute("SELECT id, nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
                     miembros = cursor.fetchall()
+
+                    print(f"✅ Grupo: {grupo_info['nombre_grupo'] if grupo_info else 'N/A'}")
+                    print(f"   Miembros: {len(miembros)}")
+                else:
+                    print(f"ℹ️ Usuario no pertenece a ningún grupo")
+
+        except Exception as e:
+            print(f"⚠️ Error al cargar grupo: {e}")
         finally:
             if conexion and conexion.open:
                 conexion.close()
     except Exception as e:
-        print(f"❌ ERROR AL CARGAR GRUPO: {e}")
+        print(f"❌ Error crítico en bloque de grupo: {e}")
 
-    # === BLOQUE 2: Obtener historial personal ===
+    # === BLOQUE 2: Historial de partidas (MODO SÚPER SEGURO) ===
+    print(f"\n📚 Cargando historial...")
+
+    partidas_grupales = []
+    partidas_individuales = []
+
+    # 2.1 Intentar cargar historial GRUPAL
     try:
-        conexion_historial = obtener_conexion()
+        conexion = obtener_conexion()
         try:
-            with conexion_historial.cursor() as cursor:
-                # 1. Partidas GRUPALES
-                try:
-                    cursor.execute("""
-                        SELECT 
-                            h.titulo_cuestionario, 
-                            h.puntuacion_final, 
-                            h.fecha_partida, 
-                            h.nombre_grupo,
-                            'grupal' as tipo
-                        FROM historial_partidas h
-                        JOIN participantes_partida p ON h.id = p.partida_id
-                        WHERE p.usuario_id = %s
-                        ORDER BY h.fecha_partida DESC
-                        LIMIT 5
-                    """, (user_id,))
-                    partidas_grupales = cursor.fetchall()
-                except Exception as e:
-                    print(f"⚠️ Error al cargar historial grupal: {e}")
-                    partidas_grupales = []
-        
-                # 2. Partidas INDIVIDUALES (CORREGIDO)
-                try:
-                    cursor.execute("""
-                        SELECT 
-                            hi.id,
-                            hi.cuestionario_id,
-                            hi.puntuacion_final as puntuacion_final,
-                            hi.fecha_realizacion as fecha_partida,
-                            'individual' as tipo
-                        FROM historial_individual hi
-                        WHERE hi.usuario_id = %s AND hi.puntuacion_final > 0
-                        ORDER BY hi.fecha_realizacion DESC
-                        LIMIT 5
-                    """, (user_id,))
-                    partidas_individuales_raw = cursor.fetchall()
-                    
-                    # Obtener títulos de cuestionarios
-                    partidas_individuales = []
-                    for partida in partidas_individuales_raw:
-                        cursor.execute("SELECT titulo FROM cuestionarios WHERE id = %s", (partida['cuestionario_id'],))
-                        cuestionario = cursor.fetchone()
-                        
-                        partida['titulo_cuestionario'] = cuestionario['titulo'] if cuestionario else "Cuestionario Desconocido"
-                        partida['nombre_grupo'] = None
-                        partidas_individuales.append(partida)
-                        
-                except Exception as e:
-                    print(f"⚠️ Error al cargar historial individual: {e}")
-                    partidas_individuales = []
-        
-                # 3. Combinar y ordenar
-                cuestionarios_recientes = list(partidas_grupales) + list(partidas_individuales)
-                if cuestionarios_recientes:
-                    cuestionarios_recientes.sort(key=lambda x: x['fecha_partida'], reverse=True)
-                    cuestionarios_recientes = cuestionarios_recientes[:5]
-        
-        finally:
-            if conexion_historial and conexion_historial.open:
-                conexion_historial.close()
-                
-    except Exception as e:
-        print(f"❌ ERROR AL CARGAR HISTORIAL: {e}")
-        import traceback
-        traceback.print_exc()
+            with conexion.cursor() as cursor:
+                cursor.execute("""
+                    SELECT
+                        h.titulo_cuestionario,
+                        h.puntuacion_final,
+                        h.fecha_partida,
+                        h.nombre_grupo,
+                        'grupal' as tipo
+                    FROM historial_partidas h
+                    INNER JOIN participantes_partida p ON h.id = p.partida_id
+                    WHERE p.usuario_id = %s
+                    ORDER BY h.fecha_partida DESC
+                    LIMIT 5
+                """, (user_id,))
 
-    # === BLOQUE 3: Renderizar ===
+                partidas_grupales = cursor.fetchall() or []
+                print(f"   ✅ Partidas grupales: {len(partidas_grupales)}")
+
+        except Exception as e:
+            print(f"   ⚠️ No se pudo cargar historial grupal: {e}")
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+    except Exception as e:
+        print(f"   ❌ Error en conexión grupal: {e}")
+
+    # 2.2 Intentar cargar historial INDIVIDUAL
+    try:
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                # Query simple y directo
+                cursor.execute("""
+                    SELECT
+                        hi.id,
+                        hi.cuestionario_id,
+                        hi.puntuacion_final,
+                        hi.fecha_realizacion,
+                        c.titulo as titulo_cuestionario
+                    FROM historial_individual hi
+                    INNER JOIN cuestionarios c ON hi.cuestionario_id = c.id
+                    WHERE hi.usuario_id = %s
+                      AND hi.puntuacion_final > 0
+                    ORDER BY hi.fecha_realizacion DESC
+                    LIMIT 5
+                """, (user_id,))
+
+                resultados = cursor.fetchall() or []
+
+                # Formatear para que coincida con el formato grupal
+                for resultado in resultados:
+                    partidas_individuales.append({
+                        'titulo_cuestionario': resultado['titulo_cuestionario'],
+                        'puntuacion_final': resultado['puntuacion_final'],
+                        'fecha_partida': resultado['fecha_realizacion'],
+                        'nombre_grupo': None,
+                        'tipo': 'individual'
+                    })
+
+                print(f"   ✅ Partidas individuales: {len(partidas_individuales)}")
+
+        except Exception as e:
+            print(f"   ⚠️ No se pudo cargar historial individual: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+    except Exception as e:
+        print(f"   ❌ Error en conexión individual: {e}")
+
+    # 2.3 Combinar ambos historiales
+    try:
+        cuestionarios_recientes = partidas_grupales + partidas_individuales
+
+        # Ordenar por fecha
+        if cuestionarios_recientes:
+            cuestionarios_recientes.sort(
+                key=lambda x: x.get('fecha_partida', datetime.min),
+                reverse=True
+            )
+            cuestionarios_recientes = cuestionarios_recientes[:5]
+
+        print(f"   ✅ Total partidas combinadas: {len(cuestionarios_recientes)}")
+
+    except Exception as e:
+        print(f"   ⚠️ Error al combinar historiales: {e}")
+        cuestionarios_recientes = []
+
+    # === RENDERIZAR ===
+    print(f"\n✅ Dashboard cargado")
+    print(f"   - Grupo: {'Sí' if grupo_info else 'No'}")
+    print(f"   - Miembros: {len(miembros)}")
+    print(f"   - Historial: {len(cuestionarios_recientes)}")
+    print(f"{'='*70}\n")
+
     return render_template("dashboard_estudiante.html",
                            nombre=session["usuario"],
                            grupo=grupo_info,
@@ -1437,35 +1493,18 @@ def partida_individual(codigo_pin):
         with conexion.cursor() as cursor:
             print("\n📊 Consultando base de datos...")
 
-            # Query MUY simple - solo lo esencial
-            query = "SELECT * FROM cuestionarios WHERE codigo_pin = %s"
-            print(f"🔍 Query: {query}")
-            print(f"🔍 Parámetro: {codigo_pin}")
-
-            cursor.execute(query, (codigo_pin,))
+            # Obtener cuestionario
+            cursor.execute("SELECT * FROM cuestionarios WHERE codigo_pin = %s", (codigo_pin,))
             cuestionario = cursor.fetchone()
 
-            print(f"\n📋 Resultado de cuestionario:")
-            if cuestionario:
-                print(f"   ✅ Cuestionario encontrado!")
-                print(f"   - ID: {cuestionario.get('id', 'N/A')}")
-                print(f"   - Título: {cuestionario.get('titulo', 'N/A')}")
-                print(f"   - PIN: {cuestionario.get('codigo_pin', 'N/A')}")
-                print(f"   - Columnas disponibles: {list(cuestionario.keys())}")
-            else:
+            if not cuestionario:
                 print(f"   ❌ NO se encontró cuestionario con PIN: {codigo_pin}")
-                print("\n🔍 Verificando cuestionarios en BD...")
-                cursor.execute("SELECT codigo_pin, titulo FROM cuestionarios LIMIT 5")
-                todos = cursor.fetchall()
-                print(f"   PINs disponibles en BD:")
-                for c in todos:
-                    print(f"      - {c.get('codigo_pin')} : {c.get('titulo')}")
-
                 flash("❌ Cuestionario no encontrado. Verifica el código PIN.", "error")
                 return redirect(url_for("dashboard_estudiante"))
 
+            print(f"   ✅ Cuestionario encontrado: {cuestionario['titulo']}")
+
             # Obtener preguntas
-            print(f"\n📝 Consultando preguntas del cuestionario {cuestionario['id']}...")
             cursor.execute("""
                 SELECT * FROM preguntas
                 WHERE cuestionario_id = %s
@@ -1474,31 +1513,14 @@ def partida_individual(codigo_pin):
             preguntas = cursor.fetchall()
 
             print(f"   ✅ Preguntas encontradas: {len(preguntas)}")
-            if preguntas:
-                print(f"   - Primera pregunta: {preguntas[0].get('enunciado', preguntas[0].get('pregunta', 'N/A'))[:50]}...")
-                print(f"   - Columnas de pregunta: {list(preguntas[0].keys())}")
-            else:
+
+            if not preguntas:
                 print(f"   ❌ NO hay preguntas para este cuestionario")
                 flash("❌ Este cuestionario no tiene preguntas disponibles", "error")
                 return redirect(url_for("dashboard_estudiante"))
 
-            # Calcular tiempo límite basado en número de preguntas y tiempo por pregunta
-            tiempo_por_pregunta = cuestionario.get('tiempo_pregunta', 30)
-            tiempo_limite = len(preguntas) * tiempo_por_pregunta
-
-            # Agregar campos por defecto si no existen
-            print("\n⚙️ Configurando valores por defecto...")
-            cuestionario['tiempo_limite'] = tiempo_limite
-            print(f"   ⏱️ tiempo_limite = {tiempo_limite}s ({len(preguntas)} preguntas x {tiempo_por_pregunta}s)")
-
-            if 'puntos_por_pregunta' not in cuestionario or cuestionario['puntos_por_pregunta'] is None:
-                cuestionario['puntos_por_pregunta'] = 10
-                print(f"   🎯 puntos_por_pregunta = 10 (por defecto)")
-
-            # Agregar puntos a preguntas si no tienen
-            for i, pregunta in enumerate(preguntas):
-                if 'puntos' not in pregunta or pregunta['puntos'] is None:
-                    pregunta['puntos'] = 10
+            # ⚡ IMPORTANTE: NO actualizar el estado aquí
+            # El profesor debe iniciar la partida desde su sala
 
             # ✅ CREAR HISTORIAL INDIVIDUAL
             print(f"\n💾 Creando historial individual...")
@@ -1510,33 +1532,18 @@ def partida_individual(codigo_pin):
             conexion.commit()
             historial_id = cursor.lastrowid
 
-            # Guardar en sesión para usarlo al guardar respuestas
+            # Guardar en sesión
             session['historial_individual_id'] = historial_id
             print(f"   ✅ Historial creado con ID: {historial_id}")
 
-            # Actualizar estado en sala de espera
-            cursor.execute("""
-                UPDATE salas_espera
-                SET estado = 'playing'
-                WHERE usuario_id = %s AND codigo_pin = %s
-            """, (user_id, codigo_pin))
-            conexion.commit()
-
             print(f"\n✅ Configuración completa!")
-            print(f"   - Cuestionario: {cuestionario['titulo']}")
-            print(f"   - Preguntas: {len(preguntas)}")
-            print(f"   - Tiempo: {cuestionario['tiempo_limite']}s")
-            print(f"   - Estudiante: {nombre_estudiante}")
-            print(f"   - Historial ID: {historial_id}")
 
     except Exception as e:
         print(f"\n❌❌❌ ERROR EN PARTIDA_INDIVIDUAL ❌❌❌")
         print(f"Tipo de error: {type(e).__name__}")
         print(f"Mensaje: {str(e)}")
         import traceback
-        print("Stack trace completo:")
         traceback.print_exc()
-        print("="*70 + "\n")
 
         flash(f"Error al cargar el cuestionario: {str(e)}", "error")
         return redirect(url_for("dashboard_estudiante"))
@@ -1544,25 +1551,12 @@ def partida_individual(codigo_pin):
         if conexion and conexion.open:
             conexion.close()
 
-    # Intentar renderizar
-    print(f"\n🎨 Renderizando juego_individual.html...")
-    try:
-        return render_template("juego_individual.html",
-                               cuestionario=cuestionario,
-                               preguntas=preguntas,
-                               nombre_estudiante=nombre_estudiante)
-    except Exception as render_error:
-        print(f"❌ Error al renderizar template: {render_error}")
-        print(f"   Intentando con partida_individual.html...")
-        try:
-            return render_template("partida_individual.html",
-                                   cuestionario=cuestionario,
-                                   preguntas=preguntas,
-                                   nombre=nombre_estudiante)
-        except Exception as e2:
-            print(f"❌ Tampoco funciona partida_individual.html: {e2}")
-            flash("Error: No se encontró la plantilla del juego", "error")
-            return redirect(url_for("dashboard_estudiante"))
+    # Renderizar
+    return render_template("juego_individual.html",
+                           cuestionario=cuestionario,
+                           preguntas=preguntas,
+                           nombre_estudiante=nombre_estudiante)
+
 
 # --- RUTA PARA UNIRSE A UN CUESTIONARIO INDIVIDUAL ---
 @app.route("/unirse_individual", methods=["POST"])
@@ -2266,7 +2260,6 @@ def enviar_excel_correo(cuestionario_id):
         traceback.print_exc()
         return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
 
-# --- GUARDAR RESPUESTA INDIVIDUAL ---
 @app.route("/guardar_respuesta_individual", methods=["POST"])
 def guardar_respuesta_individual():
     """Guarda la respuesta de una pregunta individual y devuelve si fue correcta"""
@@ -2276,7 +2269,7 @@ def guardar_respuesta_individual():
     try:
         data = request.get_json()
         pregunta_id = data.get('pregunta_id')
-        respuesta = data.get('respuesta')
+        respuesta = data.get('respuesta')  # Puede ser None si se agotó el tiempo
         tiempo_respuesta = data.get('tiempo_respuesta', 0)
 
         user_id = session["user_id"]
@@ -2299,9 +2292,14 @@ def guardar_respuesta_individual():
                 if not pregunta:
                     return jsonify({"success": False, "message": "Pregunta no encontrada"}), 404
 
-                # Verificar si es correcta
-                es_correcta = (respuesta == pregunta['respuesta_correcta'])
-                puntos_obtenidos = pregunta['puntos'] if es_correcta else 0
+                # ⚡ NUEVO: Si no hay respuesta, automáticamente es incorrecta
+                if respuesta is None:
+                    es_correcta = False
+                    puntos_obtenidos = 0
+                else:
+                    # Verificar si es correcta
+                    es_correcta = (respuesta == pregunta['respuesta_correcta'])
+                    puntos_obtenidos = pregunta['puntos'] if es_correcta else 0
 
                 # Guardar la respuesta
                 cursor.execute("""
@@ -2345,32 +2343,62 @@ def guardar_respuesta_individual():
 @app.route("/finalizar_cuestionario_individual", methods=["POST"])
 def finalizar_cuestionario_individual():
     """Finaliza el cuestionario individual y guarda los resultados finales"""
+    print("\n" + "="*70)
+    print("🏁 FINALIZANDO CUESTIONARIO INDIVIDUAL")
+    print("="*70)
+
     if "usuario" not in session or session.get("rol") != "estudiante":
+        print("❌ No autorizado")
         return jsonify({"success": False, "message": "No autorizado"}), 403
 
     try:
         data = request.get_json()
+        print(f"📥 Datos recibidos: {data}")
+
         puntuacion_final = data.get('puntuacion_final', 0)
         tiempo_total = data.get('tiempo_total', 0)
 
         historial_id = session.get('historial_individual_id')
         user_id = session["user_id"]
 
+        print(f"👤 Usuario ID: {user_id}")
+        print(f"📋 Historial ID: {historial_id}")
+        print(f"💯 Puntuación final: {puntuacion_final}")
+        print(f"⏱️ Tiempo total: {tiempo_total}s")
+
         if not historial_id:
+            print("❌ No hay sesión activa (historial_id no encontrado)")
             return jsonify({"success": False, "message": "No hay sesión activa"}), 400
 
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
-                # Actualizar el historial como finalizado
+                # Verificar que el historial existe
                 cursor.execute("""
-                UPDATE historial_individual
-                SET puntuacion_final = %s,
-                    tiempo_total = %s
-                WHERE id = %s AND usuario_id = %s
-                """, (puntuacion_final, tiempo_total, historial_id, user_id))
+                    SELECT id, usuario_id FROM historial_individual
+                    WHERE id = %s
+                """, (historial_id,))
+                historial = cursor.fetchone()
+
+                if not historial:
+                    print(f"❌ Historial {historial_id} no encontrado")
+                    return jsonify({"success": False, "message": "Historial no encontrado"}), 404
+
+                if historial['usuario_id'] != user_id:
+                    print(f"❌ Usuario {user_id} no es dueño del historial")
+                    return jsonify({"success": False, "message": "No autorizado"}), 403
+
+                # Actualizar el historial como finalizado
+                print(f"💾 Actualizando historial {historial_id}...")
+                cursor.execute("""
+                    UPDATE historial_individual
+                    SET puntuacion_final = %s,
+                        tiempo_total = %s
+                    WHERE id = %s
+                """, (puntuacion_final, tiempo_total, historial_id))
 
                 # Eliminar al estudiante de la sala de espera
+                print(f"🚪 Eliminando usuario {user_id} de sala de espera...")
                 cursor.execute("""
                     DELETE FROM salas_espera
                     WHERE usuario_id = %s
@@ -2378,9 +2406,13 @@ def finalizar_cuestionario_individual():
 
                 conexion.commit()
 
-                print(f"✅ Estudiante {session['usuario']} finalizó cuestionario individual")
+                print(f"✅ Cuestionario finalizado exitosamente")
+                print(f"   - Historial ID: {historial_id}")
                 print(f"   - Puntuación: {puntuacion_final}")
                 print(f"   - Tiempo: {tiempo_total}s")
+
+                # Limpiar sesión
+                session.pop('historial_individual_id', None)
 
                 return jsonify({
                     "success": True,
@@ -2393,7 +2425,12 @@ def finalizar_cuestionario_individual():
                 conexion.close()
 
     except Exception as e:
-        print(f"❌ Error al finalizar cuestionario individual: {e}")
+        print(f"❌ ERROR CRÍTICO al finalizar cuestionario:")
+        print(f"   Tipo: {type(e).__name__}")
+        print(f"   Mensaje: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -2401,7 +2438,10 @@ def finalizar_cuestionario_individual():
 @app.route("/resultados_individual/<int:historial_id>")
 def resultados_individual(historial_id):
     """Muestra los resultados del cuestionario individual"""
+    print(f"\n📊 Cargando resultados para historial ID: {historial_id}")
+
     if "usuario" not in session or session.get("rol") != "estudiante":
+        print("❌ No autorizado")
         return redirect(url_for("login"))
 
     user_id = session["user_id"]
@@ -2409,24 +2449,36 @@ def resultados_individual(historial_id):
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # Obtener el historial
+            # Obtener el historial con información del cuestionario
             cursor.execute("""
-                SELECT h.*, c.titulo, c.tiempo_limite,
-                       (SELECT COUNT(*) FROM preguntas WHERE cuestionario_id = c.id) as total_preguntas
+                SELECT h.*,
+                       c.titulo as titulo_cuestionario,
+                       c.num_preguntas as num_preguntas_total,
+                       u.nombre as nombre_estudiante
                 FROM historial_individual h
                 JOIN cuestionarios c ON h.cuestionario_id = c.id
+                JOIN usuarios u ON h.usuario_id = u.id
                 WHERE h.id = %s AND h.usuario_id = %s
             """, (historial_id, user_id))
             historial = cursor.fetchone()
 
             if not historial:
+                print(f"❌ Historial {historial_id} no encontrado para usuario {user_id}")
                 flash("❌ Resultados no encontrados", "error")
                 return redirect(url_for("dashboard_estudiante"))
 
-            # Obtener las respuestas detalladas
+            print(f"✅ Historial encontrado: {historial['titulo_cuestionario']}")
+
+            # Obtener las respuestas detalladas con información de las preguntas
             cursor.execute("""
-                SELECT r.*, p.pregunta, p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d,
-                       p.respuesta_correcta
+                SELECT r.*,
+                       p.pregunta,
+                       p.opcion_a,
+                       p.opcion_b,
+                       p.opcion_c,
+                       p.opcion_d,
+                       p.respuesta_correcta,
+                       r.correcta as es_correcta
                 FROM respuestas_individuales r
                 JOIN preguntas p ON r.pregunta_id = p.id
                 WHERE r.historial_id = %s
@@ -2434,11 +2486,24 @@ def resultados_individual(historial_id):
             """, (historial_id,))
             respuestas = cursor.fetchall()
 
-            # Calcular estadísticas
-            correctas = sum(1 for r in respuestas if r['correcta'])
-            incorrectas = len(respuestas) - correctas
-            porcentaje = (correctas / historial['total_preguntas'] * 100) if historial['total_preguntas'] > 0 else 0
+            print(f"✅ Respuestas cargadas: {len(respuestas)}")
 
+            # Calcular estadísticas
+            correctas = sum(1 for r in respuestas if r['es_correcta'])
+            incorrectas = len(respuestas) - correctas
+            porcentaje = (correctas / historial['num_preguntas_total'] * 100) if historial['num_preguntas_total'] > 0 else 0
+
+            print(f"📊 Estadísticas:")
+            print(f"   - Correctas: {correctas}")
+            print(f"   - Incorrectas: {incorrectas}")
+            print(f"   - Porcentaje: {porcentaje:.2f}%")
+
+    except Exception as e:
+        print(f"❌ Error al cargar resultados: {e}")
+        import traceback
+        traceback.print_exc()
+        flash("❌ Error al cargar los resultados", "error")
+        return redirect(url_for("dashboard_estudiante"))
     finally:
         if conexion and conexion.open:
             conexion.close()
@@ -2450,7 +2515,6 @@ def resultados_individual(historial_id):
                            incorrectas=incorrectas,
                            porcentaje=porcentaje,
                            nombre=session["usuario"])
-
 
 
 # --- MANEJO DE ERRORES ---
