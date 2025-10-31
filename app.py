@@ -2632,7 +2632,7 @@ def resultados_individual(historial_id):
         if conexion and conexion.open:
             conexion.close()
 
-    return render_template("resultados_individual.html",
+    return render_template("resultados_individual_con_ranking.html",
                            historial=historial,
                            respuestas=respuestas,
                            correctas=correctas,
