@@ -2281,9 +2281,10 @@ def guardar_respuesta_individual():
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
-                # Obtener la pregunta y su respuesta correcta
+
+                # --- CORRECCIÓN 1: No seleccionamos 'puntos' ---
                 cursor.execute("""
-                    SELECT respuesta_correcta, puntos
+                    SELECT respuesta_correcta
                     FROM preguntas
                     WHERE id = %s
                 """, (pregunta_id,))
@@ -2292,28 +2293,29 @@ def guardar_respuesta_individual():
                 if not pregunta:
                     return jsonify({"success": False, "message": "Pregunta no encontrada"}), 404
 
-                # ⚡ NUEVO: Si no hay respuesta, automáticamente es incorrecta
-                if respuesta is None:
-                    es_correcta = False
-                    puntos_obtenidos = 0
-                else:
-                    # Verificar si es correcta
-                    es_correcta = (respuesta == pregunta['respuesta_correcta'])
-                    puntos_obtenidos = pregunta['puntos'] if es_correcta else 0
+                # --- CORRECCIÓN 2: Asignamos puntos fijos (ej. 100) ---
+                puntos_obtenidos = 0
+                es_correcta = False
 
-                # Guardar la respuesta
+                if respuesta is not None:
+                    es_correcta = (respuesta == pregunta['respuesta_correcta'])
+                    if es_correcta:
+                        puntos_obtenidos = 100  # <-- ¡VALOR FIJO!
+
+                # --- CORRECCIÓN 3: No insertamos 'puntos' en la DB ---
+                # --- CORRECCIÓN 4: TAMPOCO insertamos 'correcta' en la DB ---
+                # Asumiendo que tu tabla 'respuestas_individuales' NO tiene las columnas 'puntos' NI 'correcta'
                 cursor.execute("""
                     INSERT INTO respuestas_individuales
-                    (historial_id, pregunta_id, respuesta_estudiante, correcta, puntos, tiempo_respuesta)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    (historial_id, pregunta_id, respuesta_estudiante, tiempo_respuesta)
+                    VALUES (%s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
                     respuesta_estudiante = VALUES(respuesta_estudiante),
-                    correcta = VALUES(correcta),
-                    puntos = VALUES(puntos),
                     tiempo_respuesta = VALUES(tiempo_respuesta)
-                """, (historial_id, pregunta_id, respuesta, es_correcta, puntos_obtenidos, tiempo_respuesta))
+                """, (historial_id, pregunta_id, respuesta, tiempo_respuesta))
 
-                # Actualizar puntuación total en el historial
+
+                # 4. Actualizar puntuación total en el historial (esto está bien)
                 if es_correcta:
                     cursor.execute("""
                         UPDATE historial_individual
@@ -2323,11 +2325,12 @@ def guardar_respuesta_individual():
 
                 conexion.commit()
 
+                # 5. Devolvemos los 'puntos' al frontend (para que el HTML funcione)
                 return jsonify({
                     "success": True,
                     "correcta": es_correcta,
                     "respuesta_correcta": pregunta['respuesta_correcta'],
-                    "puntos": puntos_obtenidos
+                    "puntos": puntos_obtenidos # <-- Devuelve el valor fijo
                 })
 
         finally:
@@ -2336,7 +2339,10 @@ def guardar_respuesta_individual():
 
     except Exception as e:
         print(f"❌ Error al guardar respuesta individual: {e}")
+        # Devuelve el error real de la DB al frontend para depuración
         return jsonify({"success": False, "message": str(e)}), 500
+
+
 
 
 # --- FINALIZAR CUESTIONARIO INDIVIDUAL ---
@@ -2406,17 +2412,24 @@ def finalizar_cuestionario_individual():
 
                 conexion.commit()
 
+                # --- ¡CORRECCIÓN AQUÍ! ---
+                # Se usa el nombre de la FUNCIÓN, no el del archivo .html
+                redirect_url = url_for('resultados_individual', historial_id=historial_id)
+                # -------------------------
+
                 print(f"✅ Cuestionario finalizado exitosamente")
                 print(f"   - Historial ID: {historial_id}")
                 print(f"   - Puntuación: {puntuacion_final}")
                 print(f"   - Tiempo: {tiempo_total}s")
+                print(f"   - URL Redirección: {redirect_url}")
 
                 # Limpiar sesión
                 session.pop('historial_individual_id', None)
 
+                # Devolver la redirect_url que espera el nuevo JavaScript
                 return jsonify({
                     "success": True,
-                    "historial_id": historial_id,
+                    "redirect_url": redirect_url, # ¡Esto ahora es correcto!
                     "message": "Cuestionario finalizado correctamente"
                 })
 
@@ -2426,13 +2439,12 @@ def finalizar_cuestionario_individual():
 
     except Exception as e:
         print(f"❌ ERROR CRÍTICO al finalizar cuestionario:")
-        print(f"   Tipo: {type(e).__name__}")
-        print(f"   Mensaje: {str(e)}")
+        print(f"    Tipo: {type(e).__name__}")
+        print(f"    Mensaje: {str(e)}")
         import traceback
         traceback.print_exc()
 
         return jsonify({"success": False, "message": str(e)}), 500
-
 
 # --- RUTA PARA VER RESULTADOS INDIVIDUALES ---
 @app.route("/resultados_individual/<int:historial_id>")
@@ -2471,14 +2483,9 @@ def resultados_individual(historial_id):
 
             # Obtener las respuestas detalladas con información de las preguntas
             cursor.execute("""
-                SELECT r.*,
-                       p.pregunta,
-                       p.opcion_a,
-                       p.opcion_b,
-                       p.opcion_c,
-                       p.opcion_d,
-                       p.respuesta_correcta,
-                       r.correcta as es_correcta
+                SELECT r.respuesta_estudiante, r.tiempo_respuesta,
+                p.pregunta, p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d, p.respuesta_correcta,
+                (r.respuesta_estudiante = p.respuesta_correcta) as es_correcta  -- <--- ¡ASÍ SE CALCULA!
                 FROM respuestas_individuales r
                 JOIN preguntas p ON r.pregunta_id = p.id
                 WHERE r.historial_id = %s
@@ -2510,11 +2517,10 @@ def resultados_individual(historial_id):
 
     return render_template("resultados_individual.html",
                            historial=historial,
-                           respuestas=respuestas,
-                           correctas=correctas,
-                           incorrectas=incorrectas,
-                           porcentaje=porcentaje,
-                           nombre=session["usuario"])
+                           respuestas=respuestas)
+
+
+
 
 
 # --- MANEJO DE ERRORES ---

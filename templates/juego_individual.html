@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ cuestionario.titulo }} </title>
+    <title>{{ cuestionario.titulo }}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -166,12 +166,15 @@
             border-left: 5px solid #e74c3c;
             color: #721c24;
         }
+        
+        /* ¡CAMBIO! Ocultamos los botones de control */
         .controls {
-            display: flex;
+            display: none; 
             justify-content: space-between;
             padding: 30px 40px;
             border-top: 2px solid #e9ecef;
         }
+
         .btn {
             padding: 15px 35px;
             border: none;
@@ -221,7 +224,7 @@
 <body>
     <div class="game-container">
         <div class="progress-bar">
-            <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+            <div class="progress-fill" id="progressBar" style="width: 100%"></div>
         </div>
 
         <div class="header">
@@ -256,6 +259,7 @@
         </div>
 
         <div class="controls">
+            <!-- Los botones están ocultos con CSS -->
             <button class="btn btn-secondary" id="btnPrevious" onclick="previousQuestion()" disabled>
                 ⬅️ Anterior
             </button>
@@ -274,43 +278,67 @@
         // Estado del juego
         let preguntaActual = 0;
         let puntuacionTotal = 0;
-        let respuestas = [];
+        let respuestas = []; // Array local para guardar respuestas
         let tiempoRestantePregunta = tiempoPorPregunta;
-        let timerIntervalPregunta;
+        let timerIntervalPregunta; // Se define en iniciarTimerParaPreguntaActual
         let tiempoInicioRespuesta;
         let respuestaEnviada = false;
-        let tiempoTotalTranscurrido = 0; // Para tracking del tiempo total
-        let timerIntervalTotal; // Para contar tiempo total
+        let tiempoTotalTranscurrido = 0; 
+        let timerIntervalTotal; 
 
         // Inicializar juego
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🎮 Iniciando juego individual...');
+            
+            if (!preguntas || preguntas.length === 0) {
+                console.error("❌ No se cargaron preguntas. Redirigiendo...");
+                alert("Error: No se pudieron cargar las preguntas para este cuestionario.");
+                window.location.href = "/dashboard_estudiante";
+                return;
+            }
+            
             console.log('📋 Total de preguntas:', preguntas.length);
             console.log('⏱️ Tiempo por pregunta:', tiempoPorPregunta, 's');
-            
+
+            // Inicia el timer general del cuestionario
+            timerIntervalTotal = setInterval(() => {
+                tiempoTotalTranscurrido++;
+            }, 1000);
+
+            // Carga la primera pregunta (que también iniciará su timer)
             cargarPregunta();
-            iniciarTimers();
         });
 
         function cargarPregunta() {
             console.log(`\n📝 Cargando pregunta ${preguntaActual + 1}/${preguntas.length}`);
-            
+
             const pregunta = preguntas[preguntaActual];
+            
+            if (!pregunta) {
+                console.error(`❌ Error: Se intentó cargar la pregunta ${preguntaActual} pero no existe.`);
+                finalizarCuestionario(); 
+                return;
+            }
+
             respuestaEnviada = false;
 
-            // Actualizar progreso
-            const progreso = ((preguntaActual + 1) / preguntas.length) * 100;
-            document.getElementById('progressBar').style.width = progreso + '%';
+            // Actualizar UI
+            tiempoRestantePregunta = tiempoPorPregunta;
+            document.getElementById('questionTimer').textContent = tiempoRestantePregunta + 's';
+            document.getElementById('questionTimer').classList.remove('warning');
 
-            // Actualizar número de pregunta
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.transition = 'none'; 
+            progressBar.style.width = '100%';
+            void progressBar.offsetWidth; 
+
             document.getElementById('currentQuestion').textContent = (preguntaActual + 1) + '/' + preguntas.length;
             document.getElementById('questionNumber').textContent = preguntaActual + 1;
-            document.getElementById('questionText').textContent = pregunta.enunciado || pregunta.pregunta;
+            document.getElementById('questionText').textContent = pregunta.pregunta; 
 
             // Generar opciones
             const optionsGrid = document.getElementById('optionsGrid');
             optionsGrid.innerHTML = '';
-
             const opciones = [
                 { letra: 'A', texto: pregunta.opcion_a },
                 { letra: 'B', texto: pregunta.opcion_b },
@@ -331,18 +359,12 @@
 
             // Ocultar feedback
             document.getElementById('feedback').classList.remove('show');
-
-            // Actualizar botones
-            document.getElementById('btnPrevious').disabled = true; // Siempre deshabilitado
-            document.getElementById('btnNext').disabled = true;
-
-            // Reiniciar timer de pregunta
-            tiempoRestantePregunta = tiempoPorPregunta;
-            document.getElementById('questionTimer').textContent = tiempoRestantePregunta + 's';
-            document.getElementById('questionTimer').classList.remove('warning');
             
             // Reiniciar tiempo de respuesta
             tiempoInicioRespuesta = Date.now();
+
+            // ¡CAMBIO! Iniciar el timer específico para esta pregunta
+            iniciarTimerParaPreguntaActual();
         }
 
         function seleccionarRespuesta(letra) {
@@ -350,9 +372,9 @@
                 console.log('⚠️ Respuesta ya enviada, ignorando clic');
                 return;
             }
-            
+
             console.log(`✅ Usuario seleccionó opción: ${letra}`);
-            
+
             const pregunta = preguntas[preguntaActual];
             const opciones = document.querySelectorAll('.option-btn');
 
@@ -378,8 +400,8 @@
             .then(data => {
                 if (data.success) {
                     console.log(`${data.correcta ? '✅ CORRECTA' : '❌ INCORRECTA'} - Puntos: ${data.puntos}`);
-                    
-                    // Guardar respuesta
+
+                    // Guardar respuesta localmente
                     respuestas.push({
                         pregunta_id: pregunta.id,
                         respuesta: letra,
@@ -390,7 +412,7 @@
 
                     // Actualizar puntuación
                     if (data.correcta) {
-                        puntuacionTotal += data.puntos;
+                        puntuacionTotal += (data.puntos || 0); 
                         document.getElementById('score').textContent = puntuacionTotal;
                     }
 
@@ -409,98 +431,106 @@
                     const feedback = document.getElementById('feedback');
                     if (data.correcta) {
                         feedback.className = 'feedback correct show';
-                        feedback.innerHTML = '✅ ¡Correcto! +' + data.puntos + ' puntos';
+                        feedback.innerHTML = `✅ ¡Correcto! +${data.puntos || 0} puntos`;
                     } else {
                         feedback.className = 'feedback incorrect show';
-                        feedback.innerHTML = '❌ Incorrecto. La respuesta correcta era: ' + data.respuesta_correcta;
+                        feedback.innerHTML = `❌ Incorrecto. La respuesta correcta era: ${data.respuesta_correcta}`;
                     }
 
-                    // Habilitar botón siguiente
-                    document.getElementById('btnNext').disabled = false;
+                    // ¡CAMBIO! Ya no habilitamos 'btnNext' ni hacemos setTimeout.
+                    // El juego simplemente espera a que el timer (iniciarTimerParaPreguntaActual) llegue a 0.
 
-                    // Auto-avanzar después de 2 segundos
-                    setTimeout(() => {
-                        if (preguntaActual < preguntas.length - 1) {
-                            nextQuestion();
-                        } else {
-                            document.getElementById('btnNext').textContent = '🏁 Finalizar';
-                        }
-                    }, 2000);
+                } else {
+                    console.error('Error del servidor:', data.message);
+                    alert('Error: ' + data.message);
+                    respuestaEnviada = false; // Permitir reintentar
                 }
             })
             .catch(error => {
                 console.error('❌ Error al guardar respuesta:', error);
-                alert('Error al guardar la respuesta');
-                respuestaEnviada = false;
+                alert('Error de red al guardar la respuesta.');
+                respuestaEnviada = false; // Permitir reintentar
             });
         }
 
-        function nextQuestion() {
+        // ¡CAMBIO! Esta función ahora controla el avance
+        function avanzarALaSiguiente() {
+            console.log('Avanzando...');
             if (preguntaActual < preguntas.length - 1) {
                 preguntaActual++;
-                cargarPregunta();
+                cargarPregunta(); // Cargar la siguiente pregunta (que iniciará su propio timer)
             } else {
-                console.log('🏁 Última pregunta respondida, finalizando...');
                 finalizarCuestionario();
             }
         }
-
+        
+        // La función 'nextQuestion' llamada por el botón ahora está muerta (no se usa)
+        function nextQuestion() {
+            console.log("Botón 'next' presionado (pero está oculto)");
+        }
         function previousQuestion() {
-            // Deshabilitado - no permitir volver atrás
-            return;
+            return; // No hacer nada
         }
 
-        function iniciarTimers() {
-            console.log('⏱️ Iniciando timers...');
-            
-            // Timer para contar tiempo total transcurrido
-            timerIntervalTotal = setInterval(() => {
-                tiempoTotalTranscurrido++;
-            }, 1000);
+        // ¡CAMBIO! Lógica del timer movida y mejorada
+        function iniciarTimerParaPreguntaActual() {
+            console.log('⏱️ Iniciando timer para pregunta', preguntaActual + 1);
+
+            // Limpiar el timer anterior si existe
+            if (timerIntervalPregunta) {
+                clearInterval(timerIntervalPregunta);
+            }
 
             // Timer por pregunta
             timerIntervalPregunta = setInterval(() => {
+                
                 tiempoRestantePregunta--;
                 const timerElement = document.getElementById('questionTimer');
+
+                // Lógica de barra de tiempo
+                const progressBar = document.getElementById('progressBar');
+                const porcentajeRestante = (tiempoRestantePregunta / tiempoPorPregunta) * 100;
+                progressBar.style.width = porcentajeRestante + '%';
+                progressBar.style.transition = 'width 1s linear';
+
                 timerElement.textContent = tiempoRestantePregunta + 's';
 
-                // Añadir animación de advertencia cuando quedan 5 segundos
+                // Animación de advertencia
                 if (tiempoRestantePregunta <= 5) {
                     timerElement.classList.add('warning');
                 }
 
-                // Auto-avanzar cuando se acaba el tiempo
+                // ¡LÓGICA DE AVANCE!
                 if (tiempoRestantePregunta <= 0) {
                     console.log('⏰ Tiempo agotado en pregunta', preguntaActual + 1);
-                    
+                    clearInterval(timerIntervalPregunta); // Detener este timer
+
                     if (!respuestaEnviada) {
-                        console.log('⚠️ Usuario no respondió, guardando respuesta vacía');
-                        guardarRespuestaVacia();
+                        console.log('⚠️ Usuario no respondió, guardando respuesta vacía...');
+                        guardarRespuestaVacia(); // Esta función avanzará cuando termine
                     } else {
-                        console.log('✅ Usuario ya respondió, avanzando...');
-                        if (preguntaActual < preguntas.length - 1) {
-                            preguntaActual++;
-                            cargarPregunta();
-                        } else {
-                            finalizarCuestionario();
-                        }
+                        console.log('✅ Usuario ya respondió, tiempo agotado, avanzando...');
+                        avanzarALaSiguiente(); // Avanzar directamente
                     }
                 }
             }, 1000);
         }
 
         function guardarRespuestaVacia() {
+            if (respuestaEnviada) return; // Doble chequeo de seguridad
+
             const pregunta = preguntas[preguntaActual];
             respuestaEnviada = true;
-
-            console.log(`📤 Guardando respuesta vacía para pregunta ${preguntaActual + 1}`);
+            
+            document.querySelectorAll('.option-btn').forEach(btn => btn.classList.add('disabled'));
+            console.log(`📤 Guardando respuesta vacía (tiempo agotado) para pregunta ${preguntaActual + 1}`);
 
             fetch('/guardar_respuesta_individual', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     pregunta_id: pregunta.id,
-                    respuesta: null,
+                    respuesta: null, 
                     tiempo_respuesta: tiempoPorPregunta
                 })
             })
@@ -508,84 +538,98 @@
             .then(data => {
                 console.log('✅ Respuesta vacía guardada');
                 
-                // Auto-avanzar
-                setTimeout(() => {
-                    if (preguntaActual < preguntas.length - 1) {
-                        preguntaActual++;
-                        cargarPregunta();
-                    } else {
-                        finalizarCuestionario();
+                // Mostrar feedback
+                const feedback = document.getElementById('feedback');
+                feedback.className = 'feedback incorrect show';
+                feedback.innerHTML = `⏰ ¡Tiempo agotado! La respuesta correcta era: ${data.respuesta_correcta}`;
+                
+                document.querySelectorAll('.option-btn').forEach((btn, index) => {
+                    const letraBtn = ['A', 'B', 'C', 'D'][index];
+                    if (letraBtn === data.respuesta_correcta) {
+                        btn.classList.add('correct');
                     }
-                }, 500);
+                });
+                
+                // ¡CAMBIO! Esperar 2 segundos para que el usuario vea el feedback y LUEGO avanzar
+                setTimeout(() => {
+                    avanzarALaSiguiente();
+                }, 2000); // 2 segundos de espera
             })
             .catch(error => {
                 console.error('❌ Error al guardar respuesta vacía:', error);
-                // Avanzar de todas formas
-                if (preguntaActual < preguntas.length - 1) {
-                    preguntaActual++;
-                    cargarPregunta();
-                } else {
-                    finalizarCuestionario();
-                }
+                // Avanzar de todas formas para no bloquear al usuario
+                avanzarALaSiguiente();
             });
         }
 
-        function finalizarCuestionario() {
+        async function finalizarCuestionario() {
             console.log('\n🏁 FINALIZANDO CUESTIONARIO');
             console.log('📊 Puntuación final:', puntuacionTotal);
             console.log('⏱️ Tiempo total:', tiempoTotalTranscurrido, 's');
             console.log('📝 Respuestas guardadas:', respuestas.length);
-            
+
             // Detener timers
             clearInterval(timerIntervalTotal);
-            clearInterval(timerIntervalPregunta);
+            if (timerIntervalPregunta) {
+                clearInterval(timerIntervalPregunta);
+            }
 
-            // Deshabilitar todos los botones
-            document.getElementById('btnNext').disabled = true;
-            document.getElementById('btnNext').textContent = '⏳ Guardando...';
+            // Mostrar "Guardando..." en lugar del botón
+            // (El botón está oculto, pero podemos actualizar el texto por si acaso)
+            const btnNext = document.getElementById('btnNext');
+            if(btnNext) { // Chequeo de seguridad
+                btnNext.disabled = true;
+                btnNext.textContent = '⏳ Guardando...';
+            }
 
-            fetch('/finalizar_cuestionario_individual', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    puntuacion_final: puntuacionTotal,
-                    tiempo_total: tiempoTotalTranscurrido
-                })
-            })
-            .then(response => {
-                console.log('📥 Respuesta del servidor recibida');
+            try {
+                const response = await fetch('/finalizar_cuestionario_individual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        puntuacion_final: puntuacionTotal,
+                        tiempo_total: tiempoTotalTranscurrido
+                    })
+                });
+
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-                return response.json();
-            })
-            .then(data => {
+
+                const data = await response.json();
                 console.log('📊 Datos recibidos:', data);
-                
+
                 if (data.success) {
-                    console.log('✅ Cuestionario finalizado exitosamente');
-                    console.log('🔗 Redirigiendo a resultados, ID:', data.historial_id);
-                    
-                    // Redirigir a resultados
-                    window.location.href = '/resultados_individual/' + data.historial_id;
+                    if (data.redirect_url) {
+                        console.log('✅ Cuestionario finalizado exitosamente');
+                        console.log('🔗 Redirigiendo a:', data.redirect_url);
+                        window.location.href = data.redirect_url; // Redirigir a la URL del servidor
+                    } else {
+                        console.error("❌ Cuestionario finalizado, pero no se pudo redirigir. Volviendo al dashboard.");
+                        alert("Cuestionario finalizado, pero no se pudo redirigir. Volviendo al dashboard.");
+                        window.location.href = "/dashboard_estudiante";
+                    }
                 } else {
                     console.error('❌ Error del servidor:', data.message);
                     alert('Error al finalizar: ' + data.message);
+                    window.location.href = "/dashboard_estudiante";
                 }
-            })
-            .catch(error => {
+            } catch (error) {
                 console.error('❌ ERROR CRÍTICO al finalizar:', error);
                 alert('Error al finalizar el cuestionario. Por favor, contacta al profesor.\n\nDetalles: ' + error.message);
-            });
+                window.location.href = "/dashboard_estudiante";
+            }
         }
 
         // Prevenir que el usuario salga accidentalmente
         window.addEventListener('beforeunload', function(e) {
-            if (preguntaActual < preguntas.length && !respuestaEnviada) {
+            // Solo mostrar advertencia si el cuestionario no está terminado
+            if (preguntaActual < preguntas.length - 1) {
                 e.preventDefault();
-                e.returnValue = '';
+                e.returnValue = '¿Estás seguro de que quieres salir? Tu progreso se perderá.';
             }
         });
     </script>
 </body>
 </html>
+
