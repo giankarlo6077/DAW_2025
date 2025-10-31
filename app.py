@@ -576,7 +576,6 @@ def eliminar_cuenta_profesor():
         if conexion and conexion.open:
             conexion.close()
 
-# --- RUTAS DE ESTUDIANTE Y GRUPOS ---
 @app.route("/dashboard_estudiante")
 def dashboard_estudiante():
     if "usuario" not in session or session.get("rol") != "estudiante":
@@ -585,68 +584,97 @@ def dashboard_estudiante():
     grupo_info, miembros, cuestionarios_recientes = None, [], []
     user_id = session.get("user_id")
 
-    # Obtener datos del grupo actual (si existe)
+    # === BLOQUE 1: Obtener datos del grupo actual ===
     try:
         conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            cursor.execute("SELECT grupo_id FROM usuarios WHERE id = %s", (user_id,))
-            usuario_data = cursor.fetchone()
-            if usuario_data and usuario_data.get('grupo_id'):
-                grupo_id = usuario_data.get('grupo_id')
-                cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
-                grupo_info = cursor.fetchone()
-                cursor.execute("SELECT id, nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
-                miembros = cursor.fetchall()
-    finally:
-        if 'conexion' in locals() and conexion.open:
-            conexion.close()
+        try:
+            with conexion.cursor() as cursor:
+                cursor.execute("SELECT grupo_id FROM usuarios WHERE id = %s", (user_id,))
+                usuario_data = cursor.fetchone()
+                
+                if usuario_data and usuario_data.get('grupo_id'):
+                    grupo_id = usuario_data.get('grupo_id')
+                    cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
+                    grupo_info = cursor.fetchone()
+                    cursor.execute("SELECT id, nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
+                    miembros = cursor.fetchall()
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+    except Exception as e:
+        print(f"❌ ERROR AL CARGAR GRUPO: {e}")
 
-    # Obtener el historial personal (GRUPALES + INDIVIDUALES)
+    # === BLOQUE 2: Obtener historial personal ===
     try:
         conexion_historial = obtener_conexion()
-        with conexion.cursor() as cursor:
-            # 1. Obtener historial de partidas GRUPALES (CORREGIDO)
-            cursor.execute("""
-                SELECT 
-                    h.titulo_cuestionario, 
-                    h.puntuacion_final, 
-                    h.fecha_partida, 
-                    h.nombre_grupo,
-                    'grupal' as tipo
-                FROM historial_partidas h
-                JOIN participantes_partida p ON h.id = p.partida_id
-                WHERE p.usuario_id = %s
-                ORDER BY h.fecha_partida DESC
-                LIMIT 5
-            """, (user_id,))
-            partidas_grupales = cursor.fetchall()
-    
-            # 2. Obtener historial de partidas INDIVIDUALES (CORREGIDO)
-            cursor.execute("""
-                SELECT 
-                    c.titulo as titulo_cuestionario,
-                    hi.puntuacion as puntuacion_final,
-                    hi.fecha_inicio as fecha_partida,
-                    NULL as nombre_grupo,
-                    'individual' as tipo
-                FROM historial_individual hi
-                JOIN cuestionarios c ON hi.cuestionario_id = c.id
-                WHERE hi.usuario_id = %s AND hi.finalizado = TRUE
-                ORDER BY hi.fecha_inicio DESC
-                LIMIT 5
-            """, (user_id,))
-            partidas_individuales = cursor.fetchall()
-    
-            # 3. Combinar ambas listas y ordenar por fecha
-            cuestionarios_recientes = list(partidas_grupales) + list(partidas_individuales)
-            cuestionarios_recientes.sort(key=lambda x: x['fecha_partida'], reverse=True)
-            cuestionarios_recientes = cuestionarios_recientes[:5]  # Mantener solo los 5 más recientes
-    
-    finally:
-        if 'conexion_historial' in locals() and conexion_historial.open:
-            conexion_historial.close()
+        try:
+            with conexion_historial.cursor() as cursor:
+                # 1. Partidas GRUPALES
+                try:
+                    cursor.execute("""
+                        SELECT 
+                            h.titulo_cuestionario, 
+                            h.puntuacion_final, 
+                            h.fecha_partida, 
+                            h.nombre_grupo,
+                            'grupal' as tipo
+                        FROM historial_partidas h
+                        JOIN participantes_partida p ON h.id = p.partida_id
+                        WHERE p.usuario_id = %s
+                        ORDER BY h.fecha_partida DESC
+                        LIMIT 5
+                    """, (user_id,))
+                    partidas_grupales = cursor.fetchall()
+                except Exception as e:
+                    print(f"⚠️ Error al cargar historial grupal: {e}")
+                    partidas_grupales = []
+        
+                # 2. Partidas INDIVIDUALES (CORREGIDO)
+                try:
+                    cursor.execute("""
+                        SELECT 
+                            hi.id,
+                            hi.cuestionario_id,
+                            hi.puntuacion_final as puntuacion_final,
+                            hi.fecha_realizacion as fecha_partida,
+                            'individual' as tipo
+                        FROM historial_individual hi
+                        WHERE hi.usuario_id = %s AND hi.puntuacion_final > 0
+                        ORDER BY hi.fecha_realizacion DESC
+                        LIMIT 5
+                    """, (user_id,))
+                    partidas_individuales_raw = cursor.fetchall()
+                    
+                    # Obtener títulos de cuestionarios
+                    partidas_individuales = []
+                    for partida in partidas_individuales_raw:
+                        cursor.execute("SELECT titulo FROM cuestionarios WHERE id = %s", (partida['cuestionario_id'],))
+                        cuestionario = cursor.fetchone()
+                        
+                        partida['titulo_cuestionario'] = cuestionario['titulo'] if cuestionario else "Cuestionario Desconocido"
+                        partida['nombre_grupo'] = None
+                        partidas_individuales.append(partida)
+                        
+                except Exception as e:
+                    print(f"⚠️ Error al cargar historial individual: {e}")
+                    partidas_individuales = []
+        
+                # 3. Combinar y ordenar
+                cuestionarios_recientes = list(partidas_grupales) + list(partidas_individuales)
+                if cuestionarios_recientes:
+                    cuestionarios_recientes.sort(key=lambda x: x['fecha_partida'], reverse=True)
+                    cuestionarios_recientes = cuestionarios_recientes[:5]
+        
+        finally:
+            if conexion_historial and conexion_historial.open:
+                conexion_historial.close()
+                
+    except Exception as e:
+        print(f"❌ ERROR AL CARGAR HISTORIAL: {e}")
+        import traceback
+        traceback.print_exc()
 
-    # (CORREGIDO) - Este return AHORA está fuera del bloque 'finally'
+    # === BLOQUE 3: Renderizar ===
     return render_template("dashboard_estudiante.html",
                            nombre=session["usuario"],
                            grupo=grupo_info,
@@ -1474,13 +1502,11 @@ def partida_individual(codigo_pin):
 
             # ✅ CREAR HISTORIAL INDIVIDUAL
             print(f"\n💾 Creando historial individual...")
-            # --- CORRECCIÓN AQUÍ ---
             cursor.execute("""
                 INSERT INTO historial_individual
-                (usuario_id, cuestionario_id, fecha_inicio, puntuacion, finalizado)
-                VALUES (%s, %s, NOW(), 0, FALSE)
+                (usuario_id, cuestionario_id, fecha_realizacion, puntuacion_final)
+                VALUES (%s, %s, NOW(), 0)
             """, (user_id, cuestionario['id']))
-            # --- FIN DE LA CORRECCIÓN ---
             conexion.commit()
             historial_id = cursor.lastrowid
 
@@ -1537,6 +1563,7 @@ def partida_individual(codigo_pin):
             print(f"❌ Tampoco funciona partida_individual.html: {e2}")
             flash("Error: No se encontró la plantilla del juego", "error")
             return redirect(url_for("dashboard_estudiante"))
+
 # --- RUTA PARA UNIRSE A UN CUESTIONARIO INDIVIDUAL ---
 @app.route("/unirse_individual", methods=["POST"])
 def unirse_individual():
@@ -2292,7 +2319,7 @@ def guardar_respuesta_individual():
                 if es_correcta:
                     cursor.execute("""
                         UPDATE historial_individual
-                        SET puntuacion = puntuacion + %s
+                        SET puntuacion_final = puntuacion_final + %s
                         WHERE id = %s
                     """, (puntos_obtenidos, historial_id))
 
@@ -2336,16 +2363,12 @@ def finalizar_cuestionario_individual():
         try:
             with conexion.cursor() as cursor:
                 # Actualizar el historial como finalizado
-                # --- CORRECCIÓN AQUÍ ---
                 cursor.execute("""
-                    UPDATE historial_individual
-                    SET finalizado = TRUE,
-                        fecha_fin = NOW(),
-                        tiempo_total = %s,
-                        puntuacion = %s
-                    WHERE id = %s AND usuario_id = %s
-                """, (tiempo_total, puntuacion_final, historial_id, user_id))
-                # --- FIN DE LA CORRECCIÓN ---
+                UPDATE historial_individual
+                SET puntuacion_final = %s,
+                    tiempo_total = %s
+                WHERE id = %s AND usuario_id = %s
+                """, (puntuacion_final, tiempo_total, historial_id, user_id))
 
                 # Eliminar al estudiante de la sala de espera
                 cursor.execute("""
@@ -2387,7 +2410,6 @@ def resultados_individual(historial_id):
     try:
         with conexion.cursor() as cursor:
             # Obtener el historial
-            # --- CORRECCIÓN AQUÍ ---
             cursor.execute("""
                 SELECT h.*, c.titulo, c.tiempo_limite,
                        (SELECT COUNT(*) FROM preguntas WHERE cuestionario_id = c.id) as total_preguntas
@@ -2395,7 +2417,6 @@ def resultados_individual(historial_id):
                 JOIN cuestionarios c ON h.cuestionario_id = c.id
                 WHERE h.id = %s AND h.usuario_id = %s
             """, (historial_id, user_id))
-            # --- FIN DE LA CORRECCIÓN ---
             historial = cursor.fetchone()
 
             if not historial:
