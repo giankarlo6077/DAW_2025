@@ -2269,7 +2269,7 @@ def guardar_respuesta_individual():
     try:
         data = request.get_json()
         pregunta_id = data.get('pregunta_id')
-        respuesta = data.get('respuesta')  # Puede ser None si se agotó el tiempo
+        respuesta = data.get('respuesta')
         tiempo_respuesta = data.get('tiempo_respuesta', 0)
 
         user_id = session["user_id"]
@@ -2281,30 +2281,46 @@ def guardar_respuesta_individual():
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
-
-                # --- CORRECCIÓN 1: No seleccionamos 'puntos' ---
+                # Obtener pregunta y tiempo límite del cuestionario
                 cursor.execute("""
-                    SELECT respuesta_correcta
-                    FROM preguntas
-                    WHERE id = %s
+                    SELECT p.respuesta_correcta, c.tiempo_pregunta
+                    FROM preguntas p
+                    JOIN cuestionarios c ON p.cuestionario_id = c.id
+                    WHERE p.id = %s
                 """, (pregunta_id,))
                 pregunta = cursor.fetchone()
 
                 if not pregunta:
                     return jsonify({"success": False, "message": "Pregunta no encontrada"}), 404
 
-                # --- CORRECCIÓN 2: Asignamos puntos fijos (ej. 100) ---
+                # Calcular puntos basados en velocidad de respuesta
                 puntos_obtenidos = 0
                 es_correcta = False
 
                 if respuesta is not None:
                     es_correcta = (respuesta == pregunta['respuesta_correcta'])
-                    if es_correcta:
-                        puntos_obtenidos = 100  # <-- ¡VALOR FIJO!
 
-                # --- CORRECCIÓN 3: No insertamos 'puntos' en la DB ---
-                # --- CORRECCIÓN 4: TAMPOCO insertamos 'correcta' en la DB ---
-                # Asumiendo que tu tabla 'respuestas_individuales' NO tiene las columnas 'puntos' NI 'correcta'
+                    if es_correcta:
+                        tiempo_limite = pregunta['tiempo_pregunta']
+
+                        # Sistema de puntos basado en velocidad:
+                        # - Respuesta en primeros 25% del tiempo: 1000 puntos
+                        # - Respuesta en primeros 50% del tiempo: 800 puntos
+                        # - Respuesta en primeros 75% del tiempo: 600 puntos
+                        # - Respuesta antes del límite: 400 puntos
+
+                        porcentaje_tiempo = (tiempo_respuesta / tiempo_limite) * 100 if tiempo_limite > 0 else 100
+
+                        if porcentaje_tiempo <= 25:
+                            puntos_obtenidos = 1000
+                        elif porcentaje_tiempo <= 50:
+                            puntos_obtenidos = 800
+                        elif porcentaje_tiempo <= 75:
+                            puntos_obtenidos = 600
+                        else:
+                            puntos_obtenidos = 400
+
+                # Guardar respuesta
                 cursor.execute("""
                     INSERT INTO respuestas_individuales
                     (historial_id, pregunta_id, respuesta_estudiante, tiempo_respuesta)
@@ -2314,8 +2330,7 @@ def guardar_respuesta_individual():
                     tiempo_respuesta = VALUES(tiempo_respuesta)
                 """, (historial_id, pregunta_id, respuesta, tiempo_respuesta))
 
-
-                # 4. Actualizar puntuación total en el historial (esto está bien)
+                # Actualizar puntuación total
                 if es_correcta:
                     cursor.execute("""
                         UPDATE historial_individual
@@ -2325,12 +2340,11 @@ def guardar_respuesta_individual():
 
                 conexion.commit()
 
-                # 5. Devolvemos los 'puntos' al frontend (para que el HTML funcione)
                 return jsonify({
                     "success": True,
                     "correcta": es_correcta,
                     "respuesta_correcta": pregunta['respuesta_correcta'],
-                    "puntos": puntos_obtenidos # <-- Devuelve el valor fijo
+                    "puntos": puntos_obtenidos
                 })
 
         finally:
@@ -2339,9 +2353,7 @@ def guardar_respuesta_individual():
 
     except Exception as e:
         print(f"❌ Error al guardar respuesta individual: {e}")
-        # Devuelve el error real de la DB al frontend para depuración
         return jsonify({"success": False, "message": str(e)}), 500
-
 
 
 
@@ -2449,9 +2461,9 @@ def finalizar_cuestionario_individual():
 # --- RUTA PARA VER RESULTADOS INDIVIDUALES (CORREGIDA CON DEBUG) ---
 @app.route("/resultados_individual/<int:historial_id>")
 def resultados_individual(historial_id):
-    """Muestra los resultados del cuestionario individual"""
+    """Muestra los resultados del cuestionario individual con ranking"""
     print(f"\n{'='*70}")
-    print(f"📊 CARGANDO RESULTADOS INDIVIDUALES")
+    print(f"📊 CARGANDO RESULTADOS INDIVIDUALES CON RANKING")
     print(f"📋 Historial ID: {historial_id}")
     print(f"{'='*70}\n")
 
@@ -2487,89 +2499,149 @@ def resultados_individual(historial_id):
             print(f"✅ Historial encontrado:")
             print(f"   - Cuestionario: {historial['titulo_cuestionario']}")
             print(f"   - Puntuación final: {historial['puntuacion_final']}")
-            print(f"   - Total preguntas: {historial['num_preguntas_total']}")
 
-            # 2. Obtener las respuestas detalladas
+            # 2. Obtener RANKING completo del cuestionario
+            print("\n🏆 Consultando ranking...")
+            cursor.execute("""
+                SELECT
+                    h.id,
+                    u.nombre as nombre_estudiante,
+                    h.puntuacion_final,
+                    h.tiempo_total,
+                    h.fecha_realizacion,
+                    COUNT(DISTINCT r.pregunta_id) as preguntas_respondidas
+                FROM historial_individual h
+                JOIN usuarios u ON h.usuario_id = u.id
+                LEFT JOIN respuestas_individuales r ON h.id = r.historial_id
+                WHERE h.cuestionario_id = %s
+                GROUP BY h.id, u.nombre, h.puntuacion_final, h.tiempo_total, h.fecha_realizacion
+                ORDER BY h.puntuacion_final DESC, h.tiempo_total ASC
+            """, (historial['cuestionario_id'],))
+            ranking_completo = cursor.fetchall()
+
+            # Encontrar la posición del estudiante actual
+            posicion_actual = 0
+            for idx, participante in enumerate(ranking_completo, 1):
+                if participante['id'] == historial_id:
+                    posicion_actual = idx
+                    break
+
+            print(f"✅ Ranking cargado: {len(ranking_completo)} participantes")
+            print(f"   - Posición del estudiante: {posicion_actual}/{len(ranking_completo)}")
+
+            # 3. Obtener las respuestas detalladas
             print("\n📥 Consultando respuestas...")
             cursor.execute("""
-                SELECT r.respuesta_estudiante, r.tiempo_respuesta, r.es_correcta, r.puntos,
-                       p.pregunta, p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d, p.respuesta_correcta
+                SELECT r.respuesta_estudiante, r.tiempo_respuesta,
+                       p.id as pregunta_id, p.pregunta, p.opcion_a, p.opcion_b,
+                       p.opcion_c, p.opcion_d, p.respuesta_correcta,
+                       c.tiempo_pregunta
                 FROM respuestas_individuales r
                 JOIN preguntas p ON r.pregunta_id = p.id
+                JOIN cuestionarios c ON p.cuestionario_id = c.id
                 WHERE r.historial_id = %s
                 ORDER BY p.id
             """, (historial_id,))
-            respuestas = cursor.fetchall()
+            respuestas_raw = cursor.fetchall()
 
-            print(f"✅ Respuestas cargadas: {len(respuestas)}")
+            print(f"✅ Respuestas cargadas: {len(respuestas_raw)}")
 
-            # 3. Debug: Imprimir primera respuesta para verificar estructura
-            if respuestas:
-                print(f"\n🔍 DEBUG - Primera respuesta:")
-                primera = respuestas[0]
-                print(f"   - Pregunta: {primera.get('pregunta', 'N/A')[:50]}...")
-                print(f"   - Respuesta estudiante: {primera.get('respuesta_estudiante', 'N/A')}")
-                print(f"   - Respuesta correcta: {primera.get('respuesta_correcta', 'N/A')}")
-                print(f"   - Es correcta: {primera.get('es_correcta', 'N/A')}")
-                print(f"   - Puntos: {primera.get('puntos', 'N/A')}")
-
-            # 4. Calcular estadísticas de forma segura
-            print("\n📊 Calculando estadísticas...")
+            # 4. Calcular puntos basados en velocidad para cada respuesta
+            respuestas = []
             correctas = 0
             incorrectas = 0
+            tiempo_total_respuestas = 0
 
-            for r in respuestas:
-                es_correcta = r.get('es_correcta', False)
+            for r in respuestas_raw:
+                es_correcta = (r['respuesta_estudiante'] == r['respuesta_correcta'])
+
+                # Calcular puntos usando la misma lógica que en guardar_respuesta
+                puntos = 0
+                if es_correcta:
+                    tiempo_limite = r['tiempo_pregunta']
+                    tiempo_respuesta = r['tiempo_respuesta']
+                    porcentaje_tiempo = (tiempo_respuesta / tiempo_limite) * 100 if tiempo_limite > 0 else 100
+
+                    if porcentaje_tiempo <= 25:
+                        puntos = 1000
+                    elif porcentaje_tiempo <= 50:
+                        puntos = 800
+                    elif porcentaje_tiempo <= 75:
+                        puntos = 600
+                    else:
+                        puntos = 400
+
                 if es_correcta:
                     correctas += 1
                 else:
                     incorrectas += 1
 
-            # Calcular porcentaje
-            if historial['num_preguntas_total'] > 0:
-                porcentaje = round((correctas / historial['num_preguntas_total']) * 100, 1)
+                tiempo_total_respuestas += r['tiempo_respuesta']
+
+                respuesta_completa = {
+                    'pregunta_id': r['pregunta_id'],
+                    'pregunta': r['pregunta'],
+                    'opcion_a': r['opcion_a'],
+                    'opcion_b': r['opcion_b'],
+                    'opcion_c': r['opcion_c'],
+                    'opcion_d': r['opcion_d'],
+                    'respuesta_correcta': r['respuesta_correcta'],
+                    'respuesta_estudiante': r['respuesta_estudiante'],
+                    'tiempo_respuesta': r['tiempo_respuesta'],
+                    'tiempo_pregunta': r['tiempo_pregunta'],
+                    'es_correcta': es_correcta,
+                    'puntos': puntos
+                }
+
+                respuestas.append(respuesta_completa)
+
+            # 5. Calcular estadísticas
+            total_respuestas = len(respuestas)
+            if total_respuestas > 0:
+                porcentaje = round((correctas / total_respuestas) * 100, 1)
+                tiempo_promedio = round(tiempo_total_respuestas / total_respuestas, 1)
             else:
                 porcentaje = 0
+                tiempo_promedio = 0
 
-            print(f"✅ Estadísticas calculadas:")
+            print(f"\n✅ Estadísticas calculadas:")
             print(f"   - Correctas: {correctas}")
             print(f"   - Incorrectas: {incorrectas}")
             print(f"   - Porcentaje: {porcentaje}%")
+            print(f"   - Tiempo promedio: {tiempo_promedio}s")
 
-            # 5. Formatear fecha de forma segura
+            # 6. Formatear fecha
             try:
                 fecha_realizacion_str = historial['fecha_realizacion'].strftime('%d/%m/%Y a las %H:%M')
-                print(f"✅ Fecha formateada: {fecha_realizacion_str}")
             except Exception as e:
                 print(f"⚠️ Error al formatear fecha: {e}")
                 fecha_realizacion_str = "Fecha no disponible"
 
-            print(f"\n✅ Todo listo para renderizar template")
+            print(f"\n✅ Todo listo para renderizar\n{'='*70}")
 
     except Exception as e:
         print(f"\n❌❌❌ ERROR CRÍTICO ❌❌❌")
         print(f"Tipo: {type(e).__name__}")
         print(f"Mensaje: {str(e)}")
         import traceback
-        print("\n📋 Traceback completo:")
         traceback.print_exc()
-        print(f"{'='*70}\n")
 
-        flash("❌ Error al cargar los resultados. Revisa la consola para más detalles.", "error")
+        flash("❌ Error al cargar los resultados.", "error")
         return redirect(url_for("dashboard_estudiante"))
     finally:
         if conexion and conexion.open:
             conexion.close()
 
-    # 6. Renderizar template con todas las variables
-    print(f"🎨 Renderizando template con {len(respuestas)} respuestas\n")
     return render_template("resultados_individual.html",
                            historial=historial,
                            respuestas=respuestas,
                            correctas=correctas,
                            incorrectas=incorrectas,
                            porcentaje=porcentaje,
-                           fecha_realizacion_str=fecha_realizacion_str)
+                           tiempo_promedio=tiempo_promedio,
+                           fecha_realizacion_str=fecha_realizacion_str,
+                           ranking_completo=ranking_completo,
+                           posicion_actual=posicion_actual)
 
 
 # --- MANEJO DE ERRORES ---

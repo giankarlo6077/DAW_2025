@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resultados - {{ historial.titulo_cuestionario }}</title>
+    <style>
+        :root {
+            --color-primary: #667eea;
+            --color-secondary: #764ba2;
+            --color-success: #38ef7d;
+            --color-success-dark: #11998e;
+            --color-error: #e74c3c;
+            --color-gold: #FFD700;
+            --color-silver: #C0C0C0;
+            --color-bronze: #CD7F32;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Poppins', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header de resultados */
+        .results-header {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+        
+        .trophy-icon {
+            font-size: 80px;
+            margin-bottom: 15px;
+            animation: bounce 2s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .results-header h1 {
+            color: #333;
+            font-size: 36px;
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+        .results-header h2 {
+            color: var(--color-primary);
+            font-size: 24px;
+            font-weight: 400;
+            margin-bottom: 25px;
+        }
+
+        /* Posición en el ranking */
+        .position-badge {
+            display: inline-block;
+            padding: 10px 30px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        
+        .position-1 {
+            background: linear-gradient(135deg, var(--color-gold), #FFA500);
+            color: white;
+            animation: pulse 2s infinite;
+        }
+        
+        .position-2 {
+            background: linear-gradient(135deg, var(--color-silver), #A8A8A8);
+            color: white;
+        }
+        
+        .position-3 {
+            background: linear-gradient(135deg, var(--color-bronze), #B87333);
+            color: white;
+        }
+        
+        .position-other {
+            background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+            color: white;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Círculos de puntuación */
+        .score-display {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+        .score-circle {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--color-success-dark) 0%, var(--color-success) 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            box-shadow: 0 5px 20px rgba(17, 153, 142, 0.4);
+            transition: transform 0.3s;
+        }
+        .score-circle:hover {
+            transform: scale(1.05);
+        }
+        .score-circle .number {
+            font-size: 42px;
+            font-weight: bold;
+            line-height: 1;
+        }
+        .score-circle .label {
+            font-size: 13px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+
+        /* Estadísticas */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 30px;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+        .stat-card .icon {
+            font-size: 30px;
+            margin-bottom: 5px;
+        }
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+        }
+        .stat-card .label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        /* Sección de ranking */
+        .ranking-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+        .ranking-section h3 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--color-primary);
+            font-weight: 600;
+        }
+
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .ranking-table thead {
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+        }
+        
+        .ranking-table thead th {
+            padding: 15px;
+            color: white;
+            font-weight: 600;
+            text-align: left;
+            font-size: 14px;
+        }
+        
+        .ranking-table tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.3s;
+        }
+        
+        .ranking-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .ranking-table tbody tr.current-user {
+            background: linear-gradient(90deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            border-left: 5px solid var(--color-primary);
+        }
+        
+        .ranking-table tbody td {
+            padding: 15px;
+            color: #333;
+        }
+        
+        .rank-position {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .rank-medal {
+            font-size: 24px;
+        }
+        
+        .student-name {
+            font-weight: 600;
+        }
+        
+        .current-user .student-name {
+            color: var(--color-primary);
+            font-weight: 700;
+        }
+        
+        .score-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--color-success-dark);
+        }
+        
+        .time-badge {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* Sección de revisión detallada */
+        .details-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+        .details-section h3 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--color-primary);
+            font-weight: 600;
+        }
+
+        .question-review {
+            margin-bottom: 25px;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e0e0e0;
+            background: #fcfcfc;
+        }
+        .question-review.correct {
+            border-left: 5px solid var(--color-success);
+            background: #e6fff1;
+        }
+        .question-review.incorrect {
+            border-left: 5px solid var(--color-error);
+            background: #fff0f0;
+        }
+
+        .question-review .question-number {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px dashed #ddd;
+            padding-bottom: 10px;
+        }
+        .question-review .question-text {
+            font-size: 17px;
+            color: #333;
+            margin-bottom: 15px;
+            font-weight: 600;
+            padding-top: 10px;
+        }
+
+        .options-review {
+            display: grid;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .option-review {
+            padding: 12px 15px;
+            border-radius: 8px;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border: 1px solid #e9ecef;
+        }
+        .option-review .letter {
+            min-width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #f1f1f1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .option-review.correct {
+            background: #d4edda;
+            border-color: var(--color-success);
+        }
+        .option-review.correct .letter {
+            background: var(--color-success);
+            color: white;
+        }
+        .option-review.incorrect {
+            background: #f8d7da;
+            border-color: var(--color-error);
+        }
+        .option-review.incorrect .letter {
+            background: var(--color-error);
+            color: white;
+        }
+        .option-review.selected {
+            border: 2px solid var(--color-primary);
+        }
+
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .badge-correct {
+            background: var(--color-success);
+            color: white;
+        }
+        .badge-incorrect {
+            background: var(--color-error);
+            color: white;
+        }
+
+        .points-badge {
+            display: inline-block;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .points-1000 {
+            background: linear-gradient(135deg, var(--color-gold), #FFA500);
+            color: white;
+        }
+        .points-800 {
+            background: linear-gradient(135deg, var(--color-silver), #A8A8A8);
+            color: white;
+        }
+        .points-600 {
+            background: linear-gradient(135deg, var(--color-bronze), #B87333);
+            color: white;
+        }
+        .points-400 {
+            background: linear-gradient(135deg, #4CAF50, #8BC34A);
+            color: white;
+        }
+
+        /* Botones */
+        .actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 14px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--color-success-dark) 0%, var(--color-success) 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(17, 153, 142, 0.4);
+        }
+
+        .footer-info {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            font-size: 14px;
+            padding: 10px 0;
+            opacity: 0.9;
+        }
+
+        @media (max-width: 768px) {
+            .score-display {
+                flex-direction: column;
+                align-items: center;
+            }
+            .ranking-table {
+                font-size: 13px;
+            }
+            .ranking-table thead th,
+            .ranking-table tbody td {
+                padding: 10px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header de Resultados -->
+        <div class="results-header">
+            {% if posicion_actual == 1 %}
+                <div class="trophy-icon">🏆</div>
+            {% elif posicion_actual == 2 %}
+                <div class="trophy-icon">🥈</div>
+            {% elif posicion_actual == 3 %}
+                <div class="trophy-icon">🥉</div>
+            {% elif porcentaje >= 80 %}
+                <div class="trophy-icon">⭐</div>
+            {% else %}
+                <div class="trophy-icon">📝</div>
+            {% endif %}
+
+            <h1>¡Cuestionario Finalizado!</h1>
+            <h2>{{ historial.titulo_cuestionario }}</h2>
+
+            <!-- Posición en el ranking -->
+            <div class="position-badge position-{{ '1' if posicion_actual == 1 else '2' if posicion_actual == 2 else '3' if posicion_actual == 3 else 'other' }}">
+                {% if posicion_actual == 1 %}
+                    🥇 ¡1er Lugar!
+                {% elif posicion_actual == 2 %}
+                    🥈 2do Lugar
+                {% elif posicion_actual == 3 %}
+                    🥉 3er Lugar
+                {% else %}
+                    Posición {{ posicion_actual }} de {{ ranking_completo|length }}
+                {% endif %}
+            </div>
+
+            <!-- Círculos de puntuación -->
+            <div class="score-display">
+                <div class="score-circle">
+                    <div class="number">{{ historial.puntuacion_final }}</div>
+                    <div class="label">PUNTOS</div>
+                </div>
+                <div class="score-circle">
+                    <div class="number">{{ porcentaje }}%</div>
+                    <div class="label">PRECISIÓN</div>
+                </div>
+                <div class="score-circle">
+                    <div class="number">{{ tiempo_promedio }}s</div>
+                    <div class="label">TIEMPO PROM</div>
+                </div>
+            </div>
+
+            <!-- Estadísticas -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="icon">✅</div>
+                    <div class="value">{{ correctas }}</div>
+                    <div class="label">Correctas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="icon">❌</div>
+                    <div class="value">{{ incorrectas }}</div>
+                    <div class="label">Incorrectas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="icon">📝</div>
+                    <div class="value">{{ historial.num_preguntas_total or (correctas + incorrectas) }}</div>
+                    <div class="label">Total Preguntas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="icon">⏱️</div>
+                    <div class="value">{{ historial.tiempo_total }}s</div>
+                    <div class="label">Tiempo Total</div>
+                </div>
+            </div>
+
+            <div class="actions">
+                <a href="{{ url_for('dashboard_estudiante') }}" class="btn btn-primary">
+                    🏠 Volver al Dashboard
+                </a>
+            </div>
+        </div>
+
+        <!-- Sección de Ranking -->
+        <div class="ranking-section">
+            <h3>🏆 Clasificación General</h3>
+            
+            <table class="ranking-table">
+                <thead>
+                    <tr>
+                        <th>Posición</th>
+                        <th>Estudiante</th>
+                        <th>Puntuación</th>
+                        <th>Tiempo</th>
+                        <th>Fecha</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for participante in ranking_completo %}
+                    <tr class="{{ 'current-user' if participante.id == historial.id else '' }}">
+                        <td>
+                            <div class="rank-position">
+                                {% if loop.index == 1 %}
+                                    <span class="rank-medal">🥇</span>
+                                {% elif loop.index == 2 %}
+                                    <span class="rank-medal">🥈</span>
+                                {% elif loop.index == 3 %}
+                                    <span class="rank-medal">🥉</span>
+                                {% else %}
+                                    <span>{{ loop.index }}</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="student-name">
+                                {{ participante.nombre_estudiante }}
+                                {% if participante.id == historial.id %}
+                                    <span style="color: var(--color-primary); font-size: 12px;">(Tú)</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="score-value">{{ participante.puntuacion_final }}</div>
+                        </td>
+                        <td>
+                            <span class="time-badge">⏱️ {{ participante.tiempo_total }}s</span>
+                        </td>
+                        <td style="font-size: 13px; color: #666;">
+                            {{ participante.fecha_realizacion.strftime('%d/%m/%Y %H:%M') }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Revisión Detallada -->
+        <div class="details-section">
+            <h3>📋 Revisión Detallada de Respuestas</h3>
+
+            {% for respuesta in respuestas %}
+            <div class="question-review {{ 'correct' if respuesta.es_correcta else 'incorrect' }}">
+                <div class="question-number">
+                    <span>Pregunta {{ loop.index }}</span>
+                    <div>
+                        {% if respuesta.es_correcta %}
+                            <span class="badge badge-correct">✓ CORRECTA</span>
+                            <span class="points-badge points-{{ respuesta.puntos }}">
+                                +{{ respuesta.puntos }} pts
+                            </span>
+                        {% else %}
+                            <span class="badge badge-incorrect">✗ INCORRECTA</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="question-text">{{ respuesta.pregunta }}</div>
+
+                <div class="options-review">
+                    {% set opciones = [
+                        ('A', respuesta.opcion_a),
+                        ('B', respuesta.opcion_b),
+                        ('C', respuesta.opcion_c),
+                        ('D', respuesta.opcion_d)
+                    ] %}
+                    {% for letra, texto in opciones %}
+                    <div class="option-review
+                        {{ 'correct' if letra == respuesta.respuesta_correcta else '' }}
+                        {{ 'incorrect' if letra == respuesta.respuesta_estudiante and not respuesta.es_correcta else '' }}
+                        {{ 'selected' if letra == respuesta.respuesta_estudiante else '' }}">
+                        <div class="letter">{{ letra }}</div>
+                        <div class="text">
+                            {{ texto }}
+                            {% if letra == respuesta.respuesta_correcta %}
+                                <span style="font-weight: 600; margin-left: 5px; color: var(--color-success-dark);">(Correcta)</span>
+                            {% endif %}
+                            {% if letra == respuesta.respuesta_estudiante %}
+                                <span style="margin-left: 5px;">(Tu respuesta)</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div style="margin-top: 15px; font-size: 14px; color: #666;">
+                    ⏱️ Respondiste en <strong>{{ respuesta.tiempo_respuesta }}s</strong> 
+                    de {{ respuesta.tiempo_pregunta }}s disponibles
+                    {% if respuesta.es_correcta %}
+                        {% set porcentaje_tiempo = (respuesta.tiempo_respuesta / respuesta.tiempo_pregunta * 100) | round %}
+                        <span style="margin-left: 15px;">
+                            {% if porcentaje_tiempo <= 25 %}
+                                ⚡ ¡Velocidad increíble!
+                            {% elif porcentaje_tiempo <= 50 %}
+                                🚀 Muy rápido
+                            {% elif porcentaje_tiempo <= 75 %}
+                                👍 Buen tiempo
+                            {% else %}
+                                ⏰ Tiempo límite
+                            {% endif %}
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Footer -->
+        <div class="footer-info">
+            <p>Estudiante: <strong>{{ historial.nombre_estudiante }}</strong></p>
+            <p>Fecha: <strong>{{ fecha_realizacion_str }}</strong></p>
+        </div>
+    </div>
+</body>
+</html>

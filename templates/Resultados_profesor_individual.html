@@ -456,7 +456,7 @@
         <div class="header">
             <h1>📊 Resultados Completos del Cuestionario</h1>
             <p class="subtitle">{{ cuestionario_titulo }}</p>
-            
+
             <div class="header-stats">
                 <div class="header-stat">
                     <div class="value">{{ total_participantes }}</div>
@@ -513,7 +513,7 @@
         <!-- Tabla de resultados -->
         <div class="results-table-container">
             <h2>📋 Clasificación Detallada</h2>
-            
+
             <table id="resultsTable">
                 <thead>
                     <tr>
@@ -531,7 +531,7 @@
                     {% for resultado in resultados %}
                     <tr {% if loop.index <= 3 %}class="highlight"{% endif %}>
                         <td>
-                            <div class="rank-badge 
+                            <div class="rank-badge
                                 {% if loop.index == 1 %}gold
                                 {% elif loop.index == 2 %}silver
                                 {% elif loop.index == 3 %}bronze
@@ -553,7 +553,7 @@
                             <div class="score-display">{{ resultado.puntuacion }}</div>
                         </td>
                         <td>
-                            <span class="percentage 
+                            <span class="percentage
                                 {% if resultado.porcentaje >= 80 %}high
                                 {% elif resultado.porcentaje >= 60 %}medium
                                 {% else %}low
@@ -623,7 +623,7 @@
             const table = document.getElementById('resultsTable');
             const tbody = table.getElementsByTagName('tbody')[0];
             const rows = Array.from(tbody.getElementsByTagName('tr'));
-            
+
             // Actualizar indicadores visuales
             const headers = table.getElementsByTagName('th');
             for (let i = 0; i < headers.length; i++) {
@@ -655,8 +655,8 @@
                 }
 
                 // Comparación de texto
-                return ascendente ? 
-                    aValue.localeCompare(bValue) : 
+                return ascendente ?
+                    aValue.localeCompare(bValue) :
                     bValue.localeCompare(aValue);
             });
 
