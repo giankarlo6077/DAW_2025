@@ -528,14 +528,14 @@
                 <p>❓ En todos los cuestionarios</p>
             </div>
             <div class="stat-card">
-                <h3>Partidas Jugadas</h3>
-                <div class="number">0</div>
-                <p>🎮 Próximamente</p>
+                <h3>Modos de Juego</h3>
+                <div class="number">2</div>
+                <p>👥 Grupal y 👤 Individual</p>
             </div>
             <div class="stat-card">
-                <h3>Promedio General</h3>
-                <div class="number">0%</div>
-                <p>⭐ Próximamente</p>
+                <h3>Estudiantes Activos</h3>
+                <div class="number">✓</div>
+                <p>⭐ Sistema en Línea</p>
             </div>
         </div>
 
@@ -587,32 +587,6 @@
         </div>
     {% endif %}
 </div>
-
-        <!-- Últimas Partidas -->
-        <div class="content-section">
-            <div class="section-header">
-                <h2>🎯 Últimas Partidas</h2>
-                <button class="btn">📊 Próximamente</button>
-            </div>
-
-            <div style="text-align: center; padding: 40px; color: #999;">
-                <p style="font-size: 48px; margin-bottom: 10px;">🎮</p>
-                <p style="font-size: 16px;">Las partidas aparecerán aquí cuando los estudiantes jueguen</p>
-            </div>
-        </div>
-
-        <!-- Repositorio Público -->
-        <div class="content-section">
-            <div class="section-header">
-                <h2>🌍 Repositorio Público</h2>
-                <p style="color: #666; margin: 0;">Próximamente: Cuestionarios compartidos por otros profesores</p>
-            </div>
-
-            <div style="text-align: center; padding: 40px; color: #999;">
-                <p style="font-size: 48px; margin-bottom: 10px;">🌐</p>
-                <p style="font-size: 16px;">Esta función estará disponible próximamente</p>
-            </div>
-        </div>
     </div>
 
     <!-- Modal Crear Cuestionario -->
@@ -686,20 +660,6 @@
         }
 
         function startQuiz(code, modoJuego) {
-    if (modoJuego === 'grupal') {
-        window.location.href = `/sala_profesor/${code}`;
-    } else {
-        const mensaje = `📋 Cuestionario Individual\n\n` +
-                       `PIN: ${code}\n\n` +
-                       `Los estudiantes pueden usar este código para:\n` +
-                       `• Visualizar las preguntas del cuestionario\n` +
-                       `• Estudiar el contenido\n\n` +
-                       `Nota: Este cuestionario está en modo INDIVIDUAL, no se puede jugar en grupo.`;
-        alert(mensaje);
-    }
-}
-
-function startQuiz(code, modoJuego) {
     if (modoJuego === 'grupal') {
         window.location.href = `/sala_profesor/${code}`;
     } else {

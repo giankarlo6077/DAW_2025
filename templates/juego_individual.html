@@ -288,7 +288,7 @@
             // Actualizar número de pregunta
             document.getElementById('currentQuestion').textContent = (preguntaActual + 1) + '/' + preguntas.length;
             document.getElementById('questionNumber').textContent = preguntaActual + 1;
-            document.getElementById('questionText').textContent = pregunta.pregunta;
+            document.getElementById('questionText').textContent = pregunta.enunciado || pregunta.pregunta;
 
             // Generar opciones
             const optionsGrid = document.getElementById('optionsGrid');

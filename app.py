@@ -1291,6 +1291,41 @@ def api_estado_individual(usuario_id):
             conexion.close()
 
 
+# --- API PARA SALIR DE LA SALA DE ESPERA INDIVIDUAL ---
+@app.route("/api/salir_sala_individual/<int:usuario_id>", methods=["POST"])
+def api_salir_sala_individual(usuario_id):
+    """Permite a un estudiante salir de la sala de espera individual"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    if session["user_id"] != usuario_id:
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Eliminar al estudiante de la sala de espera
+            cursor.execute("""
+                DELETE FROM salas_espera
+                WHERE usuario_id = %s
+            """, (usuario_id,))
+            conexion.commit()
+
+            print(f"✅ Estudiante {usuario_id} salió de la sala de espera individual")
+
+            return jsonify({
+                "success": True,
+                "message": "Has salido de la sala de espera"
+            })
+
+    except Exception as e:
+        print(f"❌ Error al salir de sala individual: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
 # --- RUTA PARA SALA DE ESPERA INDIVIDUAL ---
 @app.route("/sala_espera_individual/<codigo_pin>")
 def sala_espera_individual(codigo_pin):
@@ -1320,7 +1355,7 @@ def sala_espera_individual(codigo_pin):
     return render_template("sala_espera_individual.html",
                            user_id=user_id,
                            codigo_pin=codigo_pin,
-                           nombre=session["usuario"])
+                           nombre_estudiante=session["usuario"])
 
 
 # --- RUTA PARA PARTIDA INDIVIDUAL ---
@@ -1378,26 +1413,27 @@ def partida_individual(codigo_pin):
             cursor.execute("""
                 SELECT * FROM preguntas
                 WHERE cuestionario_id = %s
-                ORDER BY id
+                ORDER BY orden
             """, (cuestionario['id'],))
             preguntas = cursor.fetchall()
 
             print(f"   ✅ Preguntas encontradas: {len(preguntas)}")
             if preguntas:
-                print(f"   - Primera pregunta: {preguntas[0].get('pregunta', 'N/A')[:50]}...")
+                print(f"   - Primera pregunta: {preguntas[0].get('enunciado', preguntas[0].get('pregunta', 'N/A'))[:50]}...")
                 print(f"   - Columnas de pregunta: {list(preguntas[0].keys())}")
             else:
                 print(f"   ❌ NO hay preguntas para este cuestionario")
                 flash("❌ Este cuestionario no tiene preguntas disponibles", "error")
                 return redirect(url_for("dashboard_estudiante"))
 
+            # Calcular tiempo límite basado en número de preguntas y tiempo por pregunta
+            tiempo_por_pregunta = cuestionario.get('tiempo_pregunta', 30)
+            tiempo_limite = len(preguntas) * tiempo_por_pregunta
+
             # Agregar campos por defecto si no existen
             print("\n⚙️ Configurando valores por defecto...")
-            if 'tiempo_limite' not in cuestionario or cuestionario['tiempo_limite'] is None:
-                cuestionario['tiempo_limite'] = 60
-                print(f"   ⏱️ tiempo_limite = 60 (por defecto)")
-            else:
-                print(f"   ⏱️ tiempo_limite = {cuestionario['tiempo_limite']} (de BD)")
+            cuestionario['tiempo_limite'] = tiempo_limite
+            print(f"   ⏱️ tiempo_limite = {tiempo_limite}s ({len(preguntas)} preguntas x {tiempo_por_pregunta}s)")
 
             if 'puntos_por_pregunta' not in cuestionario or cuestionario['puntos_por_pregunta'] is None:
                 cuestionario['puntos_por_pregunta'] = 10
@@ -1408,11 +1444,34 @@ def partida_individual(codigo_pin):
                 if 'puntos' not in pregunta or pregunta['puntos'] is None:
                     pregunta['puntos'] = 10
 
+            # ✅ CREAR HISTORIAL INDIVIDUAL
+            print(f"\n💾 Creando historial individual...")
+            cursor.execute("""
+                INSERT INTO historial_individual
+                (estudiante_id, cuestionario_id, fecha_inicio, puntuacion, finalizado)
+                VALUES (%s, %s, NOW(), 0, FALSE)
+            """, (user_id, cuestionario['id']))
+            conexion.commit()
+            historial_id = cursor.lastrowid
+
+            # Guardar en sesión para usarlo al guardar respuestas
+            session['historial_individual_id'] = historial_id
+            print(f"   ✅ Historial creado con ID: {historial_id}")
+
+            # Actualizar estado en sala de espera
+            cursor.execute("""
+                UPDATE salas_espera
+                SET estado = 'playing'
+                WHERE usuario_id = %s AND codigo_pin = %s
+            """, (user_id, codigo_pin))
+            conexion.commit()
+
             print(f"\n✅ Configuración completa!")
             print(f"   - Cuestionario: {cuestionario['titulo']}")
             print(f"   - Preguntas: {len(preguntas)}")
             print(f"   - Tiempo: {cuestionario['tiempo_limite']}s")
             print(f"   - Estudiante: {nombre_estudiante}")
+            print(f"   - Historial ID: {historial_id}")
 
     except Exception as e:
         print(f"\n❌❌❌ ERROR EN PARTIDA_INDIVIDUAL ❌❌❌")
