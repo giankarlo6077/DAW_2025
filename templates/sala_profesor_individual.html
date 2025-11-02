@@ -115,200 +115,233 @@
     </div>
 
     <script>
-        const codigoPin = '{{ cuestionario["codigo_pin"] }}';
-        let pollInterval;
-        let estudiantesActuales = [];
+    const codigoPin = '{{ cuestionario["codigo_pin"] }}';
+    let pollInterval;
+    let estudiantesActuales = [];
 
-        function actualizarContadores(estudiantes) {
-            document.getElementById('total-estudiantes').textContent = estudiantes.length;
+    console.log('%c🚀 INICIANDO SALA PROFESOR INDIVIDUAL', 'background: #11998e; color: white; font-size: 16px; padding: 5px;');
+    console.log('📌 PIN del cuestionario:', codigoPin);
+
+    function actualizarContadores(estudiantes) {
+        document.getElementById('total-estudiantes').textContent = estudiantes.length;
+        console.log(`📊 Contador actualizado: ${estudiantes.length} estudiante(s)`);
+    }
+
+    function crearEstudianteHTML(estudiante) {
+        let estadoHTML = '';
+        let estadoClase = 'waiting';
+        let estadoTexto = '⏳ Esperando';
+
+        if (estudiante.estado === 'playing') {
+            estadoClase = 'playing';
+            estadoTexto = '▶️ Jugando';
+        } else if (estudiante.estado === 'finished') {
+            estadoClase = 'finished';
+            estadoTexto = '✅ Finalizado';
         }
 
-        function crearEstudianteHTML(estudiante) {
-            let estadoHTML = '';
-            let estadoClase = 'waiting';
-            let estadoTexto = '⏳ Esperando';
-            
-            if (estudiante.estado === 'playing') {
-                estadoClase = 'playing';
-                estadoTexto = '▶️ Jugando';
-            } else if (estudiante.estado === 'finished') {
-                estadoClase = 'finished';
-                estadoTexto = '✅ Finalizado';
-            }
-            
-            estadoHTML = '<div class="estado ' + estadoClase + '">' + estadoTexto + '</div>';
-            
-            const timestamp = estudiante.timestamp || 'Hace un momento';
-            
-            return '<div class="estudiante-card" data-estudiante-id="' + estudiante.id + '" style="animation: slideIn 0.5s ease;">' +
-                '<div class="estudiante-icon">👤</div>' +
-                '<div class="estudiante-info">' +
-                '<div class="nombre">' + estudiante.nombre + '</div>' +
-                '<div class="timestamp">' + timestamp + '</div>' +
-                estadoHTML +
-                '</div>' +
-                '</div>';
-        }
+        estadoHTML = '<div class="estado ' + estadoClase + '">' + estadoTexto + '</div>';
 
-        function actualizarEstudiantes() {
-            console.log('🔄 Consultando estudiantes para PIN:', codigoPin);
-            
-            fetch('/api/estudiantes_esperando/' + codigoPin)
-                .then(response => response.json())
-                .then(estudiantes => {
-                    if (estudiantes.error) {
-                        console.error('Error:', estudiantes.error);
-                        return;
-                    }
+        const timestamp = estudiante.timestamp || 'Hace un momento';
 
-                    console.log('📥 Recibidos ' + estudiantes.length + ' estudiante(s)');
+        return '<div class="estudiante-card" data-estudiante-id="' + estudiante.id + '" style="animation: slideIn 0.5s ease;">' +
+            '<div class="estudiante-icon">👤</div>' +
+            '<div class="estudiante-info">' +
+            '<div class="nombre">' + estudiante.nombre + '</div>' +
+            '<div class="timestamp">' + timestamp + '</div>' +
+            estadoHTML +
+            '</div>' +
+            '</div>';
+    }
 
-                    actualizarContadores(estudiantes);
+    function actualizarEstudiantes() {
+        console.log('%c🔄 ACTUALIZANDO ESTUDIANTES', 'background: #667eea; color: white; padding: 3px;');
+        console.log('📡 Consultando API:', '/api/estudiantes_esperando/' + codigoPin);
 
-                    const container = document.getElementById('estudiantes-container');
-                    if (!container) {
-                        console.error('❌ No se encontró el contenedor');
-                        return;
-                    }
+        fetch('/api/estudiantes_esperando/' + codigoPin)
+            .then(response => {
+                console.log('📥 Respuesta del servidor:', response.status);
 
-                    if (estudiantes.length === 0) {
-                        container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;">' +
-                            '<div class="icon">⏳</div>' +
-                            '<h3>Esperando Estudiantes</h3>' +
-                            '<p>Los estudiantes aparecerán aquí cuando ingresen el PIN</p>' +
-                            '<p style="margin-top: 10px;">Comparte el PIN <strong>' + codigoPin + '</strong> con tus estudiantes</p>' +
-                            '</div>';
-                        estudiantesActuales = [];
-                        return;
-                    }
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+                }
 
-                    // Detectar nuevos estudiantes
-                    const estudiantesNuevos = estudiantes.filter(e => 
-                        !estudiantesActuales.find(ea => ea.id === e.id)
-                    );
+                return response.json();
+            })
+            .then(estudiantes => {
+                console.log('✅ Datos recibidos:', estudiantes);
 
-                    if (estudiantesNuevos.length > 0 && estudiantesActuales.length > 0) {
-                        estudiantesNuevos.forEach(e => {
-                            console.log('🎉 Nuevo estudiante: ' + e.nombre);
-                            mostrarNotificacion('🎉 ' + e.nombre + ' se unió');
-                        });
-                    }
+                if (estudiantes.error) {
+                    console.error('❌ Error en respuesta:', estudiantes.error);
+                    return;
+                }
 
-                    estudiantesActuales = estudiantes;
+                console.log('📋 Total estudiantes:', estudiantes.length);
 
-                    // Eliminar empty state si existe
-                    const emptyState = container.querySelector('.empty-state');
-                    if (emptyState) {
-                        emptyState.remove();
-                    }
+                // Actualizar contadores
+                actualizarContadores(estudiantes);
 
-                    // Obtener IDs actuales en el DOM
-                    const estudiantesEnDOM = Array.from(container.querySelectorAll('.estudiante-card'))
-                        .map(card => parseInt(card.getAttribute('data-estudiante-id')));
+                const container = document.getElementById('estudiantes-container');
+                if (!container) {
+                    console.error('❌ No se encontró el contenedor estudiantes-container');
+                    return;
+                }
 
-                    // Eliminar estudiantes que ya no están
-                    estudiantesEnDOM.forEach(estudianteId => {
-                        if (!estudiantes.find(e => e.id === estudianteId)) {
-                            const card = container.querySelector('[data-estudiante-id="' + estudianteId + '"]');
-                            if (card) card.remove();
-                        }
+                if (estudiantes.length === 0) {
+                    console.log('⚠️ No hay estudiantes, mostrando mensaje vacío');
+                    container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;">' +
+                        '<div class="icon">⏳</div>' +
+                        '<h3>Esperando Estudiantes</h3>' +
+                        '<p>Los estudiantes aparecerán aquí cuando ingresen el PIN</p>' +
+                        '<p style="margin-top: 10px;">Comparte el PIN <strong>' + codigoPin + '</strong> con tus estudiantes</p>' +
+                        '</div>';
+                    estudiantesActuales = [];
+                    return;
+                }
+
+                // Detectar nuevos estudiantes
+                const estudiantesNuevos = estudiantes.filter(e =>
+                    !estudiantesActuales.find(ea => ea.id === e.id)
+                );
+
+                if (estudiantesNuevos.length > 0 && estudiantesActuales.length > 0) {
+                    estudiantesNuevos.forEach(e => {
+                        console.log('🎉 Nuevo estudiante detectado:', e.nombre);
+                        mostrarNotificacion('🎉 ' + e.nombre + ' se unió');
                     });
+                }
 
-                    // Agregar o actualizar estudiantes
-                    estudiantes.forEach(estudiante => {
-                        const card = container.querySelector('[data-estudiante-id="' + estudiante.id + '"]');
-                        
-                        if (!card) {
-                            const tempDiv = document.createElement('div');
-                            tempDiv.innerHTML = crearEstudianteHTML(estudiante);
-                            container.appendChild(tempDiv.firstElementChild);
-                            console.log('➕ Agregado estudiante:', estudiante.nombre);
-                        } else {
-                            // Actualizar estado
-                            const estadoSpan = card.querySelector('.estado');
-                            if (estadoSpan && estudiante.estado) {
-                                estadoSpan.className = 'estado ' + estudiante.estado;
-                                if (estudiante.estado === 'waiting') {
-                                    estadoSpan.textContent = '⏳ Esperando';
-                                } else if (estudiante.estado === 'playing') {
-                                    estadoSpan.textContent = '▶️ Jugando';
-                                } else if (estudiante.estado === 'finished') {
-                                    estadoSpan.textContent = '✅ Finalizado';
-                                }
+                estudiantesActuales = estudiantes;
+
+                // Eliminar empty state si existe
+                const emptyState = container.querySelector('.empty-state');
+                if (emptyState) {
+                    console.log('🗑️ Eliminando mensaje vacío');
+                    emptyState.remove();
+                }
+
+                // Obtener IDs actuales en el DOM
+                const estudiantesEnDOM = Array.from(container.querySelectorAll('.estudiante-card'))
+                    .map(card => parseInt(card.getAttribute('data-estudiante-id')));
+
+                console.log('🔍 Estudiantes en DOM:', estudiantesEnDOM);
+
+                // Eliminar estudiantes que ya no están
+                estudiantesEnDOM.forEach(estudianteId => {
+                    if (!estudiantes.find(e => e.id === estudianteId)) {
+                        const card = container.querySelector('[data-estudiante-id="' + estudianteId + '"]');
+                        if (card) {
+                            console.log('🗑️ Eliminando estudiante:', estudianteId);
+                            card.remove();
+                        }
+                    }
+                });
+
+                // Agregar o actualizar estudiantes
+                estudiantes.forEach(estudiante => {
+                    const card = container.querySelector('[data-estudiante-id="' + estudiante.id + '"]');
+
+                    if (!card) {
+                        // Crear nueva card
+                        console.log('➕ Agregando estudiante:', estudiante.nombre);
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = crearEstudianteHTML(estudiante);
+                        container.appendChild(tempDiv.firstElementChild);
+                    } else {
+                        // Actualizar estado
+                        const estadoSpan = card.querySelector('.estado');
+                        if (estadoSpan && estudiante.estado) {
+                            estadoSpan.className = 'estado ' + estudiante.estado;
+                            if (estudiante.estado === 'waiting') {
+                                estadoSpan.textContent = '⏳ Esperando';
+                            } else if (estudiante.estado === 'playing') {
+                                estadoSpan.textContent = '▶️ Jugando';
+                            } else if (estudiante.estado === 'finished') {
+                                estadoSpan.textContent = '✅ Finalizado';
                             }
                         }
-                    });
-
-                    // Habilitar/deshabilitar botón
-                    const btnIniciar = document.getElementById('btnIniciar');
-                    if (btnIniciar) {
-                        const hayEstudiantesEsperando = estudiantes.some(e => e.estado === 'waiting');
-                        btnIniciar.disabled = !hayEstudiantesEsperando;
                     }
-                })
-                .catch(error => {
-                    console.error('❌ Error al actualizar estudiantes:', error);
                 });
-        }
 
-        function mostrarNotificacion(mensaje) {
-            const notif = document.createElement('div');
-            notif.style.cssText = 'position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); z-index: 9999; animation: slideInRight 0.5s ease; font-weight: 600;';
-            notif.textContent = mensaje;
-            document.body.appendChild(notif);
-            setTimeout(function() {
-                notif.style.animation = 'slideOutRight 0.5s ease';
-                setTimeout(function() { notif.remove(); }, 500);
-            }, 3000);
-        }
-
-        function iniciarTodasLasPartidas() {
-            if (!confirm('¿Estás seguro de iniciar todas las partidas individuales?')) return;
-
-            const btn = document.getElementById('btnIniciar');
-            btn.disabled = true;
-            btn.textContent = '⏳ Iniciando...';
-
-            fetch('/profesor_iniciar_individuales/' + codigoPin, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    mostrarNotificacion('✅ ' + data.message);
-                    actualizarEstudiantes();
-                    btn.textContent = '✅ Partidas Iniciadas';
-                    btn.style.background = '#28a745';
-                } else {
-                    alert('❌ 'Guess' + data.message);
-                    btn.disabled = false;
-                    btn.textContent = '🚀 Iniciar Todas las Partidas';
+                // Habilitar/deshabilitar botón
+                const btnIniciar = document.getElementById('btnIniciar');
+                if (btnIniciar) {
+                    const hayEstudiantesEsperando = estudiantes.some(e => e.estado === 'waiting');
+                    btnIniciar.disabled = !hayEstudiantesEsperando;
+                    console.log('🎮 Botón iniciar:', hayEstudiantesEsperando ? 'HABILITADO' : 'DESHABILITADO');
                 }
             })
             .catch(error => {
-                alert('❌ Error: ' + error.message);
+                console.error('%c❌ ERROR AL ACTUALIZAR', 'background: red; color: white; padding: 3px;');
+                console.error('Detalles:', error);
+            });
+    }
+
+    function mostrarNotificacion(mensaje) {
+        console.log('🔔 Notificación:', mensaje);
+        const notif = document.createElement('div');
+        notif.style.cssText = 'position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); z-index: 9999; animation: slideInRight 0.5s ease; font-weight: 600;';
+        notif.textContent = mensaje;
+        document.body.appendChild(notif);
+        setTimeout(function() {
+            notif.style.animation = 'slideOutRight 0.5s ease';
+            setTimeout(function() { notif.remove(); }, 500);
+        }, 3000);
+    }
+
+    function iniciarTodasLasPartidas() {
+        if (!confirm('¿Estás seguro de iniciar todas las partidas individuales?')) return;
+
+        const btn = document.getElementById('btnIniciar');
+        btn.disabled = true;
+        btn.textContent = '⏳ Iniciando...';
+
+        fetch('/profesor_iniciar_individuales/' + codigoPin, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarNotificacion('✅ ' + data.message);
+                actualizarEstudiantes();
+                btn.textContent = '✅ Partidas Iniciadas';
+                btn.style.background = '#28a745';
+            } else {
+                alert('❌ ' + data.message);
                 btn.disabled = false;
                 btn.textContent = '🚀 Iniciar Todas las Partidas';
-            });
-        }
-
-        // Agregar CSS de animaciones
-        const style = document.createElement('style');
-        style.textContent = '@keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } } @keyframes slideInRight { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } } @keyframes slideOutRight { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100px); } }';
-        document.head.appendChild(style);
-
-        // Iniciar polling cada 2 segundos
-        console.log('✅ Iniciando actualización automática cada 2 segundos');
-        pollInterval = setInterval(actualizarEstudiantes, 2000);
-
-        // Primera actualización inmediata
-        actualizarEstudiantes();
-
-        // Limpiar al salir
-        window.addEventListener('beforeunload', function() {
-            if (pollInterval) clearInterval(pollInterval);
+            }
+        })
+        .catch(error => {
+            alert('❌ Error: ' + error.message);
+            btn.disabled = false;
+            btn.textContent = '🚀 Iniciar Todas las Partidas';
         });
-    </script>
+    }
+
+    // Agregar CSS de animaciones
+    const style = document.createElement('style');
+    style.textContent = '@keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } } @keyframes slideInRight { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } } @keyframes slideOutRight { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100px); } }';
+    document.head.appendChild(style);
+
+    // ⏰ INICIAR POLLING CADA 2 SEGUNDOS
+    console.log('⏰ Iniciando polling cada 2 segundos');
+    pollInterval = setInterval(actualizarEstudiantes, 2000);
+
+    // 🚀 PRIMERA ACTUALIZACIÓN INMEDIATA
+    console.log('🚀 Primera actualización inmediata');
+    actualizarEstudiantes();
+
+    // 🧹 LIMPIAR AL SALIR
+    window.addEventListener('beforeunload', function() {
+        if (pollInterval) {
+            console.log('🧹 Limpiando intervalo de polling');
+            clearInterval(pollInterval);
+        }
+    });
+
+    console.log('%c✅ SALA PROFESOR INICIALIZADA CORRECTAMENTE', 'background: #28a745; color: white; font-size: 16px; padding: 5px;');
+</script>
 </body>
 </html>

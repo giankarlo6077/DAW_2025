@@ -1292,12 +1292,19 @@ def sala_profesor_individual(codigo_pin):
 @app.route("/api/estudiantes_esperando/<codigo_pin>")
 def api_estudiantes_esperando(codigo_pin):
     """Obtiene la lista de estudiantes esperando en tiempo real"""
+    print(f"\n{'='*70}")
+    print(f"📡 API LLAMADO: /api/estudiantes_esperando/{codigo_pin}")
+    print(f"{'='*70}")
+
     if "usuario" not in session or session.get("rol") != "profesor":
+        print("❌ Usuario no autorizado o no es profesor")
         return jsonify({"error": "No autorizado"}), 403
 
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
+            print(f"🔍 Consultando estudiantes para PIN: {codigo_pin}")
+
             # Obtener estudiantes que están esperando para este cuestionario
             cursor.execute("""
                 SELECT u.id, u.nombre, se.estado, se.fecha_ingreso
@@ -1309,21 +1316,42 @@ def api_estudiantes_esperando(codigo_pin):
 
             estudiantes = cursor.fetchall()
 
+            print(f"✅ Estudiantes encontrados: {len(estudiantes)}")
+
+            if len(estudiantes) > 0:
+                print("📋 Lista de estudiantes:")
+                for est in estudiantes:
+                    print(f"   - ID: {est['id']}, Nombre: {est['nombre']}, Estado: {est['estado']}")
+
             # Formatear timestamp
             for est in estudiantes:
                 if est['fecha_ingreso']:
-                    tiempo_transcurrido = datetime.now() - est['fecha_ingreso']
-                    segundos = int(tiempo_transcurrido.total_seconds())
-                    if segundos < 60:
-                        est['timestamp'] = f'Hace {segundos}s'
-                    elif segundos < 3600:
-                        est['timestamp'] = f'Hace {segundos // 60}m'
-                    else:
-                        est['timestamp'] = est['fecha_ingreso'].strftime('%H:%M')
+                    try:
+                        tiempo_transcurrido = datetime.now() - est['fecha_ingreso']
+                        segundos = int(tiempo_transcurrido.total_seconds())
+                        if segundos < 60:
+                            est['timestamp'] = f'Hace {segundos}s'
+                        elif segundos < 3600:
+                            est['timestamp'] = f'Hace {segundos // 60}m'
+                        else:
+                            est['timestamp'] = est['fecha_ingreso'].strftime('%H:%M')
+                    except Exception as e:
+                        print(f"⚠️ Error al formatear timestamp: {e}")
+                        est['timestamp'] = 'Ahora'
+
+            print(f"🚀 Devolviendo {len(estudiantes)} estudiante(s)")
+            print(f"{'='*70}\n")
 
             return jsonify(estudiantes)
+
     except Exception as e:
-        print(f"Error en api_estudiantes_esperando: {e}")
+        print(f"\n❌❌❌ ERROR EN API ❌❌❌")
+        print(f"Tipo: {type(e).__name__}")
+        print(f"Mensaje: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        print(f"{'='*70}\n")
+
         return jsonify({"error": str(e)}), 500
     finally:
         if conexion and conexion.open:
