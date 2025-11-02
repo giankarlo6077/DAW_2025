@@ -1538,9 +1538,9 @@ def partida_individual(codigo_pin):
             print(f"\n💾 Creando historial individual con sesion_id...")
             cursor.execute("""
                 INSERT INTO historial_individual
-                (usuario_id, cuestionario_id, fecha_realizacion, puntuacion_final, sesion_id)
-                VALUES (%s, %s, NOW(), 0, %s)
-            """, (user_id, cuestionario['id'], sesion_id))
+                (usuario_id, cuestionario_id, nombre_estudiante, num_preguntas_total, fecha_realizacion, puntuacion_final, sesion_id)
+                VALUES (%s, %s, %s, %s, NOW(), 0, %s)
+            """, (user_id, cuestionario['id'], nombre_estudiante, cuestionario['num_preguntas'], sesion_id))
             conexion.commit()
             historial_id = cursor.lastrowid
 
@@ -2559,6 +2559,25 @@ def resultados_individual(historial_id):
 
             ranking_completo = cursor.fetchall()
 
+            # --- INICIO DE LA CORRECCIÓN ---
+            # 3. Obtener el detalle de las respuestas para este historial
+            print("\n📋 Consultando detalle de respuestas...")
+            cursor.execute("""
+                SELECT
+                    p.id as pregunta_id, p.pregunta,
+                    p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d,
+                    p.respuesta_correcta, c.tiempo_pregunta,
+                    r.respuesta_estudiante, r.tiempo_respuesta
+                FROM respuestas_individuales r
+                JOIN preguntas p ON r.pregunta_id = p.id
+                JOIN cuestionarios c ON p.cuestionario_id = c.id
+                WHERE r.historial_id = %s
+                ORDER BY p.orden
+            """, (historial_id,))
+            respuestas_raw = cursor.fetchall()
+            # --- FIN DE LA CORRECCIÓN ---
+
+
             print(f"✅ Respuestas cargadas: {len(respuestas_raw)}")
 
             # 4. Calcular puntos basados en velocidad para cada respuesta
@@ -2609,6 +2628,16 @@ def resultados_individual(historial_id):
                 }
 
                 respuestas.append(respuesta_completa)
+
+            # --- INICIO DE LA CORRECCIÓN 2 ---
+            # 3. Determinar posición actual en el ranking
+            posicion_actual = 0
+            for i, participante in enumerate(ranking_completo, 1):
+                if participante['id'] == historial_id:
+                    posicion_actual = i
+                    break
+            print(f"   - Posición en ranking: {posicion_actual}")
+            # --- FIN DE LA CORRECCIÓN 2 ---
 
             # 5. Calcular estadísticas
             total_respuestas = len(respuestas)
