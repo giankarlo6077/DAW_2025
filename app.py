@@ -625,13 +625,13 @@ def dashboard_estudiante():
     except Exception as e:
         print(f"❌ Error crítico en bloque de grupo: {e}")
 
-    # === BLOQUE 2: Historial de partidas (MODO SÚPER SEGURO) ===
+    # === BLOQUE 2: Historial de partidas (CORREGIDO) ===
     print(f"\n📚 Cargando historial...")
 
     partidas_grupales = []
     partidas_individuales = []
 
-    # 2.1 Intentar cargar historial GRUPAL
+    # 2.1 Cargar historial GRUPAL
     try:
         conexion = obtener_conexion()
         try:
@@ -661,12 +661,11 @@ def dashboard_estudiante():
     except Exception as e:
         print(f"   ❌ Error en conexión grupal: {e}")
 
-    # 2.2 Intentar cargar historial INDIVIDUAL
+    # 2.2 Cargar historial INDIVIDUAL (CORREGIDO)
     try:
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
-                # Query simple y directo
                 cursor.execute("""
                     SELECT
                         hi.id,
@@ -689,7 +688,7 @@ def dashboard_estudiante():
                     partidas_individuales.append({
                         'titulo_cuestionario': resultado['titulo_cuestionario'],
                         'puntuacion_final': resultado['puntuacion_final'],
-                        'fecha_partida': resultado['fecha_realizacion'],
+                        'fecha_partida': resultado['fecha_realizacion'],  # ✅ Campo correcto
                         'nombre_grupo': None,
                         'tipo': 'individual'
                     })
@@ -710,7 +709,7 @@ def dashboard_estudiante():
     try:
         cuestionarios_recientes = partidas_grupales + partidas_individuales
 
-        # Ordenar por fecha
+        # Ordenar por fecha (manejar ambos tipos de fecha)
         if cuestionarios_recientes:
             cuestionarios_recientes.sort(
                 key=lambda x: x.get('fecha_partida', datetime.min),
@@ -2614,9 +2613,6 @@ def resultados_individual(historial_id):
                 ORDER BY p.orden
             """, (historial_id,))
             respuestas_raw = cursor.fetchall()
-            # --- FIN DE LA CORRECCIÓN ---
-
-
             print(f"✅ Respuestas cargadas: {len(respuestas_raw)}")
 
             # 4. Calcular puntos basados en velocidad para cada respuesta
@@ -2983,6 +2979,10 @@ def perfil_recompensas():
                 inicializar_stats_estudiante(user_id)
                 cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
                 stats = cursor.fetchone()
+
+            if not stats:
+                flash("Error al cargar tu perfil. Por favor, contacta al administrador.", "error")
+                return redirect(url_for("dashboard_estudiante"))
 
             # Obtener insignias desbloqueadas
             cursor.execute("""
