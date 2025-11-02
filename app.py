@@ -1930,31 +1930,47 @@ def eliminar_cuenta_estudiante():
 
 @app.route("/visualizar_cuestionario", methods=["POST"])
 def visualizar_cuestionario():
-    if "usuario" not in session or session.get("rol") != "estudiante": return redirect(url_for("login"))
+    # 1. Verificación de sesión
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return redirect(url_for("login"))
+
+    # 2. Obtener el PIN del formulario
     pin = request.form.get("pin")
     if not pin:
         flash("❌ Debes ingresar un código PIN.", "error")
         return redirect(url_for("dashboard_estudiante"))
+
+    # 3. Conexión a la base de datos
     conexion = obtener_conexion()
+
     try:
         with conexion.cursor() as cursor:
+            # 4. Buscar el cuestionario
             cursor.execute("SELECT * FROM cuestionarios WHERE codigo_pin = %s", (pin,))
-            if not (cuestionario := cursor.fetchone()):
+            cuestionario = cursor.fetchone()
+
+            # 5. Validar si existe
+            if not cuestionario:
                 flash(f"❌ No se encontró ningún cuestionario con el PIN '{pin}'.", "error")
+                # ¡Importante! 'return' aquí dentro del 'try' SÍ ejecutará el 'finally' antes de salir.
                 return redirect(url_for("dashboard_estudiante"))
 
-            # NUEVA VALIDACIÓN: No permitir visualizar un cuestionario grupal aquí
+            # 6. Validar que sea modo INDIVIDUAL
             if cuestionario['modo_juego'] == 'grupal':
                 flash(f"❌ El PIN '{pin}' es para un juego GRUPAL. Únete a un grupo para jugarlo.", "error")
                 return redirect(url_for("dashboard_estudiante"))
 
+
             cursor.execute("SELECT * FROM preguntas WHERE cuestionario_id = %s ORDER BY orden", (cuestionario['id'],))
             preguntas = cursor.fetchall()
+
     finally:
-        if conexion and conexion.open: conexion.close()
-    return render_template("sala_espera_individual.html", cuestionario=cuestionario, preguntas=preguntas)
+
+        if conexion and conexion.open:
+            conexion.close()
 
 
+    return redirect(url_for("sala_espera_individual", codigo_pin=pin))
 @app.route("/exportar_resultados/<int:cuestionario_id>")
 def exportar_resultados(cuestionario_id):
     """Página de opciones de exportación"""
