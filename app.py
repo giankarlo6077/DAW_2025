@@ -1350,22 +1350,28 @@ def profesor_iniciar_individuales(codigo_pin):
             if not cursor.fetchone():
                 return jsonify({"success": False, "message": "Cuestionario no encontrado"}), 404
 
-            # Cambiar estado de todos los estudiantes en espera a "playing"
+            # ✅ GENERAR ID DE SESIÓN ÚNICO
+            import uuid
+            sesion_id = f"SESION_{codigo_pin}_{uuid.uuid4().hex[:8]}"
+
+            # Guardar el sesion_id en la sala de espera
             cursor.execute("""
                 UPDATE salas_espera
-                SET estado = 'playing'
+                SET estado = 'playing', sesion_id = %s
                 WHERE codigo_pin = %s AND estado = 'waiting'
-            """, (codigo_pin,))
+            """, (sesion_id, codigo_pin))
 
             estudiantes_iniciados = cursor.rowcount
             conexion.commit()
 
+            print(f"✅ Sesión creada: {sesion_id}")
             print(f"✅ Profesor inició {estudiantes_iniciados} partida(s) individual(es) - PIN: {codigo_pin}")
 
             return jsonify({
                 "success": True,
                 "message": f"Se iniciaron {estudiantes_iniciados} partida(s)",
-                "estudiantes_iniciados": estudiantes_iniciados
+                "estudiantes_iniciados": estudiantes_iniciados,
+                "sesion_id": sesion_id
             })
 
     except Exception as e:
@@ -1479,7 +1485,6 @@ def partida_individual(codigo_pin):
     print(f"📌 PIN recibido: {codigo_pin}")
     print("="*70)
 
-    # Verificar sesión
     if "usuario" not in session or session.get("rol") != "estudiante":
         print("❌ Usuario no autorizado o no es estudiante")
         return redirect(url_for("login"))
@@ -1492,6 +1497,16 @@ def partida_individual(codigo_pin):
     try:
         with conexion.cursor() as cursor:
             print("\n📊 Consultando base de datos...")
+
+            # ✅ OBTENER SESION_ID DE LA SALA DE ESPERA
+            cursor.execute("""
+                SELECT sesion_id FROM salas_espera
+                WHERE usuario_id = %s AND codigo_pin = %s
+            """, (user_id, codigo_pin))
+            sala_data = cursor.fetchone()
+
+            sesion_id = sala_data['sesion_id'] if sala_data else None
+            print(f"🎯 Sesión ID: {sesion_id}")
 
             # Obtener cuestionario
             cursor.execute("SELECT * FROM cuestionarios WHERE codigo_pin = %s", (codigo_pin,))
@@ -1519,22 +1534,19 @@ def partida_individual(codigo_pin):
                 flash("❌ Este cuestionario no tiene preguntas disponibles", "error")
                 return redirect(url_for("dashboard_estudiante"))
 
-            # ⚡ IMPORTANTE: NO actualizar el estado aquí
-            # El profesor debe iniciar la partida desde su sala
-
-            # ✅ CREAR HISTORIAL INDIVIDUAL
-            print(f"\n💾 Creando historial individual...")
+            # ✅ CREAR HISTORIAL INDIVIDUAL CON SESION_ID
+            print(f"\n💾 Creando historial individual con sesion_id...")
             cursor.execute("""
                 INSERT INTO historial_individual
-                (usuario_id, cuestionario_id, fecha_realizacion, puntuacion_final)
-                VALUES (%s, %s, NOW(), 0)
-            """, (user_id, cuestionario['id']))
+                (usuario_id, cuestionario_id, fecha_realizacion, puntuacion_final, sesion_id)
+                VALUES (%s, %s, NOW(), 0, %s)
+            """, (user_id, cuestionario['id'], sesion_id))
             conexion.commit()
             historial_id = cursor.lastrowid
 
             # Guardar en sesión
             session['historial_individual_id'] = historial_id
-            print(f"   ✅ Historial creado con ID: {historial_id}")
+            print(f"   ✅ Historial creado con ID: {historial_id}, Sesión: {sesion_id}")
 
             print(f"\n✅ Configuración completa!")
 
@@ -2500,49 +2512,52 @@ def resultados_individual(historial_id):
             print(f"   - Cuestionario: {historial['titulo_cuestionario']}")
             print(f"   - Puntuación final: {historial['puntuacion_final']}")
 
-            # 2. Obtener RANKING completo del cuestionario
-            print("\n🏆 Consultando ranking...")
-            cursor.execute("""
-                SELECT
-                    h.id,
-                    u.nombre as nombre_estudiante,
-                    h.puntuacion_final,
-                    h.tiempo_total,
-                    h.fecha_realizacion,
-                    COUNT(DISTINCT r.pregunta_id) as preguntas_respondidas
-                FROM historial_individual h
-                JOIN usuarios u ON h.usuario_id = u.id
-                LEFT JOIN respuestas_individuales r ON h.id = r.historial_id
-                WHERE h.cuestionario_id = %s
-                GROUP BY h.id, u.nombre, h.puntuacion_final, h.tiempo_total, h.fecha_realizacion
-                ORDER BY h.puntuacion_final DESC, h.tiempo_total ASC
-            """, (historial['cuestionario_id'],))
+            # 2. Obtener RANKING solo de la sesión actual (jugadores que jugaron aproximadamente al mismo tiempo)
+            print("\n🏆 Consultando ranking de la sesión actual...")
+
+            # Obtener el sesion_id del historial actual
+            sesion_id_actual = historial.get('sesion_id')
+            print(f"   📌 Sesión ID actual: {sesion_id_actual}")
+
+            if sesion_id_actual:
+                # Solo mostrar jugadores de LA MISMA SESIÓN
+                cursor.execute("""
+                    SELECT
+                        h.id,
+                        u.nombre as nombre_estudiante,
+                        h.puntuacion_final,
+                        h.tiempo_total,
+                        h.fecha_realizacion,
+                        COUNT(DISTINCT r.pregunta_id) as preguntas_respondidas
+                    FROM historial_individual h
+                    JOIN usuarios u ON h.usuario_id = u.id
+                    LEFT JOIN respuestas_individuales r ON h.id = r.historial_id
+                    WHERE h.sesion_id = %s
+                    GROUP BY h.id, u.nombre, h.puntuacion_final, h.tiempo_total, h.fecha_realizacion
+                    ORDER BY h.puntuacion_final DESC, h.tiempo_total ASC
+                """, (sesion_id_actual,))
+            else:
+                # Fallback: Si no hay sesion_id, usar ventana de 5 minutos
+                cursor.execute("""
+                    SELECT
+                        h.id,
+                        u.nombre as nombre_estudiante,
+                        h.puntuacion_final,
+                        h.tiempo_total,
+                        h.fecha_realizacion,
+                        COUNT(DISTINCT r.pregunta_id) as preguntas_respondidas
+                    FROM historial_individual h
+                    JOIN usuarios u ON h.usuario_id = u.id
+                    LEFT JOIN respuestas_individuales r ON h.id = r.historial_id
+                    WHERE h.cuestionario_id = %s
+                      AND h.fecha_realizacion BETWEEN
+                        DATE_SUB(%s, INTERVAL 5 MINUTE)
+                        AND DATE_ADD(%s, INTERVAL 5 MINUTE)
+                    GROUP BY h.id, u.nombre, h.puntuacion_final, h.tiempo_total, h.fecha_realizacion
+                    ORDER BY h.puntuacion_final DESC, h.tiempo_total ASC
+                """, (historial['cuestionario_id'], historial['fecha_realizacion'], historial['fecha_realizacion']))
+
             ranking_completo = cursor.fetchall()
-
-            # Encontrar la posición del estudiante actual
-            posicion_actual = 0
-            for idx, participante in enumerate(ranking_completo, 1):
-                if participante['id'] == historial_id:
-                    posicion_actual = idx
-                    break
-
-            print(f"✅ Ranking cargado: {len(ranking_completo)} participantes")
-            print(f"   - Posición del estudiante: {posicion_actual}/{len(ranking_completo)}")
-
-            # 3. Obtener las respuestas detalladas
-            print("\n📥 Consultando respuestas...")
-            cursor.execute("""
-                SELECT r.respuesta_estudiante, r.tiempo_respuesta,
-                       p.id as pregunta_id, p.pregunta, p.opcion_a, p.opcion_b,
-                       p.opcion_c, p.opcion_d, p.respuesta_correcta,
-                       c.tiempo_pregunta
-                FROM respuestas_individuales r
-                JOIN preguntas p ON r.pregunta_id = p.id
-                JOIN cuestionarios c ON p.cuestionario_id = c.id
-                WHERE r.historial_id = %s
-                ORDER BY p.id
-            """, (historial_id,))
-            respuestas_raw = cursor.fetchall()
 
             print(f"✅ Respuestas cargadas: {len(respuestas_raw)}")
 
