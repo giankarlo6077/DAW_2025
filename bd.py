@@ -7,5 +7,6 @@ def obtener_conexion():
         user='kahootg4',
         password='Grupo1234',
         db='kahootg4$pf',
-        cursorclass=pymysql.cursors.DictCursor
+        cursorclass=pymysql.cursors.DictCursor,
+        charset='utf8mb4'
     )
