@@ -2369,10 +2369,9 @@ def guardar_respuesta_individual():
 
 
 
-# --- FINALIZAR CUESTIONARIO INDIVIDUAL ---
 @app.route("/finalizar_cuestionario_individual", methods=["POST"])
 def finalizar_cuestionario_individual():
-    """Finaliza el cuestionario individual y guarda los resultados finales"""
+    """Finaliza el cuestionario individual y guarda los resultados finales CON RECOMPENSAS"""
     print("\n" + "="*70)
     print("🏁 FINALIZANDO CUESTIONARIO INDIVIDUAL")
     print("="*70)
@@ -2405,8 +2404,10 @@ def finalizar_cuestionario_individual():
             with conexion.cursor() as cursor:
                 # Verificar que el historial existe
                 cursor.execute("""
-                    SELECT id, usuario_id FROM historial_individual
-                    WHERE id = %s
+                    SELECT h.*, c.num_preguntas
+                    FROM historial_individual h
+                    JOIN cuestionarios c ON h.cuestionario_id = c.id
+                    WHERE h.id = %s
                 """, (historial_id,))
                 historial = cursor.fetchone()
 
@@ -2434,27 +2435,65 @@ def finalizar_cuestionario_individual():
                     WHERE usuario_id = %s
                 """, (user_id,))
 
-                conexion.commit()
+                # ====== SISTEMA DE RECOMPENSAS ======
+                # Contar correctas e incorrectas
+                cursor.execute("""
+                    SELECT
+                        SUM(CASE WHEN p.respuesta_correcta = r.respuesta_estudiante THEN 1 ELSE 0 END) as correctas,
+                        SUM(CASE WHEN p.respuesta_correcta != r.respuesta_estudiante OR r.respuesta_estudiante IS NULL THEN 1 ELSE 0 END) as incorrectas
+                    FROM respuestas_individuales r
+                    JOIN preguntas p ON r.pregunta_id = p.id
+                    WHERE r.historial_id = %s
+                """, (historial_id,))
+                stats_partida = cursor.fetchone()
 
-                # --- ¡CORRECCIÓN AQUÍ! ---
-                # Se usa el nombre de la FUNCIÓN, no el del archivo .html
-                redirect_url = url_for('resultados_individual', historial_id=historial_id)
-                # -------------------------
+                correctas = stats_partida['correctas'] or 0
+                incorrectas = stats_partida['incorrectas'] or 0
+
+                conexion.commit()
 
                 print(f"✅ Cuestionario finalizado exitosamente")
                 print(f"   - Historial ID: {historial_id}")
                 print(f"   - Puntuación: {puntuacion_final}")
-                print(f"   - Tiempo: {tiempo_total}s")
-                print(f"   - URL Redirección: {redirect_url}")
+                print(f"   - Correctas: {correctas}")
+                print(f"   - Incorrectas: {incorrectas}")
+
+                # Procesar recompensas
+                print("🎁 Procesando recompensas...")
+                recompensas = actualizar_stats_despues_partida(user_id, puntuacion_final, correctas, incorrectas)
+                print(f"   - XP ganada: {recompensas['xp_info']['xp_ganada']}")
+                print(f"   - Monedas ganadas: {recompensas['monedas_ganadas']}")
+                print(f"   - Insignias nuevas: {len(recompensas['insignias_nuevas'])}")
+
+                session['recompensas_recientes'] = {
+                "xp_ganada": recompensas['xp_info']['xp_ganada'],
+                "monedas_ganadas": recompensas['monedas_ganadas'],
+                "niveles_subidos": recompensas['xp_info']['niveles_subidos'],
+                "insignias_nuevas": [{"nombre": i['nombre'], "icono": i['icono'], "tipo": i['tipo']} for i in recompensas['insignias_nuevas']],
+                "nivel_actual": recompensas['xp_info']['nivel_actual'],
+                "racha_actual": recompensas['racha_actual'],
+                "es_mejor_puntaje": recompensas['es_mejor_puntaje']
+            }
 
                 # Limpiar sesión
                 session.pop('historial_individual_id', None)
 
-                # Devolver la redirect_url que espera el nuevo JavaScript
+                # Incluir recompensas en la respuesta
+                redirect_url = url_for('resultados_individual', historial_id=historial_id)
+
                 return jsonify({
                     "success": True,
-                    "redirect_url": redirect_url, # ¡Esto ahora es correcto!
-                    "message": "Cuestionario finalizado correctamente"
+                    "redirect_url": redirect_url,
+                    "message": "Cuestionario finalizado correctamente",
+                    "recompensas": {
+                        "xp_ganada": recompensas['xp_info']['xp_ganada'],
+                        "monedas_ganadas": recompensas['monedas_ganadas'],
+                        "niveles_subidos": recompensas['xp_info']['niveles_subidos'],
+                        "insignias_nuevas": [{"nombre": i['nombre'], "icono": i['icono'], "tipo": i['tipo']} for i in recompensas['insignias_nuevas']],
+                        "nivel_actual": recompensas['xp_info']['nivel_actual'],
+                        "racha_actual": recompensas['racha_actual'],
+                        "es_mejor_puntaje": recompensas['es_mejor_puntaje']
+                    }
                 })
 
         finally:
@@ -2676,6 +2715,7 @@ def resultados_individual(historial_id):
         if conexion and conexion.open:
             conexion.close()
 
+    recompensas = session.pop('recompensas_recientes', None)
     return render_template("resultados_individual_con_ranking.html",
                            historial=historial,
                            respuestas=respuestas,
@@ -2685,8 +2725,293 @@ def resultados_individual(historial_id):
                            tiempo_promedio=tiempo_promedio,
                            fecha_realizacion_str=fecha_realizacion_str,
                            ranking_completo=ranking_completo,
-                           posicion_actual=posicion_actual)
+                           posicion_actual=posicion_actual,
+                           recompensas=recompensas)
 
+# ==================== SISTEMA DE RECOMPENSAS ====================
+
+def inicializar_stats_estudiante(usuario_id):
+    """Crea el registro de estadísticas para un nuevo estudiante"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO estudiantes_stats (usuario_id)
+                VALUES (%s)
+                ON DUPLICATE KEY UPDATE usuario_id=usuario_id
+            """, (usuario_id,))
+            conexion.commit()
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+def calcular_xp_necesaria(nivel):
+    """Calcula XP necesaria para el siguiente nivel (escala progresiva)"""
+    return 100 * nivel + (nivel - 1) * 50
+
+def otorgar_xp(usuario_id, xp_ganada):
+    """Otorga XP al estudiante y verifica si sube de nivel"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener stats actuales
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (usuario_id,))
+            stats = cursor.fetchone()
+
+            if not stats:
+                inicializar_stats_estudiante(usuario_id)
+                cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (usuario_id,))
+                stats = cursor.fetchone()
+
+            nuevo_xp_actual = stats['experiencia_actual'] + xp_ganada
+            nuevo_xp_total = stats['experiencia_total'] + xp_ganada
+            nivel_actual = stats['nivel']
+
+            niveles_subidos = []
+
+            # Verificar subidas de nivel
+            while True:
+                xp_necesaria = calcular_xp_necesaria(nivel_actual)
+                if nuevo_xp_actual >= xp_necesaria:
+                    nivel_actual += 1
+                    nuevo_xp_actual -= xp_necesaria
+                    niveles_subidos.append(nivel_actual)
+                else:
+                    break
+
+            # Actualizar stats
+            cursor.execute("""
+                UPDATE estudiantes_stats
+                SET experiencia_actual = %s,
+                    experiencia_total = %s,
+                    nivel = %s
+                WHERE usuario_id = %s
+            """, (nuevo_xp_actual, nuevo_xp_total, nivel_actual, usuario_id))
+            conexion.commit()
+
+            return {
+                'niveles_subidos': niveles_subidos,
+                'xp_ganada': xp_ganada,
+                'nivel_actual': nivel_actual,
+                'xp_actual': nuevo_xp_actual,
+                'xp_necesaria': calcular_xp_necesaria(nivel_actual)
+            }
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+def otorgar_monedas(usuario_id, monedas):
+    """Otorga monedas al estudiante"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE estudiantes_stats
+                SET monedas = monedas + %s
+                WHERE usuario_id = %s
+            """, (monedas, usuario_id))
+            conexion.commit()
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+def verificar_y_desbloquear_insignias(usuario_id):
+    """Verifica y desbloquea insignias que el estudiante haya ganado"""
+    conexion = obtener_conexion()
+    insignias_desbloqueadas = []
+
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener stats del estudiante
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (usuario_id,))
+            stats = cursor.fetchone()
+
+            if not stats:
+                return []
+
+            # Obtener insignias que aún no tiene
+            cursor.execute("""
+                SELECT i.* FROM insignias i
+                WHERE i.id NOT IN (
+                    SELECT insignia_id FROM estudiantes_insignias WHERE usuario_id = %s
+                )
+            """, (usuario_id,))
+            insignias_disponibles = cursor.fetchall()
+
+            for insignia in insignias_disponibles:
+                debe_desbloquear = False
+
+                # Verificar requisitos según tipo
+                if insignia['requisito_tipo'] == 'partidas':
+                    if stats['total_partidas'] >= insignia['requisito_valor']:
+                        debe_desbloquear = True
+
+                elif insignia['requisito_tipo'] == 'nivel':
+                    if stats['nivel'] >= insignia['requisito_valor']:
+                        debe_desbloquear = True
+
+                elif insignia['requisito_tipo'] == 'racha':
+                    if stats['mejor_racha'] >= insignia['requisito_valor']:
+                        debe_desbloquear = True
+
+                elif insignia['requisito_tipo'] == 'puntaje':
+                    if stats['mejor_puntaje'] >= insignia['requisito_valor']:
+                        debe_desbloquear = True
+
+                # Desbloquear si cumple requisitos
+                if debe_desbloquear:
+                    cursor.execute("""
+                        INSERT INTO estudiantes_insignias (usuario_id, insignia_id)
+                        VALUES (%s, %s)
+                    """, (usuario_id, insignia['id']))
+
+                    # Otorgar recompensas
+                    if insignia['recompensa_xp'] > 0:
+                        cursor.execute("""
+                            UPDATE estudiantes_stats
+                            SET experiencia_total = experiencia_total + %s,
+                                experiencia_actual = experiencia_actual + %s
+                            WHERE usuario_id = %s
+                        """, (insignia['recompensa_xp'], insignia['recompensa_xp'], usuario_id))
+
+                    if insignia['recompensa_monedas'] > 0:
+                        cursor.execute("""
+                            UPDATE estudiantes_stats
+                            SET monedas = monedas + %s
+                            WHERE usuario_id = %s
+                        """, (insignia['recompensa_monedas'], usuario_id))
+
+                    insignias_desbloqueadas.append(insignia)
+
+            conexion.commit()
+
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+    return insignias_desbloqueadas
+
+def actualizar_stats_despues_partida(usuario_id, puntuacion, correctas, incorrectas):
+    """Actualiza las estadísticas del estudiante después de una partida"""
+    from datetime import datetime, date
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Inicializar stats si no existen
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (usuario_id,))
+            stats = cursor.fetchone()
+
+            if not stats:
+                inicializar_stats_estudiante(usuario_id)
+                cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (usuario_id,))
+                stats = cursor.fetchone()
+
+            # Calcular nueva racha
+            hoy = date.today()
+            if stats['ultima_partida']:
+                diferencia = (hoy - stats['ultima_partida']).days
+                if diferencia == 1:
+                    nueva_racha = stats['racha_actual'] + 1
+                elif diferencia == 0:
+                    nueva_racha = stats['racha_actual']
+                else:
+                    nueva_racha = 1
+            else:
+                nueva_racha = 1
+
+            mejor_racha = max(stats['mejor_racha'], nueva_racha)
+            mejor_puntaje = max(stats['mejor_puntaje'], puntuacion)
+
+            # Actualizar stats
+            cursor.execute("""
+                UPDATE estudiantes_stats SET
+                    total_partidas = total_partidas + 1,
+                    total_preguntas_correctas = total_preguntas_correctas + %s,
+                    total_preguntas_incorrectas = total_preguntas_incorrectas + %s,
+                    mejor_puntaje = %s,
+                    racha_actual = %s,
+                    mejor_racha = %s,
+                    ultima_partida = %s
+                WHERE usuario_id = %s
+            """, (correctas, incorrectas, mejor_puntaje, nueva_racha, mejor_racha, hoy, usuario_id))
+            conexion.commit()
+
+            # Calcular XP basada en rendimiento
+            xp_base = 50  # XP base por completar
+            xp_por_correcta = 10
+            xp_bonus_perfecto = 100 if correctas > 0 and incorrectas == 0 else 0
+
+            total_xp = xp_base + (correctas * xp_por_correcta) + xp_bonus_perfecto
+
+            # Otorgar XP y monedas
+            resultado_xp = otorgar_xp(usuario_id, total_xp)
+            monedas_ganadas = 5 + (correctas * 2)
+            otorgar_monedas(usuario_id, monedas_ganadas)
+
+            # Verificar insignias
+            insignias_nuevas = verificar_y_desbloquear_insignias(usuario_id)
+
+            return {
+                'xp_info': resultado_xp,
+                'monedas_ganadas': monedas_ganadas,
+                'insignias_nuevas': insignias_nuevas,
+                'racha_actual': nueva_racha,
+                'es_mejor_puntaje': puntuacion == mejor_puntaje and puntuacion > stats['mejor_puntaje']
+            }
+
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+# Ruta para ver el perfil de recompensas
+@app.route("/perfil_recompensas")
+def perfil_recompensas():
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+    conexion = obtener_conexion()
+
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener stats
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+            stats = cursor.fetchone()
+
+            if not stats:
+                inicializar_stats_estudiante(user_id)
+                cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+                stats = cursor.fetchone()
+
+            # Obtener insignias desbloqueadas
+            cursor.execute("""
+                SELECT i.*, ei.fecha_desbloqueo
+                FROM estudiantes_insignias ei
+                JOIN insignias i ON ei.insignia_id = i.id
+                WHERE ei.usuario_id = %s
+                ORDER BY ei.fecha_desbloqueo DESC
+            """, (user_id,))
+            insignias_desbloqueadas = cursor.fetchall()
+
+            # Obtener todas las insignias para mostrar progreso
+            cursor.execute("SELECT * FROM insignias ORDER BY requisito_valor ASC")
+            todas_insignias = cursor.fetchall()
+
+            # Calcular progreso del nivel
+            xp_necesaria = calcular_xp_necesaria(stats['nivel'])
+            progreso_nivel = (stats['experiencia_actual'] / xp_necesaria) * 100
+
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+    return render_template("perfil_recompensas.html",
+                         stats=stats,
+                         insignias_desbloqueadas=insignias_desbloqueadas,
+                         todas_insignias=todas_insignias,
+                         progreso_nivel=progreso_nivel,
+                         xp_necesaria=xp_necesaria)
 
 # --- MANEJO DE ERRORES ---
 

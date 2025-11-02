@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Perfil de Recompensas</title>
+    <style>
+        :root {
+            --color-primary: #11998e;
+            --color-secondary: #38ef7d;
+            --bronce: #CD7F32;
+            --plata: #C0C0C0;
+            --oro: #FFD700;
+            --platino: #E5E4E2;
+            --diamante: #B9F2FF;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Poppins', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* Header del perfil */
+        .profile-header {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .avatar-section {
+            text-align: center;
+        }
+        
+        .avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 50px;
+            color: white;
+            margin-bottom: 15px;
+            box-shadow: 0 5px 20px rgba(17, 153, 142, 0.4);
+            position: relative;
+        }
+        
+        .nivel-badge {
+            position: absolute;
+            bottom: -10px;
+            right: -10px;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 20px;
+            border: 4px solid white;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+        }
+        
+        .stats-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card .icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Barra de progreso del nivel */
+        .level-progress-section {
+            margin-top: 30px;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .progress-bar-container {
+            width: 100%;
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            transition: width 1s ease;
+            box-shadow: 0 0 10px rgba(17, 153, 142, 0.5);
+        }
+        
+        /* Secciones de contenido */
+        .content-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid var(--color-primary);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .section-title .icon {
+            font-size: 32px;
+        }
+        
+        /* Grid de insignias */
+        .badges-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 20px;
+        }
+        
+        .badge-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+            border: 3px solid transparent;
+            position: relative;
+        }
+        
+        .badge-card.unlocked {
+            background: linear-gradient(135deg, #fff 0%, #f0f9ff 100%);
+            border-color: var(--color-primary);
+            cursor: pointer;
+        }
+        
+        .badge-card.unlocked:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 10px 30px rgba(17, 153, 142, 0.3);
+        }
+        
+        .badge-card.locked {
+            opacity: 0.4;
+            filter: grayscale(100%);
+        }
+        
+        .badge-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        .badge-name {
+            font-weight: bold;
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .badge-description {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 10px;
+            min-height: 30px;
+        }
+        
+        .badge-type {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-top: 5px;
+        }
+        
+        .badge-type.bronce {
+            background: var(--bronce);
+            color: white;
+        }
+        
+        .badge-type.plata {
+            background: var(--plata);
+            color: #333;
+        }
+        
+        .badge-type.oro {
+            background: var(--oro);
+            color: #333;
+        }
+        
+        .badge-type.platino {
+            background: var(--platino);
+            color: #333;
+        }
+        
+        .badge-type.diamante {
+            background: var(--diamante);
+            color: #0066cc;
+        }
+        
+        .unlock-date {
+            font-size: 10px;
+            color: #999;
+            margin-top: 5px;
+        }
+        
+        .locked-icon {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 20px;
+        }
+        
+        /* Botones */
+        .btn {
+            display: inline-block;
+            padding: 14px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(17, 153, 142, 0.4);
+        }
+        
+        .back-link {
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        /* Animaciones */
+        @keyframes shine {
+            0% { background-position: -200px; }
+            100% { background-position: 200px; }
+        }
+        
+        .unlocked .badge-icon {
+            animation: bounce 2s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .profile-header {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .badges-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header del perfil -->
+        <div class="profile-header">
+            <div class="avatar-section">
+                <div class="avatar">
+                    🎮
+                    <div class="nivel-badge">{{ stats.nivel }}</div>
+                </div>
+                <h2 style="color: #333; font-size: 22px;">{{ session.usuario }}</h2>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="icon">🏆</div>
+                    <div class="value">{{ stats.nivel }}</div>
+                    <div class="label">Nivel</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="icon">⭐</div>
+                    <div class="value">{{ stats.experiencia_total }}</div>
+                    <div class="label">XP Total</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="icon">💰</div>
+                    <div class="value">{{ stats.monedas }}</div>
+                    <div class="label">Monedas</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="icon">📝</div>
+                    <div class="value">{{ stats.total_partidas }}</div>
+                    <div class="label">Partidas</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="icon">✅</div>
+                    <div class="value">{{ stats.total_preguntas_correctas }}</div>
+                    <div class="label">Correctas</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="icon">🔥</div>
+                    <div class="value">{{ stats.racha_actual }}</div>
+                    <div class="label">Racha Actual</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="icon">💯</div>
+                    <div class="value">{{ stats.mejor_puntaje }}</div>
+                    <div class="label">Mejor Puntaje</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="icon">🏅</div>
+                    <div class="value">{{ insignias_desbloqueadas|length }}</div>
+                    <div class="label">Insignias</div>
+                </div>
+            </div>
+            
+            <!-- Barra de progreso del nivel -->
+            <div class="level-progress-section" style="width: 100%;">
+                <div class="progress-header">
+                    <span><strong>Nivel {{ stats.nivel }}</strong></span>
+                    <span>{{ stats.experiencia_actual }} / {{ xp_necesaria }} XP</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" style="width: {{ progreso_nivel }}%">
+                        {{ "%.0f"|format(progreso_nivel) }}%
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sección de insignias desbloqueadas -->
+        {% if insignias_desbloqueadas %}
+        <div class="content-section">
+            <div class="section-title">
+                <span class="icon">🏆</span>
+                <span>Insignias Desbloqueadas ({{ insignias_desbloqueadas|length }})</span>
+            </div>
+            
+            <div class="badges-grid">
+                {% for insignia in insignias_desbloqueadas %}
+                <div class="badge-card unlocked">
+                    <div class="badge-icon">{{ insignia.icono }}</div>
+                    <div class="badge-name">{{ insignia.nombre }}</div>
+                    <div class="badge-description">{{ insignia.descripcion }}</div>
+                    <div class="badge-type {{ insignia.tipo }}">{{ insignia.tipo }}</div>
+                    <div class="unlock-date">
+                        Desbloqueada: {{ insignia.fecha_desbloqueo.strftime('%d/%m/%Y') }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Todas las insignias (incluyendo bloqueadas) -->
+        <div class="content-section">
+            <div class="section-title">
+                <span class="icon">🎯</span>
+                <span>Todas las Insignias ({{ todas_insignias|length }})</span>
+            </div>
+            
+            <div class="badges-grid">
+                {% for insignia in todas_insignias %}
+                {% set desbloqueada = insignias_desbloqueadas|selectattr('id', 'equalto', insignia.id)|list|length > 0 %}
+                <div class="badge-card {{ 'unlocked' if desbloqueada else 'locked' }}">
+                    {% if not desbloqueada %}
+                    <div class="locked-icon">🔒</div>
+                    {% endif %}
+                    
+                    <div class="badge-icon">{{ insignia.icono }}</div>
+                    <div class="badge-name">{{ insignia.nombre }}</div>
+                    <div class="badge-description">{{ insignia.descripcion }}</div>
+                    <div class="badge-type {{ insignia.tipo }}">{{ insignia.tipo }}</div>
+                    
+                    {% if insignia.recompensa_xp > 0 or insignia.recompensa_monedas > 0 %}
+                    <div style="font-size: 11px; color: #666; margin-top: 8px;">
+                        {% if insignia.recompensa_xp > 0 %}
+                        ⭐ +{{ insignia.recompensa_xp }} XP
+                        {% endif %}
+                        {% if insignia.recompensa_monedas > 0 %}
+                        💰 +{{ insignia.recompensa_monedas }}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Botón para volver -->
+        <div class="back-link">
+            <a href="{{ url_for('dashboard_estudiante') }}" class="btn btn-primary">
+                🏠 Volver al Dashboard
+            </a>
+        </div>
+    </div>
+</body>
+</html>

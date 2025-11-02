@@ -442,7 +442,6 @@
 </head>
 <body>
     <div class="container">
-        <!-- Header de Resultados -->
         <div class="results-header">
             {% if posicion_actual == 1 %}
                 <div class="trophy-icon">🏆</div>
@@ -459,7 +458,6 @@
             <h1>¡Cuestionario Finalizado!</h1>
             <h2>{{ historial.titulo_cuestionario }}</h2>
 
-            <!-- Posición en el ranking -->
             <div class="position-badge position-{{ '1' if posicion_actual == 1 else '2' if posicion_actual == 2 else '3' if posicion_actual == 3 else 'other' }}">
                 {% if posicion_actual == 1 %}
                     🥇 ¡1er Lugar!
@@ -472,7 +470,6 @@
                 {% endif %}
             </div>
 
-            <!-- Círculos de puntuación -->
             <div class="score-display">
                 <div class="score-circle">
                     <div class="number">{{ historial.puntuacion_final }}</div>
@@ -488,7 +485,6 @@
                 </div>
             </div>
 
-            <!-- Estadísticas -->
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="icon">✅</div>
@@ -519,7 +515,6 @@
             </div>
         </div>
 
-        <!-- Sección de Ranking -->
         <div class="ranking-section">
             <h3>🏆 Clasificación General</h3>
             
@@ -572,7 +567,55 @@
             </table>
         </div>
 
-        <!-- Revisión Detallada -->
+        {% if recompensas %}
+        <div class="rewards-section" style="background: white; border-radius: 20px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); margin-bottom: 30px;">
+            <h3 style="color: #333; font-size: 24px; margin-bottom: 25px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <span>🎁</span> Recompensas Obtenidas
+            </h3>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 15px; text-align: center; color: white;">
+                    <div style="font-size: 40px; margin-bottom: 10px;">⭐</div>
+                    <div style="font-size: 32px; font-weight: bold;">+{{ recompensas.xp_ganada }}</div>
+                    <div style="font-size: 14px; opacity: 0.9;">XP Ganada</div>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 15px; text-align: center; color: white;">
+                    <div style="font-size: 40px; margin-bottom: 10px;">💰</div>
+                    <div style="font-size: 32px; font-weight: bold;">+{{ recompensas.monedas_ganadas }}</div>
+                    <div style="font-size: 14px; opacity: 0.9;">Monedas</div>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 20px; border-radius: 15px; text-align: center; color: white;">
+                    <div style="font-size: 40px; margin-bottom: 10px;">🏆</div>
+                    <div style="font-size: 32px; font-weight: bold;">Nivel {{ recompensas.nivel_actual }}</div>
+                    <div style="font-size: 14px; opacity: 0.9;">Tu Nivel</div>
+                </div>
+            </div>
+            
+            {% if recompensas.insignias_nuevas and recompensas.insignias_nuevas|length > 0 %}
+            <div style="margin-top: 25px; padding: 20px; background: #f8f9fa; border-radius: 15px;">
+                <h4 style="color: #333; text-align: center; margin-bottom: 15px;">🎖️ Nuevas Insignias Desbloqueadas</h4>
+                <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                    {% for insignia in recompensas.insignias_nuevas %}
+                    <div style="background: white; padding: 15px; border-radius: 12px; text-align: center; min-width: 120px; border: 2px solid #FFD700; box-shadow: 0 3px 10px rgba(255,215,0,0.3);">
+                        <div style="font-size: 48px; margin-bottom: 8px;">{{ insignia.icono }}</div>
+                        <div style="font-size: 14px; font-weight: 600; color: #333;">{{ insignia.nombre }}</div>
+                        <div style="font-size: 11px; color: #666; margin-top: 3px;">{{ insignia.tipo|upper }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="{{ url_for('perfil_recompensas') }}" style="display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 10px; font-weight: 600;">
+                    🏆 Ver Mi Perfil Completo
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="details-section">
             <h3>📋 Revisión Detallada de Respuestas</h3>
 
@@ -641,7 +684,6 @@
             {% endfor %}
         </div>
 
-        <!-- Footer -->
         <div class="footer-info">
             <p>Estudiante: <strong>{{ historial.nombre_estudiante }}</strong></p>
             <p>Fecha: <strong>{{ fecha_realizacion_str }}</strong></p>
