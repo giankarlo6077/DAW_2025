@@ -3057,6 +3057,223 @@ def perfil_recompensas():
                          progreso_nivel=progreso_nivel,
                          xp_necesaria=xp_necesaria)
 
+# ==================== TIENDA DE RECOMPENSAS ====================
+
+@app.route("/tienda")
+def tienda():
+    """Muestra la tienda de items"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+    conexion = obtener_conexion()
+
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener stats del estudiante (para mostrar monedas y nivel)
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+            stats = cursor.fetchone()
+
+            if not stats:
+                inicializar_stats_estudiante(user_id)
+                cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+                stats = cursor.fetchone()
+
+            # Obtener items de la tienda
+            cursor.execute("""
+                SELECT * FROM tienda_items
+                WHERE disponible = 1
+                ORDER BY requisito_nivel ASC, precio ASC
+            """)
+            items_tienda = cursor.fetchall()
+
+            # Obtener items que el usuario ya compró
+            cursor.execute("""
+                SELECT item_id FROM estudiantes_items
+                WHERE usuario_id = %s
+            """, (user_id,))
+            items_comprados_ids = [item['item_id'] for item in cursor.fetchall()]
+
+            # Marcar items como comprados
+            for item in items_tienda:
+                item['comprado'] = item['id'] in items_comprados_ids
+                item['puede_comprar'] = (
+                    stats['monedas'] >= item['precio'] and
+                    stats['nivel'] >= item['requisito_nivel'] and
+                    not item['comprado']
+                )
+
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+    return render_template("tienda.html",
+                         stats=stats,
+                         items=items_tienda,
+                         nombre=session["usuario"])
+
+
+@app.route("/api/comprar_item/<int:item_id>", methods=["POST"])
+def comprar_item(item_id):
+    """Compra un item de la tienda"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    user_id = session["user_id"]
+    conexion = obtener_conexion()
+
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener stats del estudiante
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+            stats = cursor.fetchone()
+
+            # Obtener info del item
+            cursor.execute("SELECT * FROM tienda_items WHERE id = %s AND disponible = 1", (item_id,))
+            item = cursor.fetchone()
+
+            if not item:
+                return jsonify({"success": False, "message": "Item no disponible"}), 404
+
+            # Verificar si ya lo compró
+            cursor.execute("""
+                SELECT id FROM estudiantes_items
+                WHERE usuario_id = %s AND item_id = %s
+            """, (user_id, item_id))
+
+            if cursor.fetchone():
+                return jsonify({"success": False, "message": "Ya tienes este item"}), 400
+
+            # Verificar requisitos
+            if stats['monedas'] < item['precio']:
+                return jsonify({
+                    "success": False,
+                    "message": f"Necesitas {item['precio']} monedas (tienes {stats['monedas']})"
+                }), 400
+
+            if stats['nivel'] < item['requisito_nivel']:
+                return jsonify({
+                    "success": False,
+                    "message": f"Necesitas nivel {item['requisito_nivel']} (eres nivel {stats['nivel']})"
+                }), 400
+
+            # Realizar la compra
+            cursor.execute("""
+                INSERT INTO estudiantes_items (usuario_id, item_id)
+                VALUES (%s, %s)
+            """, (user_id, item_id))
+
+            # Descontar monedas
+            cursor.execute("""
+                UPDATE estudiantes_stats
+                SET monedas = monedas - %s
+                WHERE usuario_id = %s
+            """, (item['precio'], user_id))
+
+            conexion.commit()
+
+            return jsonify({
+                "success": True,
+                "message": f"¡Compraste {item['nombre']}!",
+                "monedas_restantes": stats['monedas'] - item['precio']
+            })
+
+    except Exception as e:
+        print(f"❌ Error al comprar item: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
+@app.route("/api/equipar_item/<int:item_id>", methods=["POST"])
+def equipar_item(item_id):
+    """Equipa un item comprado (avatar, marco, título)"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    user_id = session["user_id"]
+    conexion = obtener_conexion()
+
+    try:
+        with conexion.cursor() as cursor:
+            # Verificar que el item fue comprado
+            cursor.execute("""
+                SELECT ei.*, ti.tipo
+                FROM estudiantes_items ei
+                JOIN tienda_items ti ON ei.item_id = ti.id
+                WHERE ei.usuario_id = %s AND ei.item_id = %s
+            """, (user_id, item_id))
+
+            item_comprado = cursor.fetchone()
+
+            if not item_comprado:
+                return jsonify({"success": False, "message": "No tienes este item"}), 404
+
+            tipo_item = item_comprado['tipo']
+
+            # Desequipar todos los items del mismo tipo
+            cursor.execute("""
+                UPDATE estudiantes_items ei
+                JOIN tienda_items ti ON ei.item_id = ti.id
+                SET ei.equipado = 0
+                WHERE ei.usuario_id = %s AND ti.tipo = %s
+            """, (user_id, tipo_item))
+
+            # Equipar el nuevo item
+            cursor.execute("""
+                UPDATE estudiantes_items
+                SET equipado = 1
+                WHERE usuario_id = %s AND item_id = %s
+            """, (user_id, item_id))
+
+            conexion.commit()
+
+            return jsonify({"success": True, "message": "Item equipado correctamente"})
+
+    except Exception as e:
+        print(f"❌ Error al equipar item: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
+@app.route("/mi_inventario")
+def mi_inventario():
+    """Muestra los items comprados del estudiante"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+    conexion = obtener_conexion()
+
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener items comprados
+            cursor.execute("""
+                SELECT ti.*, ei.equipado, ei.fecha_compra
+                FROM estudiantes_items ei
+                JOIN tienda_items ti ON ei.item_id = ti.id
+                WHERE ei.usuario_id = %s
+                ORDER BY ei.equipado DESC, ei.fecha_compra DESC
+            """, (user_id,))
+
+            items_comprados = cursor.fetchall()
+
+            # Obtener stats
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+            stats = cursor.fetchone()
+
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+    return render_template("inventario.html",
+                         items=items_comprados,
+                         stats=stats,
+                         nombre=session["usuario"])
+
 # --- MANEJO DE ERRORES ---
 
 @app.errorhandler(500)

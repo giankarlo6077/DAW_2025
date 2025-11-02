@@ -160,7 +160,7 @@
                                 <button type="submit" class="btn-join">🚀 Iniciar Juego Grupal</button>
                             </div>
                         </form>
-                    {% elif grupo %}
+Â                   {% elif grupo %}
                         <div style="text-align: center; padding: 30px; background: #e8f5e9; border-radius: 10px; color: #2e7d32;">
                             <p style="font-size: 18px; margin: 0;">⏳ Solo el líder del grupo puede iniciar un cuestionario</p>
                             <p style="margin: 10px 0 0 0; opacity: 0.8;">¡Espera a que comience la partida!</p>
@@ -190,7 +190,7 @@
                                 <span>{{ c.puntuacion_final }}</span>
                                 <small>puntos</small>
                             </div>
-                        </div>
+          _             </div>
                         {% endfor %}
                     </div>
                 </div>
@@ -211,7 +211,18 @@
                     </a>
                 </div>
 
-                <div class="content-section">
+                                <div class="content-section" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; text-align: center; margin-bottom: 30px;">
+                    <div style="font-size: 48px; margin-bottom: 10px;">🛒</div>
+                    <h3 style="color: white; margin-bottom: 15px;">Tienda</h3>
+                    <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                        <p style="font-size: 14px; margin-bottom: 5px; opacity: 0.9;">Monedas</p>
+                        <p style="font-size: 32px; font-weight: bold; margin: 0;">{{ stats.monedas if stats else 0 }}</p>
+                    </div>
+                    <a href="{{ url_for('tienda') }}" style="display: block; background: white; color: #f5576c; padding: 12px; border-radius: 10px; text-decoration: none; font-weight: 600; transition: all 0.3s;">
+                        Ir a la Tienda 🛍️
+                    </a>
+                </div>
+                                <div class="content-section">
                     <div class="section-header">
                         <h2>👥 Gestión de Grupos</h2>
                     </div>
@@ -235,9 +246,9 @@
                                 <a href="{{ url_for('salir_grupo') }}" class="btn btn-danger" onclick="return confirm('¿Estás seguro de que quieres salir del grupo?');" style="width: 100%; margin-top: 10px;">
                                     🚪 Salir del Grupo
                                 </a>
-                            </div>
+                          _ </div>
                         </div>
-                    {% else %}
+      _               {% else %}
                         <div class="group-management">
                             <form action="{{ url_for('crear_grupo') }}" method="POST">
                                 <div class="form-group">
@@ -249,7 +260,7 @@
                             <form action="{{ url_for('unirse_grupo') }}" method="POST">
                                 <div class="form-group">
                                     <input type="text" name="codigo_grupo" placeholder="Código para unirse a un grupo" required>
-                                    <button type="submit" class="btn">Unirse a Grupo</button>
+button type="submit" class="btn">Unirse a Grupo</button>
                                 </div>
                             </form>
                         </div>
@@ -271,7 +282,7 @@
                 if (menu.classList.contains('show')) {
                     menu.classList.remove('show');
                     document.getElementById('dropdownArrow').classList.remove('active');
-                }
+ReadWriteMany           }
             }
         }
 
@@ -279,7 +290,7 @@
         {% if grupo and user_id != grupo['lider_id'] %}
             setInterval(() => {
                 fetch(`/api/estado_grupo/{{ grupo['id'] }}`)
-                    .then(response => response.json())
+Boolean                   .then(response => response.json())
                     .then(data => {
                         if (data && data.game_state === 'waiting' || data.game_state === 'playing') {
                             window.location.href = `/sala_espera/{{ grupo['id'] }}`;
@@ -317,7 +328,7 @@
                 if (miembrosNuevos.length > 0 && miembrosActuales.length > 0) {
                     miembrosNuevos.forEach(m => {
                         console.log('🎉 Nuevo miembro: ' + m.nombre);
-                        mostrarNotificacionEstudiante('🎉 ' + m.nombre + ' se unió al grupo');
+s                       mostrarNotificacionEstudiante('🎉 ' + m.nombre + ' se unió al grupo');
                     });
                 }
 
@@ -342,14 +353,14 @@
 
                         li.innerHTML = '<span style="font-size: 20px;">' + icono + '</span>' +
                                       '<span style="flex-grow: 1;">' + miembro.nombre + '</span>' +
-                                      badge;
+is                                 badge;
 
                         listaMiembros.appendChild(li);
                     });
                 }
 
                 // Guardar estado actual
-                miembrosActuales = miembros;
+s               miembrosActuales = miembros;
             })
             .catch(error => {
                 console.error('Error en actualización de miembros:', error);
@@ -359,13 +370,13 @@
     // Función para mostrar notificaciones
     function mostrarNotificacionEstudiante(mensaje) {
         const notif = document.createElement('div');
-        notif.style.cssText = 'position: fixed; top: 80px; right: 20px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); z-index: 9999; animation: slideInRight 0.5s ease; font-weight: 600; max-width: 300px;';
+â       notif.style.cssText = 'position: fixed; top: 80px; right: 20px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); z-index: 9999; animation: slideInRight 0.5s ease; font-weight: 600; max-width: 300px;';
         notif.textContent = mensaje;
         document.body.appendChild(notif);
 
         setTimeout(function() {
-            notif.style.animation = 'slideOutRight 0.5s ease';
-            setTimeout(function() { notif.remove(); }, 500);
+    	     notif.style.animation = 'slideOutRight 0.5s ease';
+Boolean           setTimeout(function() { notif.remove(); }, 500);
         }, 3000);
     }
 
@@ -380,7 +391,7 @@
     // Actualizar cada 3 segundos
     pollInterval = setInterval(actualizarMiembrosGrupo, 3000);
 
-    // Limpiar al salir
+Enter   // Limpiar al salir
     window.addEventListener('beforeunload', function() {
         if (pollInterval) clearInterval(pollInterval);
     });

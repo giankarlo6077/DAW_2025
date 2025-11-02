@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tienda de Recompensas</title>
+    <style>
+        :root {
+            --color-primary: #11998e;
+            --color-secondary: #38ef7d;
+            --comun: #95a5a6;
+            --raro: #3498db;
+            --epico: #9b59b6;
+            --legendario: #f39c12;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Poppins', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* Header de la tienda */
+        .tienda-header {
+            background: white;
+            border-radius: 20px;
+            padding: 30px 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .tienda-header h1 {
+            color: #333;
+            font-size: 32px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .user-currency {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .currency-item {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 15px 25px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .currency-item .icon {
+            font-size: 28px;
+        }
+        
+        .currency-item .value {
+            color: var(--color-primary);
+            font-size: 24px;
+        }
+        
+        /* Filtros */
+        .filters {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .filter-btn {
+            padding: 10px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        
+        .filter-btn:hover {
+            border-color: var(--color-primary);
+            transform: translateY(-2px);
+        }
+        
+        .filter-btn.active {
+            background: var(--color-primary);
+            color: white;
+            border-color: var(--color-primary);
+        }
+        
+        /* Grid de items */
+        .items-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .item-card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .item-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+        }
+        
+        .item-card.comprado {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        
+        .item-card.comprado::after {
+            content: '✓ COMPRADO';
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+        .rareza-badge {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            padding: 5px 12px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: white;
+        }
+        
+        .rareza-badge.comun { background: var(--comun); }
+        .rareza-badge.raro { background: var(--raro); }
+        .rareza-badge.epico { background: var(--epico); }
+        .rareza-badge.legendario { background: var(--legendario); animation: shine 2s infinite; }
+        
+        @keyframes shine {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .item-icon {
+            font-size: 80px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .item-info h3 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        
+        .item-info p {
+            font-size: 13px;
+            color: #666;
+            text-align: center;
+            min-height: 40px;
+            margin-bottom: 15px;
+        }
+        
+        .item-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-top: 1px solid #f0f0f0;
+            margin-top: 10px;
+        }
+        
+        .item-price {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--color-primary);
+        }
+        
+        .item-level {
+            font-size: 12px;
+            color: #999;
+            background: #f8f9fa;
+            padding: 5px 10px;
+            border-radius: 10px;
+        }
+        
+        .btn-comprar {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        
+        .btn-comprar:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(17, 153, 142, 0.4);
+        }
+        
+        .btn-comprar:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .btn-back {
+            display: inline-block;
+            padding: 12px 30px;
+            background: white;
+            color: var(--color-primary);
+            border: 2px solid var(--color-primary);
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-back:hover {
+            background: var(--color-primary);
+            color: white;
+        }
+        
+        .back-link {
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        /* Modal de confirmación */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal-overlay.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .modal-content h3 {
+            margin-bottom: 15px;
+            font-size: 24px;
+        }
+        
+        .modal-content .item-preview {
+            font-size: 60px;
+            margin: 20px 0;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .modal-buttons button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .btn-confirm {
+            background: var(--color-primary);
+            color: white;
+        }
+        
+        .btn-cancel {
+            background: #e0e0e0;
+        }
+        
+        @media (max-width: 768px) {
+            .tienda-header {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .items-grid {
+                grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="tienda-header">
+            <h1>
+                <span>🛒</span>
+                Tienda de Recompensas
+            </h1>
+            
+            <div class="user-currency">
+                <div class="currency-item">
+                    <span class="icon">💰</span>
+                    <span class="value" id="monedas-usuario">{{ stats.monedas }}</span>
+                    <span>Monedas</span>
+                </div>
+                
+                <div class="currency-item">
+                    <span class="icon">🏆</span>
+                    <span class="value">{{ stats.nivel }}</span>
+                    <span>Nivel</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="filters">
+            <button class="filter-btn active" onclick="filtrarPorTipo('todos')">🔍 Todos</button>
+            <button class="filter-btn" onclick="filtrarPorTipo('avatar')">👤 Avatares</button>
+            <button class="filter-btn" onclick="filtrarPorTipo('marco')">🖼️ Marcos</button>
+            <button class="filter-btn" onclick="filtrarPorTipo('titulo')">🏅 Títulos</button>
+            <button class="filter-btn" onclick="filtrarPorRareza('legendario')">⭐ Legendarios</button>
+        </div>
+        
+        <div class="items-grid" id="items-container">
+            {% for item in items %}
+            <div class="item-card {{ 'comprado' if item.comprado else '' }}" 
+                 data-tipo="{{ item.tipo }}" 
+                 data-rareza="{{ item.rareza }}">
+                <div class="rareza-badge {{ item.rareza }}">{{ item.rareza }}</div>
+                
+                <div class="item-icon">{{ item.icono }}</div>
+                
+                <div class="item-info">
+                    <h3>{{ item.nombre }}</h3>
+                    <p>{{ item.descripcion }}</p>
+                </div>
+                
+                <div class="item-stats">
+                    <div class="item-price">
+                        <span>💰</span>
+                        <span>{{ item.precio }}</span>
+                    </div>
+                    <div class="item-level">
+                        Nivel {{ item.requisito_nivel }}
+                    </div>
+                </div>
+                
+                {% if not item.comprado %}
+                <button class="btn-comprar" 
+                        onclick="comprarItem({{ item.id }}, '{{ item.nombre }}', '{{ item.icono }}', {{ item.precio }})"
+                        {{ 'disabled' if not item.puede_comprar else '' }}>
+                    {% if item.puede_comprar %}
+                        💰 Comprar
+                    {% elif stats.monedas < item.precio %}
+                        🚫 Sin Monedas
+                    {% else %}
+                        🔒 Nivel {{ item.requisito_nivel }}
+                    {% endif %}
+                </button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="back-link">
+            <a href="{{ url_for('dashboard_estudiante') }}" class="btn-back">🏠 Volver al Dashboard</a>
+            <a href="{{ url_for('mi_inventario') }}" class="btn-back" style="margin-left: 10px;">🎒 Mi Inventario</a>
+        </div>
+    </div>
+    
+    <!-- Modal de confirmación -->
+    <div class="modal-overlay" id="modal-compra">
+        <div class="modal-content">
+            <h3>¿Confirmar Compra?</h3>
+            <div class="item-preview" id="modal-icon"></div>
+            <p id="modal-nombre" style="font-size: 18px; font-weight: bold;"></p>
+            <p id="modal-precio" style="font-size: 16px; color: #666; margin-top: 10px;"></p>
+            
+            <div class="modal-buttons">
+                <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+                <button class="btn-confirm" onclick="confirmarCompra()">Comprar</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let itemSeleccionado = null;
+        
+        function filtrarPorTipo(tipo) {
+            const cards = document.querySelectorAll('.item-card');
+            const buttons = document.querySelectorAll('.filter-btn');
+            
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            cards.forEach(card => {
+                if (tipo === 'todos' || card.dataset.tipo === tipo) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+        
+        function filtrarPorRareza(rareza) {
+            const cards = document.querySelectorAll('.item-card');
+            const buttons = document.querySelectorAll('.filter-btn');
+            
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            cards.forEach(card => {
+                if (card.dataset.rareza === rareza) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+        
+        function comprarItem(itemId, nombre, icono, precio) {
+            itemSeleccionado = itemId;
+            
+            document.getElementById('modal-icon').textContent = icono;
+            document.getElementById('modal-nombre').textContent = nombre;
+            document.getElementById('modal-precio').textContent = `Precio: ${precio} monedas`;
+            
+            document.getElementById('modal-compra').classList.add('show');
+        }
+        
+        function cerrarModal() {
+            document.getElementById('modal-compra').classList.remove('show');
+            itemSeleccionado = null;
+        }
+        
+        function confirmarCompra() {
+            if (!itemSeleccionado) return;
+            
+            fetch(`/api/comprar_item/${itemSeleccionado}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    
+                    // Actualizar monedas en pantalla
+                    document.getElementById('monedas-usuario').textContent = data.monedas_restantes;
+                    
+                    // Recargar página para mostrar el item como comprado
+                    location.reload();
+                } else {
+                    alert('❌ ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('❌ Error: ' + error);
+            })
+            .finally(() => {
+                cerrarModal();
+            });
+        }
+    </script>
+</body>
+</html>

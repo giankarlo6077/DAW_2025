@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Inventario</title>
+    <style>
+        :root {
+            --color-primary: #11998e;
+            --color-secondary: #38ef7d;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Poppins', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .items-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+        
+        .items-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 20px;
+        }
+        
+        .item-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+            border: 3px solid transparent;
+        }
+        
+        .item-card.equipado {
+            border-color: var(--color-primary);
+            background: linear-gradient(135deg, rgba(17, 153, 142, 0.1) 0%, rgba(56, 239, 125, 0.1) 100%);
+        }
+        
+        .item-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .item-icon {
+            font-size: 60px;
+            margin-bottom: 10px;
+        }
+        
+        .item-name {
+            font-weight: bold;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .btn-equipar {
+            padding: 10px 20px;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        .btn-equipar:hover {
+            background: var(--color-secondary);
+        }
+        
+        .btn-equipar:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .empty-state .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        
+        .btn-back {
+            display: inline-block;
+            padding: 12px 30px;
+            background: white;
+            color: var(--color-primary);
+            border: 2px solid var(--color-primary);
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 20px;
+            transition: all 0.3s;
+        }
+        
+        .btn-back:hover {
+            background: var(--color-primary);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎒 Mi Inventario</h1>
+            <p style="color: #666; margin-top: 10px;">Tus items comprados</p>
+        </div>
+        
+        <div class="items-section">
+            {% if items %}
+                <div class="items-grid">
+                    {% for item in items %}
+                    <div class="item-card {{ 'equipado' if item.equipado else '' }}">
+                        <div class="item-icon">{{ item.icono }}</div>
+                        <div class="item-name">{{ item.nombre }}</div>
+                        
+                        {% if item.equipado %}
+                            <div style="color: var(--color-primary); font-weight: bold; margin-top: 10px;">
+                                ✓ EQUIPADO
+                            </div>
+                        {% else %}
+                            <button class="btn-equipar" onclick="equiparItem({{ item.id }})">
+                                Equipar
+                            </button>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <div class="icon">📦</div>
+                    <h3>Tu inventario está vacío</h3>
+                    <p>Visita la tienda para comprar items</p>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="{{ url_for('tienda') }}" class="btn-back">🛒 Ir a la Tienda</a>
+            <a href="{{ url_for('dashboard_estudiante') }}" class="btn-back" style="margin-left: 10px;">🏠 Dashboard</a>
+        </div>
+    </div>
+    
+    <script>
+        function equiparItem(itemId) {
+            fetch(`/api/equipar_item/${itemId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    location.reload();
+                } else {
+                    alert('❌ ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('❌ Error: ' + error);
+            });
+        }
+    </script>
+</body>
+</html>
