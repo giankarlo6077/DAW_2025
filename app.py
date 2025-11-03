@@ -70,6 +70,38 @@ def generar_codigo_grupo():
             if conexion and conexion.open:
                 conexion.close()
 
+def obtener_items_equipados(usuario_id):
+    """Obtiene todos los items equipados del estudiante"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT ti.tipo, ti.icono, ti.nombre
+                FROM estudiantes_items ei
+                JOIN tienda_items ti ON ei.item_id = ti.id
+                WHERE ei.usuario_id = %s AND ei.equipado = 1
+            """, (usuario_id,))
+
+            items = cursor.fetchall()
+
+            # Organizar items por tipo
+            items_equipados = {
+                'avatar': None,
+                'marco': None,
+                'titulo': None
+            }
+
+            for item in items:
+                items_equipados[item['tipo']] = {
+                    'icono': item['icono'],
+                    'nombre': item['nombre']
+                }
+
+            return items_equipados
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
 def enviar_correo_recuperacion(correo, token):
     """Envía un correo con el enlace para restablecer la contraseña."""
     try:
@@ -730,12 +762,34 @@ def dashboard_estudiante():
     print(f"   - Historial: {len(cuestionarios_recientes)}")
     print(f"{'='*70}\n")
 
+    items_equipados = obtener_items_equipados(user_id)
+ # Obtener stats del estudiante para el nivel
+    try:
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                cursor.execute("SELECT nivel, monedas FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+                stats = cursor.fetchone()
+                if not stats:
+                    # Inicializar si no existe
+                    inicializar_stats_estudiante(user_id)
+                    stats = {'nivel': 1, 'monedas': 0}
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+    except Exception as e:
+        print(f"Error al cargar stats: {e}")
+        stats = {'nivel': 1, 'monedas': 0}
+
+    # Luego en el return, agregar:
     return render_template("dashboard_estudiante.html",
                            nombre=session["usuario"],
                            grupo=grupo_info,
                            miembros=miembros,
                            user_id=user_id,
-                           cuestionarios_recientes=cuestionarios_recientes)
+                           cuestionarios_recientes=cuestionarios_recientes,
+                           items_equipados=items_equipados,  # NUEVO
+                           stats=stats)
 
 @app.route("/crear_grupo", methods=["POST"])
 def crear_grupo():
@@ -965,6 +1019,166 @@ def sala_profesor(codigo_pin):
             return render_template("sala_profesor.html",
                                    cuestionario=cuestionario,
                                    grupos_esperando=grupos_esperando)
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
+@app.route("/profesor_vista_juego/<codigo_pin>")
+def profesor_vista_juego(codigo_pin):
+    """Vista en vivo del profesor durante el juego individual"""
+    print(f"\n{'='*70}")
+    print(f"📺 PROFESOR VISTA JUEGO - PIN: {codigo_pin}")
+    print(f"{'='*70}")
+
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return redirect(url_for("login"))
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener cuestionario
+            cursor.execute("""
+                SELECT * FROM cuestionarios
+                WHERE codigo_pin = %s AND profesor_id = %s
+            """, (codigo_pin, session["user_id"]))
+            cuestionario = cursor.fetchone()
+
+            if not cuestionario:
+                flash("❌ Cuestionario no encontrado", "error")
+                return redirect(url_for("dashboard_profesor"))
+
+            # Obtener preguntas
+            cursor.execute("""
+                SELECT id, pregunta, opcion_a, opcion_b, opcion_c, opcion_d, respuesta_correcta
+                FROM preguntas
+                WHERE cuestionario_id = %s
+                ORDER BY orden
+            """, (cuestionario['id'],))
+            preguntas = cursor.fetchall()
+
+            # Obtener sesión activa
+            cursor.execute("""
+                SELECT DISTINCT sesion_id
+                FROM salas_espera
+                WHERE codigo_pin = %s AND estado = 'playing'
+                LIMIT 1
+            """, (codigo_pin,))
+            sesion_data = cursor.fetchone()
+
+            if not sesion_data:
+                flash("⚠️ No hay ninguna sesión activa para este cuestionario", "warning")
+                return redirect(url_for("sala_profesor_individual", codigo_pin=codigo_pin))
+
+            sesion_id = sesion_data['sesion_id']
+
+            # Contar estudiantes en esta sesión
+            cursor.execute("""
+                SELECT COUNT(*) as total
+                FROM salas_espera
+                WHERE sesion_id = %s
+            """, (sesion_id,))
+            total_estudiantes = cursor.fetchone()['total']
+
+            print(f"✅ Sesión ID: {sesion_id}")
+            print(f"✅ Total estudiantes: {total_estudiantes}")
+            print(f"✅ Total preguntas: {len(preguntas)}")
+
+            return render_template("profesor_vista_juego_individual.html",
+                                   cuestionario=cuestionario,
+                                   preguntas=preguntas,
+                                   sesion_id=sesion_id,
+                                   total_estudiantes=total_estudiantes)
+
+    except Exception as e:
+        print(f"❌ Error en profesor_vista_juego: {e}")
+        import traceback
+        traceback.print_exc()
+        flash("❌ Error al cargar la vista del juego", "error")
+        return redirect(url_for("dashboard_profesor"))
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+@app.route("/api/estudiantes_en_sesion/<sesion_id>")
+def api_estudiantes_en_sesion(sesion_id):
+    """API para obtener estudiantes en tiempo real durante una sesión"""
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener estudiantes de esta sesión
+            cursor.execute("""
+                SELECT
+                    u.id,
+                    u.nombre,
+                    se.estado,
+                    COALESCE(
+                        (SELECT COUNT(DISTINCT r.pregunta_id)
+                         FROM respuestas_individuales r
+                         JOIN historial_individual h ON r.historial_id = h.id
+                         WHERE h.usuario_id = u.id AND h.sesion_id = %s),
+                        0
+                    ) as pregunta_actual
+                FROM salas_espera se
+                JOIN usuarios u ON se.usuario_id = u.id
+                WHERE se.sesion_id = %s
+                ORDER BY u.nombre
+            """, (sesion_id, sesion_id))
+
+            estudiantes = cursor.fetchall()
+
+            return jsonify({
+                "success": True,
+                "estudiantes": estudiantes
+            })
+
+    except Exception as e:
+        print(f"❌ Error en api_estudiantes_en_sesion: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
+@app.route("/api/ranking_final_sesion/<sesion_id>")
+def api_ranking_final_sesion(sesion_id):
+    """API para obtener el ranking final de una sesión"""
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener ranking de esta sesión
+            cursor.execute("""
+                SELECT
+                    u.nombre,
+                    h.puntuacion_final as puntuacion,
+                    h.tiempo_total,
+                    COUNT(CASE WHEN r.respuesta_estudiante = p.respuesta_correcta THEN 1 END) as correctas,
+                    COUNT(r.id) as total_respondidas
+                FROM historial_individual h
+                JOIN usuarios u ON h.usuario_id = u.id
+                LEFT JOIN respuestas_individuales r ON h.id = r.historial_id
+                LEFT JOIN preguntas p ON r.pregunta_id = p.id
+                WHERE h.sesion_id = %s
+                GROUP BY h.id, u.nombre, h.puntuacion_final, h.tiempo_total
+                ORDER BY h.puntuacion_final DESC, h.tiempo_total ASC
+            """, (sesion_id,))
+
+            ranking = cursor.fetchall()
+
+            return jsonify({
+                "success": True,
+                "ranking": ranking
+            })
+
+    except Exception as e:
+        print(f"❌ Error en api_ranking_final_sesion: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
     finally:
         if conexion and conexion.open:
             conexion.close()
@@ -1377,7 +1591,7 @@ def profesor_iniciar_individuales(codigo_pin):
             if not cursor.fetchone():
                 return jsonify({"success": False, "message": "Cuestionario no encontrado"}), 404
 
-            # ✅ GENERAR ID DE SESIÓN ÚNICO
+            # Generar ID de sesión único
             import uuid
             sesion_id = f"SESION_{codigo_pin}_{uuid.uuid4().hex[:8]}"
 
@@ -1398,7 +1612,8 @@ def profesor_iniciar_individuales(codigo_pin):
                 "success": True,
                 "message": f"Se iniciaron {estudiantes_iniciados} partida(s)",
                 "estudiantes_iniciados": estudiantes_iniciados,
-                "sesion_id": sesion_id
+                "sesion_id": sesion_id,
+                "redirect_url": f"/profesor_vista_juego/{codigo_pin}"  # NUEVO: URL para redirección
             })
 
     except Exception as e:

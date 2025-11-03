@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego en Vivo - {{ cuestionario['titulo'] }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .game-header {
+            background: white;
+            border-radius: 20px;
+            padding: 25px 35px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .game-header h1 {
+            color: #333;
+            font-size: 28px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .game-stats {
+            display: flex;
+            gap: 25px;
+            align-items: center;
+        }
+
+        .stat-box {
+            text-align: center;
+            padding: 10px 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+        }
+
+        .stat-box .label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .stat-box .value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .timer-box {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            border: none;
+        }
+
+        .timer-box .value {
+            color: white;
+            font-size: 36px;
+        }
+
+        /* Pregunta en pantalla grande */
+        .question-display {
+            background: white;
+            border-radius: 20px;
+            padding: 50px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .question-number {
+            font-size: 24px;
+            color: #667eea;
+            font-weight: bold;
+            margin-bottom: 30px;
+        }
+
+        .question-text {
+            font-size: 42px;
+            color: #333;
+            margin-bottom: 50px;
+            line-height: 1.4;
+            font-weight: 600;
+        }
+
+        .options-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .option-card {
+            padding: 30px;
+            border-radius: 20px;
+            font-size: 24px;
+            text-align: left;
+            border: 4px solid #e0e0e0;
+            background: #f8f9fa;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .option-letter {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .option-text {
+            flex-grow: 1;
+            font-weight: 500;
+        }
+
+        /* Barra de progreso de tiempo */
+        .timer-bar-container {
+            width: 100%;
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 30px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .timer-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #ffc107, #dc3545);
+            transition: width 1s linear;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        /* Panel de estudiantes en vivo */
+        .students-panel {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .students-panel h3 {
+            color: #333;
+            font-size: 22px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .students-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .student-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .student-item.answered {
+            background: #d4edda;
+            border-left-color: #28a745;
+        }
+
+        .student-item.waiting {
+            border-left-color: #ffc107;
+        }
+
+        .student-icon {
+            font-size: 28px;
+        }
+
+        .student-info {
+            flex-grow: 1;
+        }
+
+        .student-info .name {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .student-info .status {
+            font-size: 11px;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        /* Pantalla de espera inicial */
+        .waiting-screen {
+            text-align: center;
+            padding: 100px 20px;
+        }
+
+        .waiting-screen .icon {
+            font-size: 120px;
+            margin-bottom: 30px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .waiting-screen h2 {
+            font-size: 36px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .waiting-screen p {
+            font-size: 18px;
+            color: #666;
+        }
+
+        /* Pantalla de resultados finales */
+        .results-screen {
+            background: white;
+            border-radius: 20px;
+            padding: 50px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+
+        .results-screen h2 {
+            font-size: 42px;
+            color: #333;
+            margin-bottom: 40px;
+        }
+
+        .podium {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 30px;
+            margin-bottom: 50px;
+        }
+
+        .podium-place {
+            text-align: center;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+
+        .podium-place:hover {
+            transform: translateY(-10px);
+        }
+
+        .podium-1 {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            order: 2;
+            height: 300px;
+            width: 250px;
+        }
+
+        .podium-2 {
+            background: linear-gradient(135deg, #C0C0C0, #A8A8A8);
+            order: 1;
+            height: 240px;
+            width: 220px;
+        }
+
+        .podium-3 {
+            background: linear-gradient(135deg, #CD7F32, #B87333);
+            order: 3;
+            height: 200px;
+            width: 200px;
+        }
+
+        .podium-place .medal {
+            font-size: 60px;
+            margin-bottom: 15px;
+        }
+
+        .podium-place .name {
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .podium-place .score {
+            font-size: 32px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .ranking-table {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            border-collapse: collapse;
+        }
+
+        .ranking-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .ranking-table thead th {
+            padding: 15px;
+            color: white;
+            font-weight: 600;
+            text-align: left;
+        }
+
+        .ranking-table tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .ranking-table tbody td {
+            padding: 15px;
+            color: #333;
+        }
+
+        .ranking-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .btn-finish {
+            margin-top: 40px;
+            padding: 18px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-finish:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        @media (max-width: 1024px) {
+            .options-display {
+                grid-template-columns: 1fr;
+            }
+
+            .question-text {
+                font-size: 32px;
+            }
+
+            .podium {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .podium-place {
+                width: 100%;
+                max-width: 300px;
+                height: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header con estadísticas -->
+        <div class="game-header">
+            <h1>
+                <span>📺</span>
+                <span>{{ cuestionario['titulo'] }}</span>
+            </h1>
+
+            <div class="game-stats">
+                <div class="stat-box">
+                    <div class="label">Pregunta</div>
+                    <div class="value" id="question-counter">-/-</div>
+                </div>
+
+                <div class="stat-box timer-box">
+                    <div class="label">Tiempo</div>
+                    <div class="value" id="timer-display">--</div>
+                </div>
+
+                <div class="stat-box">
+                    <div class="label">Estudiantes</div>
+                    <div class="value">{{ total_estudiantes }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Área principal de visualización -->
+        <div id="display-area">
+            <!-- Pantalla de espera inicial (se oculta cuando inicia) -->
+            <div class="question-display" id="waiting-screen">
+                <div class="waiting-screen">
+                    <div class="icon">🎮</div>
+                    <h2>¡El juego está por comenzar!</h2>
+                    <p>Los estudiantes están respondiendo...</p>
+                </div>
+            </div>
+
+            <!-- Pantalla de pregunta (se muestra durante el juego) -->
+            <div class="question-display" id="question-screen" style="display: none;">
+                <div class="question-number" id="question-number-display">Pregunta 1 de {{ cuestionario['num_preguntas'] }}</div>
+                <div class="question-text" id="question-text-display"></div>
+                <div class="options-display" id="options-display"></div>
+                <div class="timer-bar-container">
+                    <div class="timer-bar-fill" id="timer-bar"></div>
+                </div>
+            </div>
+
+            <!-- Pantalla de resultados finales (se muestra al terminar) -->
+            <div class="results-screen" id="results-screen" style="display: none;">
+                <h2>🏆 Resultados Finales</h2>
+                
+                <div class="podium" id="podium">
+                    <!-- Se llenará con JavaScript -->
+                </div>
+
+                <table class="ranking-table">
+                    <thead>
+                        <tr>
+                            <th>Posición</th>
+                            <th>Estudiante</th>
+                            <th>Puntuación</th>
+                            <th>Tiempo Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ranking-body">
+                        <!-- Se llenará con JavaScript -->
+                    </tbody>
+                </table>
+
+                <button class="btn-finish" onclick="volverAlDashboard()">
+                    🏠 Volver al Dashboard
+                </button>
+            </div>
+        </div>
+
+        <!-- Panel de estudiantes en tiempo real -->
+        <div class="students-panel" style="margin-top: 25px;">
+            <h3>👥 Estudiantes en Vivo (<span id="students-count">{{ total_estudiantes }}</span>)</h3>
+            <div class="students-grid" id="students-grid">
+                <!-- Se llenará con JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const sesionId = '{{ sesion_id }}';
+        const codigoPin = '{{ cuestionario["codigo_pin"] }}';
+        const numPreguntas = {{ cuestionario['num_preguntas'] }};
+        const tiempoPorPregunta = {{ cuestionario['tiempo_pregunta'] }};
+        
+        let preguntaActual = 0;
+        let preguntas = {{ preguntas | tojson }};
+        let tiempoRestante = tiempoPorPregunta;
+        let timerInterval;
+        let pollInterval;
+        let estudiantesData = [];
+
+        console.log('🎮 Vista Profesor Iniciada');
+        console.log('📌 Sesión ID:', sesionId);
+        console.log('📋 Total preguntas:', numPreguntas);
+
+        // Cargar primera pregunta
+        function cargarPregunta(index) {
+            if (index >= preguntas.length) {
+                console.log('🏁 Todas las preguntas completadas');
+                mostrarResultadosFinales();
+                return;
+            }
+
+            const pregunta = preguntas[index];
+            preguntaActual = index;
+
+            console.log(`📝 Cargando pregunta ${index + 1}/${numPreguntas}`);
+
+            // Ocultar pantalla de espera, mostrar pregunta
+            document.getElementById('waiting-screen').style.display = 'none';
+            document.getElementById('question-screen').style.display = 'block';
+            document.getElementById('results-screen').style.display = 'none';
+
+            // Actualizar contador
+            document.getElementById('question-counter').textContent = `${index + 1}/${numPreguntas}`;
+            document.getElementById('question-number-display').textContent = `Pregunta ${index + 1} de ${numPreguntas}`;
+
+            // Mostrar pregunta
+            document.getElementById('question-text-display').textContent = pregunta.pregunta;
+
+            // Mostrar opciones
+            const optionsHTML = `
+                <div class="option-card">
+                    <div class="option-letter">A</div>
+                    <div class="option-text">${pregunta.opcion_a}</div>
+                </div>
+                <div class="option-card">
+                    <div class="option-letter">B</div>
+                    <div class="option-text">${pregunta.opcion_b}</div>
+                </div>
+                <div class="option-card">
+                    <div class="option-letter">C</div>
+                    <div class="option-text">${pregunta.opcion_c}</div>
+                </div>
+                <div class="option-card">
+                    <div class="option-letter">D</div>
+                    <div class="option-text">${pregunta.opcion_d}</div>
+                </div>
+            `;
+            document.getElementById('options-display').innerHTML = optionsHTML;
+
+            // Iniciar temporizador
+            iniciarTemporizador();
+        }
+
+        function iniciarTemporizador() {
+            clearInterval(timerInterval);
+            tiempoRestante = tiempoPorPregunta;
+            
+            const timerBar = document.getElementById('timer-bar');
+            timerBar.style.transition = 'none';
+            timerBar.style.width = '100%';
+
+            setTimeout(() => {
+                timerBar.style.transition = `width ${tiempoPorPregunta}s linear`;
+                timerBar.style.width = '0%';
+            }, 50);
+
+            actualizarDisplayTiempo();
+
+            timerInterval = setInterval(() => {
+                tiempoRestante--;
+                actualizarDisplayTiempo();
+
+                if (tiempoRestante <= 0) {
+                    clearInterval(timerInterval);
+                    console.log('⏰ Tiempo agotado para pregunta', preguntaActual + 1);
+                    
+                    // Esperar 3 segundos antes de cargar siguiente pregunta
+                    setTimeout(() => {
+                        cargarPregunta(preguntaActual + 1);
+                    }, 3000);
+                }
+            }, 1000);
+        }
+
+        function actualizarDisplayTiempo() {
+            document.getElementById('timer-display').textContent = tiempoRestante + 's';
+            document.getElementById('timer-bar').textContent = tiempoRestante + 's';
+        }
+
+        // Actualizar panel de estudiantes
+        function actualizarEstudiantes() {
+            fetch(`/api/estudiantes_en_sesion/${sesionId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        estudiantesData = data.estudiantes;
+                        renderizarEstudiantes();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al actualizar estudiantes:', error);
+                });
+        }
+
+        function renderizarEstudiantes() {
+            const grid = document.getElementById('students-grid');
+            
+            grid.innerHTML = estudiantesData.map(est => {
+                const respondio = est.pregunta_actual > preguntaActual;
+                const clase = respondio ? 'answered' : 'waiting';
+                const icono = respondio ? '✅' : '⏳';
+                const status = respondio ? 'Respondió' : 'Esperando...';
+                
+                return `
+                    <div class="student-item ${clase}">
+                        <div class="student-icon">${icono}</div>
+                        <div class="student-info">
+                            <div class="name">${est.nombre}</div>
+                            <div class="status">${status}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Mostrar resultados finales
+        function mostrarResultadosFinales() {
+            console.log('🏆 Mostrando resultados finales');
+            clearInterval(timerInterval);
+            clearInterval(pollInterval);
+
+            document.getElementById('waiting-screen').style.display = 'none';
+            document.getElementById('question-screen').style.display = 'none';
+            document.getElementById('results-screen').style.display = 'block';
+
+            // Obtener ranking final
+            fetch(`/api/ranking_final_sesion/${sesionId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderizarResultados(data.ranking);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al cargar ranking:', error);
+                });
+        }
+
+        function renderizarResultados(ranking) {
+            // Renderizar podio (top 3)
+            const podium = document.getElementById('podium');
+            const top3 = ranking.slice(0, 3);
+            
+            const podiumHTML = `
+                ${top3[1] ? `
+                    <div class="podium-place podium-2">
+                        <div class="medal">🥈</div>
+                        <div class="name">${top3[1].nombre}</div>
+                        <div class="score">${top3[1].puntuacion}</div>
+                    </div>
+                ` : ''}
+                
+                ${top3[0] ? `
+                    <div class="podium-place podium-1">
+                        <div class="medal">🥇</div>
+                        <div class="name">${top3[0].nombre}</div>
+                        <div class="score">${top3[0].puntuacion}</div>
+                    </div>
+                ` : ''}
+                
+                ${top3[2] ? `
+                    <div class="podium-place podium-3">
+                        <div class="medal">🥉</div>
+                        <div class="name">${top3[2].nombre}</div>
+                        <div class="score">${top3[2].puntuacion}</div>
+                    </div>
+                ` : ''}
+            `;
+            podium.innerHTML = podiumHTML;
+
+            // Renderizar tabla completa
+            const tbody = document.getElementById('ranking-body');
+            tbody.innerHTML = ranking.map((est, index) => {
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : (index + 1);
+                return `
+                    <tr>
+                        <td style="font-weight: bold; font-size: 20px;">${medal}</td>
+                        <td>${est.nombre}</td>
+                        <td style="font-weight: bold; color: #11998e;">${est.puntuacion}</td>
+                        <td>${est.tiempo_total}s</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function volverAlDashboard() {
+            window.location.href = '/dashboard_profesor';
+        }
+
+        // Inicializar
+        window.onload = function() {
+            console.log('✅ Inicializando vista del profesor');
+            
+            // Cargar primera pregunta
+            setTimeout(() => {
+                cargarPregunta(0);
+            }, 2000);
+
+            // Actualizar estudiantes cada 2 segundos
+            pollInterval = setInterval(actualizarEstudiantes, 2000);
+            actualizarEstudiantes();
+        };
+
+        // Limpiar al salir
+        window.addEventListener('beforeunload', function() {
+            clearInterval(timerInterval);
+            clearInterval(pollInterval);
+        });
+    </script>
+</body>
+</html>

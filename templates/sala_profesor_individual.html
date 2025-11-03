@@ -290,35 +290,41 @@
     }
 
     function iniciarTodasLasPartidas() {
-        if (!confirm('¿Estás seguro de iniciar todas las partidas individuales?')) return;
+    if (!confirm('¿Estás seguro de iniciar todas las partidas individuales?\n\nSerás redirigido a la vista de juego en vivo.')) return;
 
-        const btn = document.getElementById('btnIniciar');
-        btn.disabled = true;
-        btn.textContent = '⏳ Iniciando...';
+    const btn = document.getElementById('btnIniciar');
+    btn.disabled = true;
+    btn.textContent = '⏳ Iniciando...';
 
-        fetch('/profesor_iniciar_individuales/' + codigoPin, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                mostrarNotificacion('✅ ' + data.message);
-                actualizarEstudiantes();
-                btn.textContent = '✅ Partidas Iniciadas';
-                btn.style.background = '#28a745';
-            } else {
-                alert('❌ ' + data.message);
-                btn.disabled = false;
-                btn.textContent = '🚀 Iniciar Todas las Partidas';
-            }
-        })
-        .catch(error => {
-            alert('❌ Error: ' + error.message);
+    fetch('/profesor_iniciar_individuales/' + codigoPin, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Partidas iniciadas exitosamente');
+            console.log('🔗 Redirigiendo a:', data.redirect_url);
+
+            // Mostrar mensaje de éxito
+            mostrarNotificacion('✅ ' + data.message + ' - Redirigiendo...');
+
+            // Redireccionar a la vista del juego
+            setTimeout(() => {
+                window.location.href = data.redirect_url;
+            }, 1500);
+        } else {
+            alert('❌ ' + data.message);
             btn.disabled = false;
             btn.textContent = '🚀 Iniciar Todas las Partidas';
-        });
-    }
+        }
+    })
+    .catch(error => {
+        alert('❌ Error: ' + error.message);
+        btn.disabled = false;
+        btn.textContent = '🚀 Iniciar Todas las Partidas';
+    });
+}
 
     // Agregar CSS de animaciones
     const style = document.createElement('style');
