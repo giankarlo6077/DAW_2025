@@ -3683,6 +3683,126 @@ def importar_preguntas(cuestionario_id):
         traceback.print_exc()
         return redirect(url_for("importar_preguntas", cuestionario_id=cuestionario_id))
 
+@app.route("/crear_cuestionario_desde_excel", methods=["POST"])
+def crear_cuestionario_desde_excel():
+    """Crea un cuestionario completo importando preguntas desde Excel"""
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return redirect(url_for("login"))
+
+    try:
+        import pandas as pd
+
+        # Obtener datos del formulario
+        titulo = request.form.get('titulo')
+        descripcion = request.form.get('descripcion')
+        modo_juego = request.form.get('modo_juego')
+        tiempo_pregunta = int(request.form.get('tiempo_pregunta'))
+
+        # Verificar que se subió un archivo
+        if 'archivo_excel' not in request.files:
+            flash("❌ No se seleccionó ningún archivo", "error")
+            return redirect(url_for("dashboard_profesor"))
+
+        archivo = request.files['archivo_excel']
+
+        if archivo.filename == '':
+            flash("❌ No se seleccionó ningún archivo", "error")
+            return redirect(url_for("dashboard_profesor"))
+
+        # Verificar extensión
+        if not archivo.filename.endswith(('.xlsx', '.xls')):
+            flash("❌ El archivo debe ser un Excel (.xlsx o .xls)", "error")
+            return redirect(url_for("dashboard_profesor"))
+
+        # Leer el archivo Excel
+        df = pd.read_excel(archivo)
+
+        # Validar columnas requeridas
+        columnas_requeridas = ['Pregunta', 'Opcion_A', 'Opcion_B', 'Opcion_C',
+                              'Opcion_D', 'Respuesta_Correcta']
+
+        columnas_faltantes = [col for col in columnas_requeridas if col not in df.columns]
+        if columnas_faltantes:
+            flash(f"❌ Faltan columnas en el Excel: {', '.join(columnas_faltantes)}", "error")
+            return redirect(url_for("dashboard_profesor"))
+
+        # Limpiar datos vacíos
+        df = df.dropna(subset=['Pregunta'])
+
+        if len(df) == 0:
+            flash("❌ El archivo no contiene preguntas válidas", "error")
+            return redirect(url_for("dashboard_profesor"))
+
+        # Validar respuestas correctas
+        respuestas_validas = ['A', 'B', 'C', 'D']
+        for idx, row in df.iterrows():
+            respuesta = str(row['Respuesta_Correcta']).strip().upper()
+            if respuesta not in respuestas_validas:
+                flash(f"❌ Error en fila {idx + 2}: Respuesta correcta debe ser A, B, C o D (encontrado: {respuesta})", "error")
+                return redirect(url_for("dashboard_profesor"))
+
+        # El número de preguntas se determina por el Excel
+        num_preguntas = len(df)
+
+        # Generar PIN único
+        codigo_pin = generar_pin()
+        profesor_id = session["user_id"]
+
+        # Crear el cuestionario en la base de datos
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                # Insertar cuestionario
+                sql_cuestionario = """
+                    INSERT INTO cuestionarios
+                    (titulo, descripcion, modo_juego, tiempo_pregunta, num_preguntas, codigo_pin, profesor_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(sql_cuestionario, (
+                    titulo, descripcion, modo_juego, tiempo_pregunta,
+                    num_preguntas, codigo_pin, profesor_id
+                ))
+
+                cuestionario_id = cursor.lastrowid
+
+                # Insertar todas las preguntas
+                for idx, row in df.iterrows():
+                    sql_pregunta = """
+                        INSERT INTO preguntas
+                        (cuestionario_id, pregunta, opcion_a, opcion_b, opcion_c,
+                         opcion_d, respuesta_correcta, orden)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(sql_pregunta, (
+                        cuestionario_id,
+                        str(row['Pregunta']).strip(),
+                        str(row['Opcion_A']).strip(),
+                        str(row['Opcion_B']).strip(),
+                        str(row['Opcion_C']).strip(),
+                        str(row['Opcion_D']).strip(),
+                        str(row['Respuesta_Correcta']).strip().upper(),
+                        idx + 1
+                    ))
+
+                conexion.commit()
+
+                flash(f"✅ Cuestionario '{titulo}' creado exitosamente con {num_preguntas} preguntas importadas desde Excel", "success")
+                return redirect(url_for("dashboard_profesor"))
+
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+
+    except ImportError:
+        flash("❌ Error: Necesitas instalar pandas. Ejecuta: pip install pandas openpyxl", "error")
+        return redirect(url_for("dashboard_profesor"))
+    except Exception as e:
+        flash(f"❌ Error al crear cuestionario desde Excel: {str(e)}", "error")
+        print(f"Error en crear_cuestionario_desde_excel: {e}")
+        import traceback
+        traceback.print_exc()
+        return redirect(url_for("dashboard_profesor"))
+
 # --- MANEJO DE ERRORES ---
 
 @app.errorhandler(500)

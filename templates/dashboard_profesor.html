@@ -162,6 +162,13 @@
         .welcome-banner p {
             font-size: 16px;
             opacity: 0.9;
+            margin-bottom: 15px;
+        }
+
+        .banner-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
         }
 
         /* Botón principal */
@@ -177,12 +184,20 @@
             cursor: pointer;
             transition: all 0.3s;
             text-decoration: none;
-            margin-top: 15px;
         }
 
         .btn-primary:hover {
             transform: translateY(-3px);
             box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        }
+
+        .btn-excel {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-excel:hover {
+            background: #218838;
         }
 
         /* Stats Cards */
@@ -438,6 +453,63 @@
             background: #95a5a6;
         }
 
+        /* Upload Area */
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            background: #f8f9ff;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            background: #f0f2ff;
+            border-color: #764ba2;
+        }
+
+        .upload-area input[type="file"] {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: #667eea;
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .upload-hint {
+            color: #999;
+            font-size: 13px;
+        }
+
+        .file-name {
+            margin-top: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            color: #333;
+            font-weight: 600;
+            display: none;
+        }
+
+        .info-text {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #0d47a1;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .top-header {
@@ -461,6 +533,15 @@
             
             .quiz-actions {
                 grid-template-columns: 1fr;
+            }
+
+            .banner-buttons {
+                flex-direction: column;
+            }
+
+            .btn-primary {
+                width: 100%;
+                text-align: center;
             }
         }
     </style>
@@ -493,7 +574,10 @@
         <div class="welcome-banner">
             <h2>¡Bienvenido, {{ nombre }}! 👋</h2>
             <p>Crea cuestionarios interactivos para tus estudiantes. Aprendizaje gamificado y divertido.</p>
-            <button class="btn-primary" onclick="openCreateModal()">➕ Crear Nuevo Cuestionario</button>
+            <div class="banner-buttons">
+                <button class="btn-primary" onclick="openCreateModal()">➕ Crear Nuevo Cuestionario</button>
+                <button class="btn-primary btn-excel" onclick="openCreateFromExcelModal()">📥 Crear desde Excel</button>
+            </div>
         </div>
 
         <!-- Estadísticas -->
@@ -572,7 +656,7 @@
         </div>
     </div>
 
-    <!-- Modal Crear Cuestionario -->
+    <!-- Modal Crear Cuestionario Manual -->
     <div class="modal" id="createModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -610,6 +694,77 @@
         </div>
     </div>
 
+    <!-- Modal Crear desde Excel -->
+    <div class="modal" id="createFromExcelModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📥 Crear Cuestionario desde Excel</h3>
+            </div>
+            
+            <div class="info-text">
+                ℹ️ El número de preguntas se determinará automáticamente según las filas de tu archivo Excel.
+            </div>
+
+            <form method="POST" action="/crear_cuestionario_desde_excel" enctype="multipart/form-data" id="formCrearDesdeExcel">
+                <div class="form-group">
+                    <label>Título del Cuestionario</label>
+                    <input type="text" name="titulo" placeholder="Ej: Matemáticas Básicas" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Descripción</label>
+                    <textarea name="descripcion" rows="3" placeholder="Describe de qué trata este cuestionario..." required></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Modo de Juego</label>
+                    <select name="modo_juego" required>
+                        <option value="individual">Individual</option>
+                        <option value="grupal">Grupal</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Tiempo por Pregunta (segundos)</label>
+                    <input type="number" name="tiempo_pregunta" value="30" min="10" max="120" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Archivo Excel con Preguntas</label>
+                    <div class="upload-area" id="uploadAreaExcel">
+                        <label for="archivo_excel_crear" style="cursor: pointer;">
+                            <div class="upload-icon">📄</div>
+                            <div class="upload-text">Haz clic para seleccionar tu Excel</div>
+                            <div class="upload-hint">Formatos: .xlsx, .xls</div>
+                            <input type="file" 
+                                   id="archivo_excel_crear" 
+                                   name="archivo_excel" 
+                                   accept=".xlsx,.xls" 
+                                   required
+                                   onchange="mostrarNombreArchivoExcel(this)">
+                        </label>
+                        <div class="file-name" id="fileNameExcel"></div>
+                    </div>
+                </div>
+
+                <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <p style="color: #856404; font-size: 14px; margin: 0;">
+                        💡 <strong>Tip:</strong> 
+                        <a href="{{ url_for('descargar_plantilla_preguntas') }}" style="color: #856404; text-decoration: underline;">
+                            Descarga la plantilla Excel
+                        </a> 
+                        para asegurarte del formato correcto.
+                    </p>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-cancel" onclick="closeCreateFromExcelModal()">Cancelar</button>
+                    <button type="submit" class="btn" id="btnCrearDesdeExcel" disabled>✅ Crear Cuestionario</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         function toggleDropdown() {
             const menu = document.getElementById('dropdownMenu');
@@ -628,6 +783,31 @@
 
         function closeCreateModal() {
             document.getElementById('createModal').classList.remove('show');
+        }
+
+        function openCreateFromExcelModal() {
+            document.getElementById('createFromExcelModal').classList.add('show');
+        }
+
+        function closeCreateFromExcelModal() {
+            document.getElementById('createFromExcelModal').classList.remove('show');
+            document.getElementById('formCrearDesdeExcel').reset();
+            document.getElementById('fileNameExcel').style.display = 'none';
+            document.getElementById('btnCrearDesdeExcel').disabled = true;
+        }
+
+        function mostrarNombreArchivoExcel(input) {
+            const fileName = document.getElementById('fileNameExcel');
+            const btnCrear = document.getElementById('btnCrearDesdeExcel');
+
+            if (input.files && input.files[0]) {
+                fileName.textContent = '📄 ' + input.files[0].name;
+                fileName.style.display = 'block';
+                btnCrear.disabled = false;
+            } else {
+                fileName.style.display = 'none';
+                btnCrear.disabled = true;
+            }
         }
 
         function confirmarCrearCuestionario(event) {
