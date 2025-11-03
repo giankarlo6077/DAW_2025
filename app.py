@@ -3489,6 +3489,200 @@ def mi_inventario():
                          stats=stats,
                          nombre=session["usuario"])
 
+@app.route("/descargar_plantilla_preguntas")
+def descargar_plantilla_preguntas():
+    """Descarga una plantilla Excel vacía para importar preguntas"""
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return redirect(url_for("login"))
+
+    try:
+        import pandas as pd
+        from io import BytesIO
+        from flask import send_file
+
+        # Crear DataFrame con la estructura de la plantilla
+        plantilla_data = {
+            'Pregunta': [
+                '¿Cuál es la capital de Francia?',
+                '¿Cuánto es 2+2?',
+                '(Agrega más preguntas siguiendo este formato)'
+            ],
+            'Opcion_A': ['París', '3', ''],
+            'Opcion_B': ['Londres', '4', ''],
+            'Opcion_C': ['Madrid', '5', ''],
+            'Opcion_D': ['Roma', '6', ''],
+            'Respuesta_Correcta': ['A', 'B', '']
+        }
+
+        df = pd.DataFrame(plantilla_data)
+
+        # Crear archivo Excel en memoria
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Preguntas', index=False)
+
+            # Ajustar anchos de columna
+            worksheet = writer.sheets['Preguntas']
+            worksheet.column_dimensions['A'].width = 50
+            worksheet.column_dimensions['B'].width = 30
+            worksheet.column_dimensions['C'].width = 30
+            worksheet.column_dimensions['D'].width = 30
+            worksheet.column_dimensions['E'].width = 30
+            worksheet.column_dimensions['F'].width = 20
+
+        output.seek(0)
+
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='Plantilla_Preguntas_Cuestionario.xlsx'
+        )
+
+    except Exception as e:
+        flash(f"❌ Error al generar plantilla: {str(e)}", "error")
+        print(f"Error en descargar_plantilla_preguntas: {e}")
+        import traceback
+        traceback.print_exc()
+        return redirect(url_for("dashboard_profesor"))
+
+
+@app.route("/importar_preguntas/<int:cuestionario_id>", methods=["GET", "POST"])
+def importar_preguntas(cuestionario_id):
+    """Importa preguntas desde un archivo Excel"""
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return redirect(url_for("login"))
+
+    if request.method == "GET":
+        # Mostrar página de importación
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                cursor.execute("""
+                    SELECT * FROM cuestionarios
+                    WHERE id = %s AND profesor_id = %s
+                """, (cuestionario_id, session["user_id"]))
+                cuestionario = cursor.fetchone()
+
+                if not cuestionario:
+                    flash("❌ Cuestionario no encontrado", "error")
+                    return redirect(url_for("dashboard_profesor"))
+
+                return render_template("importar_preguntas.html",
+                                     cuestionario=cuestionario)
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+
+    # POST: Procesar archivo Excel
+    try:
+        import pandas as pd
+
+        # Verificar que se subió un archivo
+        if 'archivo_excel' not in request.files:
+            flash("❌ No se seleccionó ningún archivo", "error")
+            return redirect(url_for("importar_preguntas", cuestionario_id=cuestionario_id))
+
+        archivo = request.files['archivo_excel']
+
+        if archivo.filename == '':
+            flash("❌ No se seleccionó ningún archivo", "error")
+            return redirect(url_for("importar_preguntas", cuestionario_id=cuestionario_id))
+
+        # Verificar extensión
+        if not archivo.filename.endswith(('.xlsx', '.xls')):
+            flash("❌ El archivo debe ser un Excel (.xlsx o .xls)", "error")
+            return redirect(url_for("importar_preguntas", cuestionario_id=cuestionario_id))
+
+        # Leer el archivo Excel
+        df = pd.read_excel(archivo)
+
+        # Validar columnas requeridas
+        columnas_requeridas = ['Pregunta', 'Opcion_A', 'Opcion_B', 'Opcion_C',
+                              'Opcion_D', 'Respuesta_Correcta']
+
+        columnas_faltantes = [col for col in columnas_requeridas if col not in df.columns]
+        if columnas_faltantes:
+            flash(f"❌ Faltan columnas en el Excel: {', '.join(columnas_faltantes)}", "error")
+            return redirect(url_for("importar_preguntas", cuestionario_id=cuestionario_id))
+
+        # Limpiar datos vacíos
+        df = df.dropna(subset=['Pregunta'])
+
+        if len(df) == 0:
+            flash("❌ El archivo no contiene preguntas válidas", "error")
+            return redirect(url_for("importar_preguntas", cuestionario_id=cuestionario_id))
+
+        # Validar respuestas correctas
+        respuestas_validas = ['A', 'B', 'C', 'D']
+        for idx, row in df.iterrows():
+            respuesta = str(row['Respuesta_Correcta']).strip().upper()
+            if respuesta not in respuestas_validas:
+                flash(f"❌ Error en fila {idx + 2}: Respuesta correcta debe ser A, B, C o D (encontrado: {respuesta})", "error")
+                return redirect(url_for("importar_preguntas", cuestionario_id=cuestionario_id))
+
+        # Guardar preguntas en la base de datos
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                # Verificar que el cuestionario pertenece al profesor
+                cursor.execute("""
+                    SELECT num_preguntas FROM cuestionarios
+                    WHERE id = %s AND profesor_id = %s
+                """, (cuestionario_id, session["user_id"]))
+
+                cuestionario = cursor.fetchone()
+                if not cuestionario:
+                    flash("❌ Cuestionario no encontrado", "error")
+                    return redirect(url_for("dashboard_profesor"))
+
+                # Verificar que el número de preguntas coincide
+                if len(df) != cuestionario['num_preguntas']:
+                    flash(f"⚠️ El cuestionario requiere {cuestionario['num_preguntas']} preguntas, pero el Excel contiene {len(df)}. Se importarán las primeras {cuestionario['num_preguntas']}.", "warning")
+
+                # Limitar al número de preguntas del cuestionario
+                df = df.head(cuestionario['num_preguntas'])
+
+                # Eliminar preguntas existentes
+                cursor.execute("""
+                    DELETE FROM preguntas WHERE cuestionario_id = %s
+                """, (cuestionario_id,))
+
+                # Insertar nuevas preguntas
+                for idx, row in df.iterrows():
+                    sql = """
+                        INSERT INTO preguntas
+                        (cuestionario_id, pregunta, opcion_a, opcion_b, opcion_c,
+                         opcion_d, respuesta_correcta, orden)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(sql, (
+                        cuestionario_id,
+                        str(row['Pregunta']).strip(),
+                        str(row['Opcion_A']).strip(),
+                        str(row['Opcion_B']).strip(),
+                        str(row['Opcion_C']).strip(),
+                        str(row['Opcion_D']).strip(),
+                        str(row['Respuesta_Correcta']).strip().upper(),
+                        idx + 1
+                    ))
+
+                conexion.commit()
+
+                flash(f"✅ Se importaron {len(df)} preguntas exitosamente", "success")
+                return redirect(url_for("dashboard_profesor"))
+
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+
+    except Exception as e:
+        flash(f"❌ Error al procesar el archivo: {str(e)}", "error")
+        print(f"Error en importar_preguntas: {e}")
+        import traceback
+        traceback.print_exc()
+        return redirect(url_for("importar_preguntas", cuestionario_id=cuestionario_id))
+
 # --- MANEJO DE ERRORES ---
 
 @app.errorhandler(500)
