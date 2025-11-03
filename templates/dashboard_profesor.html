@@ -302,7 +302,8 @@
         }
 
         .quiz-actions {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
             gap: 10px;
             margin-top: 15px;
             padding-top: 15px;
@@ -316,7 +317,7 @@
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.3s;
-            flex: 1;
+            font-weight: 600;
         }
 
         .btn-play {
@@ -337,30 +338,6 @@
         .btn-small:hover {
             opacity: 0.8;
             transform: scale(1.05);
-        }
-
-        /* Tabla de resultados */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        th {
-            background: #f8f9fa;
-            color: #333;
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        tr:hover {
-            background: #f8f9fa;
         }
 
         .badge {
@@ -481,6 +458,10 @@
                 align-items: flex-start;
                 gap: 10px;
             }
+            
+            .quiz-actions {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -547,46 +528,48 @@
             </div>
 
             <div class="quiz-grid">
-    {% if cuestionarios %}
-        {% for cuestionario in cuestionarios %}
-        <div class="quiz-card">
-            <h3>{{ cuestionario['titulo'] }}</h3>
-            <div class="quiz-meta">
-                <span>📝 {{ cuestionario['total_preguntas'] }} preguntas</span>
-                <span>⏱️ {{ cuestionario['tiempo_pregunta'] }} seg/preg</span>
-            </div>
-            <p style="color: #666; font-size: 14px;">{{ cuestionario['descripcion'] }}</p>
+                {% if cuestionarios %}
+                    {% for cuestionario in cuestionarios %}
+                    <div class="quiz-card">
+                        <h3>{{ cuestionario['titulo'] }}</h3>
+                        <div class="quiz-meta">
+                            <span>📝 {{ cuestionario['total_preguntas'] }} preguntas</span>
+                            <span>⏱️ {{ cuestionario['tiempo_pregunta'] }} seg/preg</span>
+                        </div>
+                        <p style="color: #666; font-size: 14px;">{{ cuestionario['descripcion'] }}</p>
 
-            <!-- Mostrar el modo de juego -->
-            <div style="margin-top: 10px; display: flex; gap: 10px; align-items: center;">
-                <span class="badge badge-active">PIN: {{ cuestionario['codigo_pin'] }}</span>
-                <span class="badge" style="{% if cuestionario['modo_juego'] == 'grupal' %}background: #d1ecf1; color: #0c5460;{% else %}background: #fff3cd; color: #856404;{% endif %}">
-                    {% if cuestionario['modo_juego'] == 'grupal' %}👥 Grupal{% else %}👤 Individual{% endif %}
-                </span>
-            </div>
+                        <!-- Mostrar el modo de juego -->
+                        <div style="margin-top: 10px; display: flex; gap: 10px; align-items: center;">
+                            <span class="badge badge-active">PIN: {{ cuestionario['codigo_pin'] }}</span>
+                            <span class="badge" style="{% if cuestionario['modo_juego'] == 'grupal' %}background: #d1ecf1; color: #0c5460;{% else %}background: #fff3cd; color: #856404;{% endif %}">
+                                {% if cuestionario['modo_juego'] == 'grupal' %}👥 Grupal{% else %}👤 Individual{% endif %}
+                            </span>
+                        </div>
 
-            <div class="quiz-actions">
-                <button class="btn-small btn-play" onclick="startQuiz('{{ cuestionario['codigo_pin'] }}', '{{ cuestionario['modo_juego'] }}')">
-                    {% if cuestionario['modo_juego'] == 'grupal' %}
-                    🎮 Sala Grupal
-                    {% else %}
-                    📋 Ver PIN
-                    {% endif %}
-                </button>
-                <button class="btn-small btn-edit" onclick="editQuiz({{ cuestionario['id'] }})">✏️ Editar</button>
-                <button class="btn-small btn-delete" onclick="deleteQuiz({{ cuestionario['id'] }})">🗑️</button>
-                <button class="btn-small" style="background: #17a2b8; color: white;" onclick="exportarResultados({{ cuestionario['id'] }})">📊 Excel</button>
+                        <div class="quiz-actions">
+                            <button class="btn-small btn-play" onclick="startQuiz('{{ cuestionario['codigo_pin'] }}', '{{ cuestionario['modo_juego'] }}')">
+                                {% if cuestionario['modo_juego'] == 'grupal' %}
+                                🎮 Sala Grupal
+                                {% else %}
+                                📋 Ver PIN
+                                {% endif %}
+                            </button>
+                            <button class="btn-small btn-edit" onclick="editQuiz({{ cuestionario['id'] }})">✏️ Editar</button>
+                            <button class="btn-small btn-delete" onclick="deleteQuiz({{ cuestionario['id'] }})">🗑️ Eliminar</button>
+                            <button class="btn-small" style="background: #17a2b8; color: white;" onclick="exportarResultados({{ cuestionario['id'] }})">📊 Excel</button>
+                            <button class="btn-small" style="background: #28a745; color: white;" onclick="importarPreguntas({{ cuestionario['id'] }})">📥 Importar</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #999;">
+                        <p style="font-size: 48px; margin-bottom: 10px;">📝</p>
+                        <p style="font-size: 18px; margin-bottom: 10px;">No tienes cuestionarios creados</p>
+                        <p style="font-size: 14px;">Haz clic en "Crear Nuevo Cuestionario" para comenzar</p>
+                    </div>
+                {% endif %}
             </div>
         </div>
-        {% endfor %}
-    {% else %}
-        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #999;">
-            <p style="font-size: 48px; margin-bottom: 10px;">📝</p>
-            <p style="font-size: 18px; margin-bottom: 10px;">No tienes cuestionarios creados</p>
-            <p style="font-size: 14px;">Haz clic en "Crear Nuevo Cuestionario" para comenzar</p>
-        </div>
-    {% endif %}
-</div>
     </div>
 
     <!-- Modal Crear Cuestionario -->
@@ -660,16 +643,20 @@
         }
 
         function startQuiz(code, modoJuego) {
-    if (modoJuego === 'grupal') {
-        window.location.href = `/sala_profesor/${code}`;
-    } else {
-        window.location.href = `/sala_profesor_individual/${code}`;
-    }
-}
+            if (modoJuego === 'grupal') {
+                window.location.href = `/sala_profesor/${code}`;
+            } else {
+                window.location.href = `/sala_profesor_individual/${code}`;
+            }
+        }
 
-function exportarResultados(cuestionarioId) {
-    window.location.href = `/exportar_resultados/${cuestionarioId}`;
-}
+        function exportarResultados(cuestionarioId) {
+            window.location.href = `/exportar_resultados/${cuestionarioId}`;
+        }
+
+        function importarPreguntas(cuestionarioId) {
+            window.location.href = `/importar_preguntas/${cuestionarioId}`;
+        }
 
         function editQuiz(id) {
             window.location.href = `/editar_cuestionario/${id}`;
