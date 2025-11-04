@@ -1126,6 +1126,70 @@ def juego_grupo():
         if conexion and conexion.open:
             conexion.close()
 
+@app.route("/profesor_vista_juego_grupal/<codigo_pin>")
+def profesor_vista_juego_grupal(codigo_pin):
+    """Vista en vivo del profesor durante el juego grupal"""
+    print(f"\n{'='*70}")
+    print(f"📺 PROFESOR VISTA JUEGO GRUPAL - PIN: {codigo_pin}")
+    print(f"{'='*70}")
+
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return redirect(url_for("login"))
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener cuestionario
+            cursor.execute("""
+                SELECT * FROM cuestionarios
+                WHERE codigo_pin = %s AND profesor_id = %s
+            """, (codigo_pin, session["user_id"]))
+            cuestionario = cursor.fetchone()
+
+            if not cuestionario:
+                flash("❌ Cuestionario no encontrado", "error")
+                return redirect(url_for("dashboard_profesor"))
+
+            # Obtener preguntas
+            cursor.execute("""
+                SELECT id, pregunta, opcion_a, opcion_b, opcion_c, opcion_d, respuesta_correcta
+                FROM preguntas
+                WHERE cuestionario_id = %s
+                ORDER BY orden
+            """, (cuestionario['id'],))
+            preguntas = cursor.fetchall()
+
+            # Obtener grupos activos para este cuestionario
+            cursor.execute("""
+                SELECT id, nombre_grupo
+                FROM grupos
+                WHERE active_pin = %s AND game_state IN ('waiting', 'playing')
+            """, (codigo_pin,))
+            grupos = cursor.fetchall()
+
+            grupos_ids = [g['id'] for g in grupos]
+            total_grupos = len(grupos_ids)
+
+            print(f"✅ Total grupos activos: {total_grupos}")
+            print(f"✅ Total preguntas: {len(preguntas)}")
+
+            return render_template("profesor_vista_juego_grupal.html",
+                                   cuestionario=cuestionario,
+                                   preguntas=preguntas,
+                                   grupos_ids=grupos_ids,
+                                   total_grupos=total_grupos)
+
+    except Exception as e:
+        print(f"❌ Error en profesor_vista_juego_grupal: {e}")
+        import traceback
+        traceback.print_exc()
+        flash("❌ Error al cargar la vista del juego", "error")
+        return redirect(url_for("dashboard_profesor"))
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
 @app.route("/api/miembros_grupo/<int:grupo_id>")
 def api_miembros_grupo(grupo_id):
     """Obtiene los miembros de un grupo en tiempo real"""

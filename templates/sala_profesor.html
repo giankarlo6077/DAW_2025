@@ -152,18 +152,50 @@
         function actualizarContadores(grupos) {
             const totalGrupos = grupos.length;
             let totalJugadores = 0;
-            
+
             grupos.forEach(g => totalJugadores += g.num_miembros);
-            
+
             document.getElementById('total-grupos').textContent = totalGrupos;
             document.getElementById('total-jugadores').textContent = totalJugadores;
         }
 
+        function iniciarTodasLasPartidas() {
+            if (!confirm('¿Estás seguro de iniciar todas las partidas?')) return;
+
+            const btn = document.getElementById('btnIniciar');
+            btn.disabled = true;
+            btn.textContent = '⏳ Iniciando...';
+
+            fetch('/profesor_iniciar_partidas/' + codigoPin, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarNotificacion('✅ ' + data.message);
+
+                    // ✅ REDIRIGIR A LA VISTA DEL JUEGO EN VIVO
+                    setTimeout(() => {
+                        window.location.href = `/profesor_vista_juego_grupal/${codigoPin}`;
+                    }, 1500);
+                } else {
+                    alert('❌ ' + data.message);
+                    btn.disabled = false;
+                    btn.textContent = '🚀 Iniciar Todas las Partidas';
+                }
+            })
+            .catch(error => {
+                alert('❌ Error: ' + error.message);
+                btn.disabled = false;
+                btn.textContent = '🚀 Iniciar Todas las Partidas';
+            });
+        }
         // Función para crear el HTML de un grupo
         function crearGrupoHTML(grupo) {
             const estadoClase = grupo.game_state;
             let estadoTexto = '';
-            
+
             if (grupo.game_state === 'waiting') {
                 estadoTexto = '⏳ Esperando';
             } else if (grupo.game_state === 'playing') {
@@ -171,10 +203,10 @@
             } else {
                 estadoTexto = grupo.game_state;
             }
-            
+
             const miembros = grupo.miembros ? grupo.miembros.split(', ') : [];
             const miembrosHTML = miembros.map(m => '<li>• ' + m + '</li>').join('');
-            
+
             return '<div class="grupo-card" data-grupo-id="' + grupo.id + '" style="animation: slideIn 0.5s ease;">' +
                 '<h3>' + grupo.nombre_grupo + '</h3>' +
                 '<div class="grupo-info"><span>Estado:</span><span class="estado ' + estadoClase + '">' + estadoTexto + '</span></div>' +
@@ -186,7 +218,7 @@
         // Función principal para actualizar grupos
         function actualizarGrupos() {
             console.log('🔄 Consultando grupos para PIN:', codigoPin);
-            
+
             fetch('/api/grupos_esperando/' + codigoPin)
                 .then(response => response.json())
                 .then(grupos => {
@@ -218,7 +250,7 @@
                     }
 
                     // Comparar con grupos actuales para detectar nuevos
-                    const gruposNuevos = grupos.filter(g => 
+                    const gruposNuevos = grupos.filter(g =>
                         !gruposActuales.find(ga => ga.id === g.id)
                     );
 
@@ -253,7 +285,7 @@
                     // Agregar o actualizar grupos
                     grupos.forEach(grupo => {
                         const card = container.querySelector('[data-grupo-id="' + grupo.id + '"]');
-                        
+
                         if (!card) {
                             // Crear nueva card
                             const tempDiv = document.createElement('div');
