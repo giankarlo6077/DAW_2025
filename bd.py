@@ -9,5 +9,4 @@ def obtener_conexion():
         db='kahootg4$pf',
         cursorclass=pymysql.cursors.DictCursor,
         charset='utf8mb4',
-        init_command="SET time_zone = '-05:00'"
     )

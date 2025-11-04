@@ -37,18 +37,18 @@
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             margin-bottom: 30px;
         }
-        
+
         .trophy-icon {
             font-size: 80px;
             margin-bottom: 15px;
             animation: bounce 2s infinite;
         }
-        
+
         @keyframes bounce {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-10px); }
         }
-        
+
         .results-header h1 {
             color: #333;
             font-size: 36px;
@@ -71,28 +71,28 @@
             font-weight: bold;
             margin: 20px 0;
         }
-        
+
         .position-1 {
             background: linear-gradient(135deg, var(--color-gold), #FFA500);
             color: white;
             animation: pulse 2s infinite;
         }
-        
+
         .position-2 {
             background: linear-gradient(135deg, var(--color-silver), #A8A8A8);
             color: white;
         }
-        
+
         .position-3 {
             background: linear-gradient(135deg, var(--color-bronze), #B87333);
             color: white;
         }
-        
+
         .position-other {
             background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
             color: white;
         }
-        
+
         @keyframes pulse {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.05); }
@@ -183,11 +183,11 @@
             width: 100%;
             border-collapse: collapse;
         }
-        
+
         .ranking-table thead {
             background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
         }
-        
+
         .ranking-table thead th {
             padding: 15px;
             color: white;
@@ -195,26 +195,26 @@
             text-align: left;
             font-size: 14px;
         }
-        
+
         .ranking-table tbody tr {
             border-bottom: 1px solid #f0f0f0;
             transition: background 0.3s;
         }
-        
+
         .ranking-table tbody tr:hover {
             background: #f8f9fa;
         }
-        
+
         .ranking-table tbody tr.current-user {
             background: linear-gradient(90deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
             border-left: 5px solid var(--color-primary);
         }
-        
+
         .ranking-table tbody td {
             padding: 15px;
             color: #333;
         }
-        
+
         .rank-position {
             display: flex;
             align-items: center;
@@ -222,20 +222,20 @@
             font-weight: bold;
             font-size: 18px;
         }
-        
+
         .rank-medal {
             font-size: 24px;
         }
-        
+
         .student-name {
             font-weight: 600;
         }
-        
+
         .current-user .student-name {
             color: var(--color-primary);
             font-weight: 700;
         }
-        
+
         .score-value {
             font-size: 20px;
             font-weight: bold;
@@ -508,7 +508,7 @@
 
         <div class="ranking-section">
             <h3>🏆 Clasificación General</h3>
-            
+
             <table class="ranking-table">
                 <thead>
                     <tr>
@@ -546,7 +546,11 @@
                             <div class="score-value">{{ participante.puntuacion_final }}</div>
                         </td>
                         <td style="font-size: 13px; color: #666;">
-                            {{ participante.fecha_realizacion | hora_peru }}
+                                {% if participante.fecha_realizacion %}
+                                {{ participante.fecha_realizacion.strftime('%d/%m/%Y %H:%M') }}
+                                 {% else %}
+                                Fecha no disponible
+                                {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -559,27 +563,27 @@
             <h3 style="color: #333; font-size: 24px; margin-bottom: 25px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 10px;">
                 <span>🎁</span> Recompensas Obtenidas
             </h3>
-            
+
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
                 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 15px; text-align: center; color: white;">
                     <div style="font-size: 40px; margin-bottom: 10px;">⭐</div>
                     <div style="font-size: 32px; font-weight: bold;">+{{ recompensas.xp_ganada }}</div>
                     <div style="font-size: 14px; opacity: 0.9;">XP Ganada</div>
                 </div>
-                
+
                 <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 15px; text-align: center; color: white;">
                     <div style="font-size: 40px; margin-bottom: 10px;">💰</div>
                     <div style="font-size: 32px; font-weight: bold;">+{{ recompensas.monedas_ganadas }}</div>
                     <div style="font-size: 14px; opacity: 0.9;">Monedas</div>
                 </div>
-                
+
                 <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 20px; border-radius: 15px; text-align: center; color: white;">
                     <div style="font-size: 40px; margin-bottom: 10px;">🏆</div>
                     <div style="font-size: 32px; font-weight: bold;">Nivel {{ recompensas.nivel_actual }}</div>
                     <div style="font-size: 14px; opacity: 0.9;">Tu Nivel</div>
                 </div>
             </div>
-            
+
             {% if recompensas.insignias_nuevas and recompensas.insignias_nuevas|length > 0 %}
             <div style="margin-top: 25px; padding: 20px; background: #f8f9fa; border-radius: 15px;">
                 <h4 style="color: #333; text-align: center; margin-bottom: 15px;">🎖️ Nuevas Insignias Desbloqueadas</h4>
@@ -594,7 +598,7 @@
                 </div>
             </div>
             {% endif %}
-            
+
             <div style="text-align: center; margin-top: 20px;">
                 <a href="{{ url_for('perfil_recompensas') }}" style="display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 10px; font-weight: 600;">
                     🏆 Ver Mi Perfil Completo
@@ -650,7 +654,7 @@
                 </div>
 
                 <div style="margin-top: 15px; font-size: 14px; color: #666;">
-                    ⏱️ Respondiste en <strong>{{ respuesta.tiempo_respuesta }}s</strong> 
+                    ⏱️ Respondiste en <strong>{{ respuesta.tiempo_respuesta }}s</strong>
                     de {{ respuesta.tiempo_pregunta }}s disponibles
                     {% if respuesta.es_correcta %}
                         {% set porcentaje_tiempo = (respuesta.tiempo_respuesta / respuesta.tiempo_pregunta * 100) | round %}

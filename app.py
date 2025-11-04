@@ -2872,6 +2872,12 @@ def resultados_individual(historial_id):
 
             ranking_completo = cursor.fetchall()
 
+            for participante in ranking_completo:
+                if participante.get('fecha_realizacion'):
+                    participante['fecha_realizacion'] = convertir_a_hora_peru(
+                        participante['fecha_realizacion']
+                    )
+
             # --- INICIO DE LA CORRECCIÓN ---
             # 3. Obtener el detalle de las respuestas para este historial
             print("\n📋 Consultando detalle de respuestas...")
@@ -2966,7 +2972,8 @@ def resultados_individual(historial_id):
 
             # 6. Formatear fecha
             try:
-                fecha_realizacion_str = historial['fecha_realizacion'].strftime('%d/%m/%Y a las %H:%M')
+                fecha_realizacion_peru = convertir_a_hora_peru(historial['fecha_realizacion'])
+                fecha_realizacion_str = fecha_realizacion_peru.strftime('%d/%m/%Y a las %H:%M')
             except Exception as e:
                 print(f"⚠️ Error al formatear fecha: {e}")
                 fecha_realizacion_str = "Fecha no disponible"
