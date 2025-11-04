@@ -4177,7 +4177,6 @@ def login_facial():
 
 @app.route("/verificar_rostro_login", methods=["POST"])
 def verificar_rostro_login():
-    """Verifica el rostro capturado contra los embeddings en la base de datos"""
     try:
         data = request.get_json()
         embedding_capturado = data.get('embedding')
@@ -4191,11 +4190,11 @@ def verificar_rostro_login():
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
-                # Obtener todos los embeddings registrados
+                # CORRECCIÓN CRÍTICA: Leer la codificacion_facial de la tabla usuarios
                 cursor.execute("""
-                    SELECT fe.usuario_id, fe.embedding, u.nombre, u.correo, u.rol, u.verificado
-                    FROM face_embeddings fe
-                    JOIN usuarios u ON fe.usuario_id = u.id
+                    SELECT id as usuario_id, codificacion_facial as embedding, nombre, correo, rol, verificado
+                    FROM usuarios
+                    WHERE codificacion_facial IS NOT NULL
                 """)
 
                 usuarios_registrados = cursor.fetchall()
@@ -4206,12 +4205,13 @@ def verificar_rostro_login():
                         "message": "No hay usuarios con reconocimiento facial registrado"
                     }), 404
 
-                # Buscar coincidencia por distancia euclidiana
+                # (La lógica de distancia euclidiana sigue igual)
                 mejor_coincidencia = None
                 mejor_similitud = float('inf')
                 umbral_similitud = 0.6
 
                 for usuario in usuarios_registrados:
+                    # El campo 'embedding' (codificacion_facial) está en formato JSON
                     embedding_db = json.loads(usuario['embedding'])
 
                     # Calcular distancia euclidiana
@@ -4289,24 +4289,12 @@ def guardar_embedding_facial():
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
-                # Verificar si ya tiene un registro facial
-                cursor.execute("SELECT id FROM face_embeddings WHERE usuario_id = %s", (user_id,))
-                existe = cursor.fetchone()
-
-                if existe:
-                    # Actualizar
-                    cursor.execute("""
-                        UPDATE face_embeddings
-                        SET embedding = %s, fecha_registro = NOW()
-                        WHERE usuario_id = %s
-                    """, (embedding_json, user_id))
-                else:
-                    # Insertar nuevo
-                    cursor.execute("""
-                        INSERT INTO face_embeddings (usuario_id, embedding)
-                        VALUES (%s, %s)
-                    """, (user_id, embedding_json))
-
+                # CORRECCIÓN CRÍTICA: Actualizar la columna codificacion_facial en la tabla usuarios
+                cursor.execute("""
+                    UPDATE usuarios
+                    SET codificacion_facial = %s
+                    WHERE id = %s
+                """, (embedding_json, user_id))
                 conexion.commit()
 
                 return jsonify({

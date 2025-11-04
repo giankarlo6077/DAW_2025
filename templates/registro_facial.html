@@ -3,289 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro de Reconocimiento Facial</title>
+    <title>Registro Facial</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .container {
-            background: white;
-            border-radius: 20px;
-            padding: 40px;
-            max-width: 600px;
-            width: 100%;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .header h1 {
-            color: #333;
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
-
-        .header p {
-            color: #666;
-            font-size: 16px;
-        }
-
-        .camera-container {
-            position: relative;
-            width: 100%;
-            max-width: 400px;
-            margin: 0 auto 30px;
-            border-radius: 15px;
-            overflow: hidden;
-            background: #000;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-        }
-
-        #video {
-            width: 100%;
-            display: block;
-            border-radius: 15px;
-            transform: scaleX(-1); /* Efecto espejo */
-        }
-
-        #canvas {
-            display: none;
-        }
-
-        .face-overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 200px;
-            height: 200px;
-            border: 3px dashed rgba(255, 255, 255, 0.6);
-            border-radius: 50%;
-            pointer-events: none;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 0.6;
-                transform: translate(-50%, -50%) scale(1);
-            }
-            50% {
-                opacity: 1;
-                transform: translate(-50%, -50%) scale(1.05);
-            }
-        }
-
-        .instructions {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 25px;
-            border-left: 4px solid #667eea;
-        }
-
-        .instructions h3 {
-            color: #333;
-            font-size: 18px;
-            margin-bottom: 10px;
-        }
-
-        .instructions ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        .instructions li {
-            color: #666;
-            padding: 8px 0;
-            padding-left: 25px;
-            position: relative;
-        }
-
-        .instructions li::before {
-            content: "✓";
-            position: absolute;
-            left: 0;
-            color: #667eea;
-            font-weight: bold;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 15px;
-            margin-top: 25px;
-        }
-
-        .btn {
-            flex: 1;
-            padding: 15px;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-primary:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-secondary {
-            background: #e0e0e0;
-            color: #333;
-        }
-
-        .btn-secondary:hover {
-            background: #d0d0d0;
-        }
-
-        .status-message {
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            display: none;
-            text-align: center;
-            font-weight: 600;
-            animation: slideIn 0.3s ease;
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .status-message.show {
-            display: block;
-        }
-
-        .status-message.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .status-message.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .status-message.info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
-
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
-
-        .loading.show {
-            display: block;
-        }
-
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .back-link {
-            display: block;
-            text-align: center;
-            color: #667eea;
-            text-decoration: none;
-            margin-top: 20px;
-            font-weight: 600;
-        }
-
-        .back-link:hover {
-            text-decoration: underline;
-        }
-
-        .preview-container {
-            display: none;
-            text-align: center;
-            margin-top: 20px;
-        }
-
-        .preview-container.show {
-            display: block;
-        }
-
-        .preview-image {
-            max-width: 200px;
-            border-radius: 10px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-            margin-bottom: 15px;
-        }
-
-        @media (max-width: 600px) {
-            .container {
-                padding: 25px;
-            }
-
-            .header h1 {
-                font-size: 24px;
-            }
-
-            .button-group {
-                flex-direction: column;
-            }
-
-            .face-overlay {
-                width: 150px;
-                height: 150px;
-            }
-        }
+        /* [Estilos CSS: Mantener el CSS anterior para la apariencia] */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .container { background: white; border-radius: 20px; padding: 40px; max-width: 600px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #333; font-size: 28px; margin-bottom: 10px; }
+        .header p { color: #666; font-size: 16px; }
+        .camera-container { position: relative; width: 100%; max-width: 400px; margin: 0 auto 30px; border-radius: 15px; overflow: hidden; background: #000; box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
+        #video { width: 100%; display: block; border-radius: 15px; transform: scaleX(-1); }
+        #canvas { display: none; }
+        .face-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 200px; border: 3px dashed rgba(102, 126, 234, 0.8); border-radius: 50%; pointer-events: none; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } }
+        .instructions { background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 25px; border-left: 4px solid #667eea; }
+        .instructions h3 { color: #333; font-size: 18px; margin-bottom: 10px; }
+        .instructions ul { list-style: none; padding: 0; }
+        .instructions li { color: #666; padding: 8px 0; padding-left: 25px; position: relative; }
+        .instructions li::before { content: "✓"; position: absolute; left: 0; color: #667eea; font-weight: bold; }
+        .button-group { display: flex; gap: 15px; margin-top: 25px; }
+        .btn { flex: 1; padding: 15px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 0.5px; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+        .btn-secondary { background: #e0e0e0; color: #333; }
+        .btn-secondary:hover { background: #d0d0d0; }
+        .status-message { padding: 15px; border-radius: 10px; margin-bottom: 20px; display: none; text-align: center; font-weight: 600; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .status-message.show { display: block; }
+        .status-message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status-message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status-message.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .loading { display: none; text-align: center; padding: 20px; }
+        .loading.show { display: block; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .back-link { display: block; text-align: center; color: #667eea; text-decoration: none; margin-top: 20px; font-weight: 600; }
+        .back-link:hover { text-decoration: underline; }
+        .preview-container { display: none; text-align: center; margin-top: 20px; }
+        .preview-container.show { display: block; }
+        .preview-image { max-width: 200px; border-radius: 10px; box-shadow: 0 3px 10px rgba(0,0,0,0.2); margin-bottom: 15px; }
+        @media (max-width: 600px) { .container { padding: 25px; } .header h1 { font-size: 24px; } .button-group { flex-direction: column; } .face-overlay { width: 150px; height: 150px; } }
     </style>
 </head>
 <body>
@@ -339,9 +99,7 @@
         <a href="#" class="back-link" onclick="volver(); return false;">Volver al Dashboard</a>
     </div>
 
-    <!-- TensorFlow.js y Face Detection API -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-detection"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 
     <script>
         const video = document.getElementById('video');
@@ -354,53 +112,53 @@
         const previewImage = document.getElementById('previewImage');
         
         let stream = null;
-        let detector = null;
+        let modelsLoaded = false; // Usamos esto para controlar la carga
         
         const rol = '{{ rol }}';
+        
+        // Cargar Modelos de Face-API
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
 
-        // Función para mostrar mensajes
         function mostrarMensaje(mensaje, tipo) {
             statusMessage.textContent = mensaje;
             statusMessage.className = 'status-message show ' + tipo;
             
-            if (tipo === 'success' || tipo === 'error') {
+            if (tipo === 'success' || tipo === 'error' || tipo === 'info') {
+                 // Mantener el mensaje de éxito/error visible por un momento
                 setTimeout(() => {
                     statusMessage.classList.remove('show');
                 }, 5000);
             }
         }
 
-        // Cargar modelo de detección facial
-        async function cargarModelo() {
+        async function cargarModelos() {
             try {
-                console.log('🔄 Cargando modelo de detección facial...');
-                mostrarMensaje('⏳ Cargando modelo de reconocimiento...', 'info');
+                console.log('🔄 Cargando modelos de reconocimiento...');
+                mostrarMensaje('⏳ Cargando modelos de reconocimiento...', 'info');
                 
-                const model = faceDetection.SupportedModels.MediaPipeFaceDetector;
-                const detectorConfig = {
-                    runtime: 'tfjs',
-                    maxFaces: 1
-                };
+                await Promise.all([
+                    // Cargamos los modelos necesarios para detectar y generar el descriptor
+                    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                ]);
                 
-                detector = await faceDetection.createDetector(model, detectorConfig);
-                
-                console.log('✅ Modelo cargado exitosamente');
-                mostrarMensaje('✅ Sistema listo. Puedes iniciar la cámara.', 'success');
+                modelsLoaded = true;
+                console.log('✅ Modelos cargados exitosamente');
+                mostrarMensaje('✅ Sistema de reconocimiento listo.', 'success');
                 return true;
             } catch (error) {
-                console.error('❌ Error al cargar modelo:', error);
-                mostrarMensaje('❌ Error al cargar el sistema: ' + error.message, 'error');
+                console.error('❌ Error al cargar modelos:', error);
+                mostrarMensaje('❌ Error al cargar el sistema. Revisa la consola.', 'error');
                 return false;
             }
         }
-
+        
         // Iniciar cámara
         async function iniciarCamara() {
             try {
-                // Verificar que el detector esté listo
-                if (!detector) {
-                    const cargado = await cargarModelo();
-                    if (!cargado) return;
+                if (!modelsLoaded) {
+                    await cargarModelos();
                 }
 
                 mostrarMensaje('📷 Iniciando cámara...', 'info');
@@ -423,54 +181,67 @@
                 btnCapturar.disabled = false;
                 mostrarMensaje('✅ Cámara activa. Posiciona tu rostro y captura.', 'success');
 
+                // Asegurar que el tamaño del video se refleje en el canvas
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                };
+
             } catch (error) {
                 console.error('❌ Error al iniciar cámara:', error);
                 mostrarMensaje('❌ No se pudo acceder a la cámara. Verifica los permisos.', 'error');
+                btnIniciarCamara.disabled = false;
             }
         }
 
-        // Capturar rostro
+        // Capturar rostro, detectar y generar embedding
         async function capturarRostro() {
+            if (!stream || !modelsLoaded) {
+                mostrarMensaje('⚠️ Primero inicia la cámara y espera a que los modelos carguen.', 'error');
+                return;
+            }
+            
             try {
-                mostrarMensaje('🔍 Detectando rostro...', 'info');
+                mostrarMensaje('🔍 Detectando rostro y generando código...', 'info');
                 loading.classList.add('show');
                 btnCapturar.disabled = true;
-
-                // Configurar canvas
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                const ctx = canvas.getContext('2d');
                 
-                // Dibujar video en canvas (sin invertir para guardar correctamente)
-                ctx.save();
-                ctx.scale(-1, 1);
-                ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
-                ctx.restore();
+                const displaySize = { width: video.videoWidth, height: video.videoHeight };
 
-                // Detectar rostro
-                console.log('🔍 Detectando rostro con MediaPipe...');
-                const faces = await detector.estimateFaces(canvas);
+                // 1. Detección y generación del Descriptor (Embedding)
+                const detection = await faceapi
+                    .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
 
-                console.log('Rostros detectados:', faces.length);
-
-                if (faces.length === 0) {
+                if (!detection) {
                     loading.classList.remove('show');
                     mostrarMensaje('❌ No se detectó ningún rostro. Inténtalo de nuevo.', 'error');
                     btnCapturar.disabled = false;
                     return;
                 }
-
-                // Obtener la imagen del rostro en base64
-                const imageData = canvas.toDataURL('image/jpeg', 0.8);
+                
+                // 2. Obtener el Embedding
+                const embedding = Array.from(detection.descriptor);
+                
+                // 3. Obtener la imagen capturada para el preview
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // Dibujar con efecto espejo para que el preview sea natural
+                ctx.save();
+                ctx.scale(-1, 1);
+                ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+                ctx.restore();
+                const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
                 
                 // Mostrar preview
-                previewImage.src = imageData;
+                previewImage.src = imageDataUrl;
                 previewContainer.classList.add('show');
+                
+                console.log('✅ Rostro detectado, embedding generado:', embedding.length, 'dimensiones');
 
-                console.log('✅ Rostro detectado, enviando al servidor...');
-
-                // Enviar al backend (simulando embedding)
-                await guardarRostro(imageData);
+                // 4. Enviar al backend
+                await guardarRostro(embedding);
 
             } catch (error) {
                 loading.classList.remove('show');
@@ -481,13 +252,9 @@
         }
 
         // Guardar rostro en el backend
-        async function guardarRostro(imageData) {
+        async function guardarRostro(embedding) {
             try {
                 mostrarMensaje('💾 Guardando tu registro facial...', 'info');
-
-                // Crear un embedding simulado (128 valores aleatorios)
-                // En producción, esto debería ser generado por un modelo real
-                const embedding = Array.from({length: 128}, () => Math.random());
 
                 const response = await fetch('/guardar_embedding_facial', {
                     method: 'POST',
@@ -496,7 +263,7 @@
                     },
                     body: JSON.stringify({ 
                         embedding: embedding,
-                        image: imageData
+                        // Ya no se envía la imagen, solo el embedding para ahorrar ancho de banda
                     })
                 });
 
@@ -504,7 +271,7 @@
                 loading.classList.remove('show');
 
                 if (data.success) {
-                    mostrarMensaje('✅ ¡Registro facial guardado exitosamente!', 'success');
+                    mostrarMensaje('✅ ' + data.message, 'success');
                     
                     // Detener la cámara
                     if (stream) {
@@ -541,11 +308,8 @@
             }
         }
 
-        // Inicializar al cargar la página
-        window.addEventListener('load', async () => {
-            console.log('🚀 Página cargada, inicializando...');
-            await cargarModelo();
-        });
+        // Inicializar la carga del modelo al cargar la página
+        window.addEventListener('load', cargarModelos);
 
         // Limpiar al salir
         window.addEventListener('beforeunload', () => {

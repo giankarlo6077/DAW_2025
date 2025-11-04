@@ -11,7 +11,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
@@ -21,7 +21,7 @@
             min-height: 100vh;
             padding: 20px;
         }
-        
+
         .container {
             background: white;
             padding: 40px;
@@ -32,7 +32,7 @@
             width: 100%;
             animation: slideIn 0.5s ease;
         }
-        
+
         @keyframes slideIn {
             from {
                 opacity: 0;
@@ -43,18 +43,18 @@
                 transform: translateY(0);
             }
         }
-        
+
         h2 {
             color: #333;
             font-size: 28px;
             margin-bottom: 10px;
         }
-        
+
         p {
             color: #666;
             margin-bottom: 25px;
         }
-        
+
         .video-container {
             position: relative;
             width: 100%;
@@ -64,18 +64,18 @@
             overflow: hidden;
             box-shadow: 0 5px 20px rgba(0,0,0,0.2);
         }
-        
+
         video {
             width: 100%;
             display: block;
             border-radius: 15px;
             transform: scaleX(-1);
         }
-        
+
         canvas {
             display: none;
         }
-        
+
         .face-overlay {
             position: absolute;
             top: 50%;
@@ -88,7 +88,7 @@
             pointer-events: none;
             animation: pulse 2s infinite;
         }
-        
+
         @keyframes pulse {
             0%, 100% {
                 opacity: 0.6;
@@ -99,13 +99,13 @@
                 transform: translate(-50%, -50%) scale(1.05);
             }
         }
-        
+
         .button-group {
             display: flex;
             gap: 10px;
             margin-top: 20px;
         }
-        
+
         button {
             flex: 1;
             background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
@@ -120,28 +120,28 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        
-        button:hover:not(:disabled) { 
+
+        button:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 5px 20px rgba(17, 153, 142, 0.4);
         }
-        
-        button:disabled { 
-            background: #ccc; 
+
+        button:disabled {
+            background: #ccc;
             cursor: not-allowed;
             transform: none;
         }
-        
+
         .btn-secondary {
             background: #e0e0e0;
             color: #333;
         }
-        
+
         .btn-secondary:hover {
             background: #d0d0d0;
             box-shadow: none;
         }
-        
+
         .message {
             margin-top: 20px;
             padding: 15px;
@@ -149,30 +149,30 @@
             font-weight: 600;
             animation: fadeIn 0.3s ease;
         }
-        
+
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
-        
-        .success { 
-            background: #d4edda; 
+
+        .success {
+            background: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
         }
-        
-        .error { 
-            background: #f8d7da; 
+
+        .error {
+            background: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
-        
+
         .info {
             background: #d1ecf1;
             color: #0c5460;
             border: 1px solid #bee5eb;
         }
-        
+
         .instructions {
             background: #f8f9fa;
             padding: 15px;
@@ -181,18 +181,18 @@
             text-align: left;
             border-left: 4px solid #11998e;
         }
-        
+
         .instructions h4 {
             color: #333;
             margin-bottom: 10px;
             font-size: 16px;
         }
-        
+
         .instructions ul {
             list-style: none;
             padding: 0;
         }
-        
+
         .instructions li {
             color: #666;
             padding: 5px 0;
@@ -200,7 +200,7 @@
             position: relative;
             font-size: 14px;
         }
-        
+
         .instructions li::before {
             content: "✓";
             position: absolute;
@@ -208,20 +208,20 @@
             color: #11998e;
             font-weight: bold;
         }
-        
+
         @media (max-width: 600px) {
             .container {
                 padding: 25px;
             }
-            
+
             h2 {
                 font-size: 24px;
             }
-            
+
             .button-group {
                 flex-direction: column;
             }
-            
+
             .face-overlay {
                 width: 180px;
                 height: 180px;
@@ -233,7 +233,7 @@
     <div class="container">
         <h2>🎭 Login con Reconocimiento Facial</h2>
         <p>Mira directamente a la cámara para iniciar sesión</p>
-        
+
         <div class="instructions">
             <h4>📋 Instrucciones:</h4>
             <ul>
@@ -243,145 +243,153 @@
                 <li>Haz clic en "Iniciar Sesión"</li>
             </ul>
         </div>
-        
+
         <div class="video-container">
             <video id="video" autoplay playsinline muted></video>
             <div class="face-overlay"></div>
         </div>
-        
+
         <canvas id="canvas"></canvas>
-        
+
         <div class="button-group">
             <button id="loginBtn" disabled>🔐 Iniciar Sesión</button>
             <button class="btn-secondary" onclick="location.href='/login'">← Volver</button>
         </div>
-        
+
         <div id="message"></div>
     </div>
 
-    <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const loginBtn = document.getElementById('loginBtn');
-        const messageDiv = document.getElementById('message');
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const loginBtn = document.getElementById('loginBtn');
+    const messageDiv = document.getElementById('message');
 
-        let modelsLoaded = false;
+    let modelsLoaded = false;
+    let stream = null;
 
-        // Cargar modelos de face-api.js
+    // Ruta del CDN de donde se cargan los archivos .json y .bin
+    // Usamos el CDN de VladMandic, que suele tener todos los archivos necesarios.
+    const MODEL_DIR = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+
+    // Función de mensajes
+    function showMessage(text, type) {
+        messageDiv.textContent = text;
+        messageDiv.className = 'message ' + type;
+        if (type === 'error') {
+            loginBtn.disabled = true; // Deshabilitar si hay error de carga
+        }
+    }
+
+    // --- FUNCIÓN DE CARGA DE MODELOS Y CÁMARA ---
+    async function loadModelsAndStartVideo() {
         showMessage('⏳ Cargando modelos de reconocimiento...', 'info');
 
-        Promise.all([
-            faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model'),
-            faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model'),
-            faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model')
-        ]).then(() => {
-            modelsLoaded = true;
-            console.log('✅ Modelos cargados');
-            showMessage('✅ Modelos cargados. Iniciando cámara...', 'success');
-            startVideo();
-        }).catch(err => {
-            console.error('❌ Error al cargar modelos:', err);
-            showMessage('❌ Error al cargar modelos: ' + err.message, 'error');
-        });
+        try {
+            // Cargar todos los modelos necesarios directamente desde la URI
+            await Promise.all([
+                faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_DIR),
+                faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_DIR),
+                faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_DIR)
+            ]);
 
-        function startVideo() {
-            navigator.mediaDevices.getUserMedia({ 
-                video: { 
+            modelsLoaded = true;
+            console.log('✅ Modelos cargados exitosamente');
+            showMessage('✅ Modelos cargados. Iniciando cámara...', 'success');
+
+            // Iniciar la cámara solo después de que los modelos estén listos
+            const s = await navigator.mediaDevices.getUserMedia({
+                video: {
                     width: { ideal: 640 },
                     height: { ideal: 480 },
                     facingMode: 'user'
-                } 
-            })
-            .then(stream => {
-                video.srcObject = stream;
-                video.play();
-                loginBtn.disabled = false;
-                showMessage('✅ Cámara activa. Posiciona tu rostro y haz clic en "Iniciar Sesión".', 'success');
-                console.log('✅ Cámara iniciada');
-            })
-            .catch(err => {
-                console.error('❌ Error de cámara:', err);
-                showMessage('❌ No se pudo acceder a la cámara: ' + err.message, 'error');
+                }
             });
+
+            stream = s;
+            video.srcObject = stream;
+            await video.play();
+
+            loginBtn.disabled = false;
+            showMessage('✅ Cámara activa. Posiciona tu rostro y haz clic en "Iniciar Sesión".', 'success');
+
+            // Ajustar el canvas al tamaño del video (importante para la detección)
+            video.onloadedmetadata = () => {
+                const displaySize = { width: video.videoWidth, height: video.videoHeight };
+                faceapi.matchDimensions(canvas, displaySize);
+            };
+
+        } catch (err) {
+            console.error('❌ Error CRÍTICO al cargar modelos/cámara:', err);
+            // Mostrar un mensaje específico si el error es de red/carga
+            showMessage('❌ Error al cargar modelos o acceder a la cámara. Revisa permisos o conexión.', 'error');
+        }
+    }
+
+    loginBtn.addEventListener('click', async () => {
+        if (!modelsLoaded) {
+            showMessage('⏳ Espera a que se carguen los modelos...', 'error');
+            return;
         }
 
-        loginBtn.addEventListener('click', async () => {
-            if (!modelsLoaded) {
-                showMessage('⏳ Espera a que se carguen los modelos...', 'error');
+        loginBtn.disabled = true;
+        showMessage('🔍 Detectando y verificando rostro...', 'info');
+
+        try {
+            // 1. Detección y generación del Descriptor (Embedding)
+            const detection = await faceapi
+                .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                .withFaceLandmarks()
+                .withFaceDescriptor();
+
+            if (!detection) {
+                showMessage('❌ No se detectó ningún rostro. Inténtalo de nuevo.', 'error');
+                loginBtn.disabled = false;
                 return;
             }
 
-            loginBtn.disabled = true;
-            showMessage('🔍 Detectando y verificando rostro...', 'info');
-            console.log('🔍 Iniciando detección de rostro...');
+            const embedding = Array.from(detection.descriptor);
 
-            try {
-                const detection = await faceapi
-                    .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-                    .withFaceLandmarks()
-                    .withFaceDescriptor();
+            // 2. Enviar el embedding al servidor
+            const response = await fetch('/verificar_rostro_login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ embedding: embedding })
+            });
 
-                if (!detection) {
-                    console.log('❌ No se detectó rostro');
-                    showMessage('❌ No se detectó ningún rostro. Inténtalo de nuevo.', 'error');
-                    loginBtn.disabled = false;
-                    return;
+            const data = await response.json();
+
+            if (data.success) {
+                showMessage('✅ ' + data.message + ' Redirigiendo...', 'success');
+
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
                 }
 
-                const embedding = Array.from(detection.descriptor);
-                console.log('✅ Rostro detectado, embedding generado:', embedding.length, 'dimensiones');
-
-                // IMPORTANTE: Usar la ruta correcta del backend
-                const response = await fetch('/verificar_rostro_login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ embedding: embedding })
-                });
-
-                const data = await response.json();
-                console.log('📡 Respuesta del servidor:', data);
-
-                if (data.success) {
-                    showMessage('✅ ' + data.message + ' Redirigiendo...', 'success');
-                    
-                    // Detener cámara
-                    const stream = video.srcObject;
-                    if (stream) {
-                        stream.getTracks().forEach(track => track.stop());
-                    }
-                    
-                    // Redirigir según rol
-                    setTimeout(() => {
-                        if (data.rol === 'profesor') {
-                            window.location.href = '/dashboard_profesor';
-                        } else {
-                            window.location.href = '/dashboard_estudiante';
-                        }
-                    }, 1500);
-                } else {
-                    console.log('❌ Verificación fallida:', data.message);
-                    showMessage('❌ ' + data.message, 'error');
-                    loginBtn.disabled = false;
-                }
-            } catch (err) {
-                console.error('❌ Error en el proceso:', err);
-                showMessage('❌ Error de conexión: ' + err.message, 'error');
+                setTimeout(() => {
+                    const dashboard = data.rol === 'profesor' ? '/dashboard_profesor' : '/dashboard_estudiante';
+                    window.location.href = dashboard;
+                }, 1500);
+            } else {
+                showMessage('❌ ' + data.message, 'error');
                 loginBtn.disabled = false;
             }
-        });
-
-        function showMessage(text, type) {
-            messageDiv.textContent = text;
-            messageDiv.className = 'message ' + type;
+        } catch (err) {
+            console.error('❌ Error en el proceso:', err);
+            showMessage('❌ Error de conexión: ' + err.message, 'error');
+            loginBtn.disabled = false;
         }
-        
-        // Limpiar al salir
-        window.addEventListener('beforeunload', () => {
-            const stream = video.srcObject;
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-        });
-    </script>
+    });
+
+    // Iniciar el proceso al cargar la página
+    window.addEventListener('load', loadModelsAndStartVideo);
+
+    // Limpiar al salir
+    window.addEventListener('beforeunload', () => {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+    });
+</script>
 </body>
 </html>
