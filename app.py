@@ -9,7 +9,6 @@ from datetime import datetime, timedelta, date
 from io import BytesIO
 import json
 import pandas as pd
-import google.oauth2.credentials
 from flask import send_file
 import traceback
 import pytz
@@ -37,12 +36,6 @@ app.config['MAIL_DEBUG'] = True
 
 mail = Mail(app)
 
-# --- IMPORTS DE GOOGLE (MOVIDOS A SUS FUNCIONES) ---
-# Se movieron para evitar que la app falle al iniciar si no están instalados
-import os
-BASE_DIR = os.path.dirname(os.path.realpath(__file__))
-CLIENT_SECRETS_FILE = os.path.join(BASE_DIR, 'credentials.json')
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 
 # --- FUNCIONES DE AYUDA ---
@@ -416,17 +409,29 @@ def reenviar_codigo():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        correo, password = request.form["correo"], request.form["password"]
+        correo = request.form["correo"]
+        password = request.form["password"]
+
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
+                # ✅ ASEGÚRATE DE SELECCIONAR TODAS LAS COLUMNAS
                 cursor.execute("SELECT * FROM usuarios WHERE correo = %s", (correo,))
                 usuario = cursor.fetchone()
         finally:
-            if conexion and conexion.open: conexion.close()
-        if not usuario or usuario["password"] != password:
+            if conexion and conexion.open:
+                conexion.close()
+
+        # ✅ VERIFICAR QUE usuario NO SEA NONE
+        if not usuario:
             flash("❌ Correo o contraseña incorrectos", "error")
             return redirect(url_for("login"))
+
+        # ✅ AHORA SÍ VERIFICAR PASSWORD
+        if usuario["password"] != password:
+            flash("❌ Correo o contraseña incorrectos", "error")
+            return redirect(url_for("login"))
+
         if not usuario["verificado"]:
             flash("❌ Debes verificar tu cuenta.", "error")
             session.update(temp_usuario_id=usuario['id'], temp_correo=usuario['correo'], temp_nombre=usuario['nombre'])
@@ -436,6 +441,7 @@ def login():
         session.update(usuario=usuario["nombre"], correo=usuario["correo"], rol=usuario["rol"], user_id=usuario["id"])
 
         return redirect(url_for("dashboard_profesor") if usuario["rol"] == "profesor" else url_for("dashboard_estudiante"))
+
     return render_template("iniciosesion.html")
 
 @app.route("/recuperar_password", methods=["GET", "POST"])
@@ -887,7 +893,7 @@ def dashboard_estudiante():
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
-                cursor.execute("SELECT nivel, monedas FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+                cursor.execute("SELECT nivel, monedas FROM estudiantes_stats WHERE user_id = %s", (user_id,))
                 stats = cursor.fetchone()
                 if not stats:
                     # Inicializar si no existe
@@ -3216,7 +3222,7 @@ def inicializar_stats_estudiante(usuario_id):
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
-                INSERT INTO estudiantes_stats (usuario_id)
+                INSERT INTO estudiantes_stats (user_id)
                 VALUES (%s)
                 ON DUPLICATE KEY UPDATE usuario_id=usuario_id
             """, (usuario_id,))
@@ -3235,12 +3241,12 @@ def otorgar_xp(usuario_id, xp_ganada):
     try:
         with conexion.cursor() as cursor:
             # Obtener stats actuales
-            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (usuario_id,))
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (usuario_id,))
             stats = cursor.fetchone()
 
             if not stats:
                 inicializar_stats_estudiante(usuario_id)
-                cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (usuario_id,))
+                cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (usuario_id,))
                 stats = cursor.fetchone()
 
             nuevo_xp_actual = stats['experiencia_actual'] + xp_ganada
@@ -3265,7 +3271,7 @@ def otorgar_xp(usuario_id, xp_ganada):
                 SET experiencia_actual = %s,
                     experiencia_total = %s,
                     nivel = %s
-                WHERE usuario_id = %s
+                WHERE user_id = %s
             """, (nuevo_xp_actual, nuevo_xp_total, nivel_actual, usuario_id))
             conexion.commit()
 
@@ -3288,7 +3294,7 @@ def otorgar_monedas(usuario_id, monedas):
             cursor.execute("""
                 UPDATE estudiantes_stats
                 SET monedas = monedas + %s
-                WHERE usuario_id = %s
+                WHERE user_id = %s
             """, (monedas, usuario_id))
             conexion.commit()
     finally:
@@ -3303,7 +3309,7 @@ def verificar_y_desbloquear_insignias(usuario_id):
     try:
         with conexion.cursor() as cursor:
             # Obtener stats del estudiante
-            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (usuario_id,))
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (usuario_id,))
             stats = cursor.fetchone()
 
             if not stats:
@@ -3313,7 +3319,7 @@ def verificar_y_desbloquear_insignias(usuario_id):
             cursor.execute("""
                 SELECT i.* FROM insignias i
                 WHERE i.id NOT IN (
-                    SELECT insignia_id FROM estudiantes_insignias WHERE usuario_id = %s
+                    SELECT insignia_id FROM estudiantes_insignias WHERE user_id = %s
                 )
             """, (usuario_id,))
             insignias_disponibles = cursor.fetchall()
@@ -4125,6 +4131,71 @@ def api_verificar_sincronizacion_grupal(grupo_id, pregunta_index):
     except Exception as e:
         print(f"❌ Error en verificar sincronización grupal: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+import json
+
+# --- REGISTRO FACIAL ---
+@app.route("/registro_facial")
+def registro_facial():
+    if "usuario" not in session:
+        return redirect(url_for("login"))
+
+    rol = session.get("rol")
+    return render_template("registro_facial.html", rol=rol)
+
+@app.route("/guardar_embedding_facial", methods=["POST"])
+def guardar_embedding_facial():
+    if "usuario" not in session:
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    try:
+        data = request.get_json()
+        embedding = data.get('embedding')
+
+        if not embedding or len(embedding) != 128:
+            return jsonify({"success": False, "message": "Embedding inválido"}), 400
+
+        user_id = session["user_id"]
+        embedding_json = json.dumps(embedding)
+
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                # Verificar si ya tiene un registro facial
+                cursor.execute("SELECT id FROM face_embeddings WHERE usuario_id = %s", (user_id,))
+                existe = cursor.fetchone()
+
+                if existe:
+                    # Actualizar
+                    cursor.execute("""
+                        UPDATE face_embeddings
+                        SET embedding = %s, fecha_registro = NOW()
+                        WHERE usuario_id = %s
+                    """, (embedding_json, user_id))
+                else:
+                    # Insertar nuevo
+                    cursor.execute("""
+                        INSERT INTO face_embeddings (usuario_id, embedding)
+                        VALUES (%s, %s)
+                    """, (user_id, embedding_json))
+
+                conexion.commit()
+
+                return jsonify({
+                    "success": True,
+                    "message": "✅ Reconocimiento facial registrado exitosamente"
+                })
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+
+    except Exception as e:
+        print(f"❌ Error en guardar_embedding_facial: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+
 
 # --- MANEJO DE ERRORES ---
 

@@ -7,38 +7,38 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f6fa; min-height: 100vh; }
-        
+
         /* Header mejorado con avatar */
         .top-header { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
         .header-left h1 { font-size: 24px; }
         .header-right { position: relative; }
         .user-menu { display: flex; align-items: center; cursor: pointer; padding: 10px 15px; border-radius: 8px; transition: background 0.3s; }
         .user-menu:hover { background: rgba(255,255,255,0.1); }
-        
+
         /* Avatar con marco personalizado */
-        .user-avatar { 
-            width: 50px; 
-            height: 50px; 
-            background: white; 
-            color: #11998e; 
-            border-radius: 50%; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-weight: bold; 
-            margin-right: 12px; 
+        .user-avatar {
+            width: 50px;
+            height: 50px;
+            background: white;
+            color: #11998e;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 12px;
             font-size: 28px;
             position: relative;
             box-shadow: 0 3px 10px rgba(0,0,0,0.2);
         }
-        
+
         /* Marco para el avatar */
         .user-avatar.con-marco {
             border: 4px solid transparent;
             background-clip: padding-box;
             animation: rotar-marco 8s linear infinite;
         }
-        
+
         .user-avatar.con-marco::before {
             content: '';
             position: absolute;
@@ -52,22 +52,22 @@
             animation: gradiente-marco 3s ease infinite;
             z-index: -1;
         }
-        
+
         @keyframes gradiente-marco {
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
-        
+
         @keyframes rotar-marco {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
+
         .user-info-header { flex-grow: 1; }
         .user-info-header h3 { font-size: 16px; margin: 0; display: flex; align-items: center; gap: 8px; }
         .user-info-header p { font-size: 14px; opacity: 0.9; margin: 0; }
-        
+
         /* Título personalizado */
         .titulo-personalizado {
             display: inline-block;
@@ -80,7 +80,7 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.3);
         }
-        
+
         .dropdown-arrow { margin-left: 10px; font-size: 12px; transition: transform 0.3s; }
         .dropdown-arrow.active { transform: rotate(180deg); }
         .dropdown-menu { position: absolute; top: 60px; right: 0; background: white; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); min-width: 200px; display: none; z-index: 1000; }
@@ -88,29 +88,29 @@
         @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .dropdown-menu a { display: flex; align-items: center; padding: 12px 20px; color: #333; text-decoration: none; transition: background 0.3s; }
         .dropdown-menu a:hover { background: #f5f6fa; }
-        
+
         .main-container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .alert { padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
         .alert-error { background: #fee; border-left: 4px solid #e74c3c; color: #c0392b; }
         .alert-success { background: #d4edda; border-left: 4px solid #28a745; color: #155724; }
-        
+
         .grid-container { display: grid; grid-template-columns: 1fr 350px; gap: 30px; }
         .main-content { display: flex; flex-direction: column; gap: 30px; }
         .content-section { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .section-header { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #f0f0f0; }
         .section-header h2 { color: #333; font-size: 22px; }
-        
+
         .pin-input-container { display: flex; gap: 10px; }
         .pin-input { flex-grow: 1; padding: 12px 15px; font-size: 16px; border: 2px solid #e0e0e0; border-radius: 8px; }
         .btn-join { padding: 12px 25px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.3s; }
         .btn-join:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(17, 153, 142, 0.3); }
-        
+
         .group-management { display: flex; flex-direction: column; gap: 20px; }
         .btn { padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 0.5px; width: 100%; }
         .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
         .form-group input { width: 100%; padding: 12px 15px; font-size: 16px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 10px; }
-        
+
         .grupo-info-card { text-align: center; }
         .grupo-info-card h3 { font-size: 22px; color: #667eea; margin-bottom: 15px; }
         .grupo-info-card p { color: #666; font-size: 16px; margin-bottom: 5px; }
@@ -121,7 +121,7 @@
         .miembros-lista li { padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
         .btn-danger { background: #e74c3c; color: white; }
         .btn-danger:hover { background: #c0392b; }
-        
+
         .recent-list { display: flex; flex-direction: column; gap: 15px; }
         .recent-item { display: flex; align-items: center; background: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 5px solid #11998e; }
         .item-icon { font-size: 24px; margin-right: 15px; }
@@ -131,7 +131,7 @@
         .item-score { text-align: right; }
         .item-score span { font-size: 24px; font-weight: bold; color: #38ef7d; }
         .item-score small { display: block; font-size: 12px; color: #666; }
-        
+
         @media (max-width: 900px) { .grid-container { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -336,10 +336,12 @@
 
         {% if grupo and user_id != grupo['lider_id'] %}
             setInterval(() => {
+                // Usamos el ID del grupo para la consulta
                 fetch(`/api/estado_grupo/{{ grupo['id'] }}`)
                     .then(response => response.json())
                     .then(data => {
-                        if (data && data.game_state === 'waiting' || data.game_state === 'playing') {
+                        // CORRECCIÓN: Cambiado de data.game_state a data.estado_partida
+                        if (data && (data.estado_partida === 'waiting' || data.estado_partida === 'playing')) {
                             window.location.href = `/sala_espera/{{ grupo['id'] }}`;
                         }
                     });

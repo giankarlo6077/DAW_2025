@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login con Reconocimiento Facial</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 500px;
+        }
+        video, canvas {
+            width: 100%;
+            max-width: 400px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { background: #5568d3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🔐 Iniciar Sesión con Rostro</h2>
+        <p>Mira a la cámara para iniciar sesión</p>
+        
+        <video id="video" autoplay muted></video>
+        <canvas id="canvas"></canvas>
+        
+        <button id="loginBtn" disabled>🎭 Iniciar Sesión</button>
+        <button onclick="location.href='/login'">⬅️ Login Normal</button>
+        
+        <div id="message"></div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const loginBtn = document.getElementById('loginBtn');
+        const messageDiv = document.getElementById('message');
+
+        let modelsLoaded = false;
+
+        Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model'),
+            faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model')
+        ]).then(() => {
+            modelsLoaded = true;
+            startVideo();
+        }).catch(err => {
+            showMessage('❌ Error al cargar modelos: ' + err, 'error');
+        });
+
+        function startVideo() {
+            navigator.mediaDevices.getUserMedia({ video: {} })
+                .then(stream => {
+                    video.srcObject = stream;
+                    loginBtn.disabled = false;
+                    showMessage('✅ Cámara lista. Haz clic para iniciar sesión.', 'success');
+                })
+                .catch(err => {
+                    showMessage('❌ No se pudo acceder a la cámara: ' + err, 'error');
+                });
+        }
+
+        loginBtn.addEventListener('click', async () => {
+            if (!modelsLoaded) {
+                showMessage('⏳ Espera a que se carguen los modelos...', 'error');
+                return;
+            }
+
+            loginBtn.disabled = true;
+            showMessage('🔍 Verificando rostro...', 'success');
+
+            const detection = await faceapi
+                .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                .withFaceLandmarks()
+                .withFaceDescriptor();
+
+            if (!detection) {
+                showMessage('❌ No se detectó ningún rostro. Inténtalo de nuevo.', 'error');
+                loginBtn.disabled = false;
+                return;
+            }
+
+            const embedding = Array.from(detection.descriptor);
+
+            fetch('/verificar_login_facial', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ embedding: embedding })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage('✅ ' + data.message, 'success');
+                    setTimeout(() => location.href = data.redirect, 1500);
+                } else {
+                    showMessage('❌ ' + data.message, 'error');
+                    loginBtn.disabled = false;
+                }
+            })
+            .catch(err => {
+                showMessage('❌ Error de red: ' + err, 'error');
+                loginBtn.disabled = false;
+            });
+        });
+
+        function showMessage(text, type) {
+            messageDiv.textContent = text;
+            messageDiv.className = 'message ' + type;
+        }
+    </script>
+</body>
+</html>
