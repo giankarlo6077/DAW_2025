@@ -921,30 +921,56 @@ def dashboard_estudiante():
 
 @app.route("/crear_grupo", methods=["POST"])
 def crear_grupo():
-    if "usuario" not in session or session.get("rol") != "estudiante": return redirect(url_for("login"))
-    nombre_grupo, user_id = request.form.get("nombre_grupo"), session["user_id"]
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return redirect(url_for("login"))
+
+    nombre_grupo = request.form.get("nombre_grupo")
+    user_id = session["user_id"]
+
     if not nombre_grupo:
         flash("❌ Debes darle un nombre a tu grupo.", "error")
         return redirect(url_for("dashboard_estudiante"))
+
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
+            # Verificar si el usuario ya está en un grupo
             cursor.execute("SELECT grupo_id FROM usuarios WHERE id = %s", (user_id,))
-            if cursor.fetchone().get('grupo_id'):
+            usuario = cursor.fetchone()
+
+            if usuario and usuario.get('grupo_id'):
                 flash("❌ Ya perteneces a un grupo.", "error")
                 return redirect(url_for("dashboard_estudiante"))
+
+            # Generar código único
             codigo_grupo = generar_codigo_grupo()
-            cursor.execute("INSERT INTO grupos (nombre_grupo, codigo_grupo, lider_id) VALUES (%s, %s, %s)", (nombre_grupo, codigo_grupo, user_id))
+
+            # Insertar grupo
+            cursor.execute("""
+                INSERT INTO grupos (nombre_grupo, codigo_grupo, lider_id)
+                VALUES (%s, %s, %s)
+            """, (nombre_grupo, codigo_grupo, user_id))
             conexion.commit()
             nuevo_grupo_id = cursor.lastrowid
-            cursor.execute("UPDATE usuarios SET grupo_id = %s WHERE id = %s", (nuevo_grupo_id, user_id))
+
+            # Actualizar usuario con el grupo
+            cursor.execute("""
+                UPDATE usuarios SET grupo_id = %s WHERE id = %s
+            """, (nuevo_grupo_id, user_id))
             conexion.commit()
+
             flash(f"✅ ¡Grupo '{nombre_grupo}' creado con éxito!", "success")
+
     except Exception as e:
-        flash("❌ Ocurrió un error al crear el grupo.", "error")
+        flash(f"❌ Error al crear el grupo: {str(e)}", "error")
         print(f"Error en /crear_grupo: {e}")
+        import traceback
+        traceback.print_exc()
+
     finally:
-        if conexion and conexion.open: conexion.close()
+        if conexion and conexion.open:
+            conexion.close()
+
     return redirect(url_for("dashboard_estudiante"))
 
 @app.route("/unirse_grupo", methods=["POST"])
@@ -1005,11 +1031,19 @@ def salir_grupo():
 @app.route("/juego_grupo", methods=["POST"])
 def juego_grupo():
     """Inicia un juego grupal - VALIDANDO QUE SEA MODO GRUPAL"""
+    print(f"\n{'='*70}")
+    print(f"🎮 INICIANDO JUEGO GRUPAL")
+    print(f"{'='*70}")
+
     if "usuario" not in session or session.get("rol") != "estudiante":
+        print("❌ No autorizado")
         return redirect(url_for("login"))
 
     pin = request.form.get("pin")
     user_id = session["user_id"]
+
+    print(f"👤 Usuario ID: {user_id}")
+    print(f"📌 PIN recibido: {pin}")
 
     if not pin:
         flash("❌ Debes ingresar un código PIN.", "error")
@@ -1018,37 +1052,57 @@ def juego_grupo():
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # Verificar que el usuario está en un grupo
+            # 1. Verificar que el usuario está en un grupo
             cursor.execute("""
-                SELECT g.id, g.lider_id, g.nombre_grupo
+                SELECT g.id, g.lider_id, g.nombre_grupo, g.codigo_grupo
                 FROM grupos g
                 JOIN usuarios u ON g.id = u.grupo_id
                 WHERE u.id = %s
             """, (user_id,))
             grupo = cursor.fetchone()
 
+            print(f"🔍 Buscando grupo del usuario...")
+
             if not grupo:
+                print(f"❌ Usuario no pertenece a ningún grupo")
                 flash("❌ Debes estar en un grupo para jugar en modo grupal.", "error")
                 return redirect(url_for('dashboard_estudiante'))
 
+            print(f"✅ Grupo encontrado: {grupo['nombre_grupo']} (ID: {grupo['id']})")
+
+            # 2. Verificar que el usuario es el líder
             if grupo['lider_id'] != user_id:
+                print(f"❌ Usuario no es líder (Líder: {grupo['lider_id']}, Usuario: {user_id})")
                 flash("❌ Solo el líder del grupo puede iniciar una partida.", "error")
                 return redirect(url_for('dashboard_estudiante'))
 
-            # VALIDACIÓN CRÍTICA: Verificar que el cuestionario sea GRUPAL
-            cursor.execute("SELECT id, titulo, modo_juego FROM cuestionarios WHERE codigo_pin = %s", (pin,))
+            print(f"✅ Usuario es el líder del grupo")
+
+            # 3. VALIDACIÓN CRÍTICA: Verificar que el cuestionario existe y es GRUPAL
+            cursor.execute("""
+                SELECT id, titulo, modo_juego, num_preguntas
+                FROM cuestionarios
+                WHERE codigo_pin = %s
+            """, (pin,))
             cuestionario = cursor.fetchone()
 
             if not cuestionario:
+                print(f"❌ No se encontró cuestionario con PIN: {pin}")
                 flash(f"❌ No se encontró ningún cuestionario con el PIN '{pin}'.", "error")
                 return redirect(url_for('dashboard_estudiante'))
 
-            # NUEVA VALIDACIÓN
+            print(f"✅ Cuestionario encontrado: {cuestionario['titulo']}")
+            print(f"   Modo: {cuestionario['modo_juego']}")
+
+            # 4. VALIDAR QUE SEA GRUPAL
             if cuestionario['modo_juego'] != 'grupal':
+                print(f"❌ Cuestionario NO es grupal (modo: {cuestionario['modo_juego']})")
                 flash(f"❌ El cuestionario '{cuestionario['titulo']}' está configurado para juego INDIVIDUAL. No se puede jugar en grupo.", "error")
                 return redirect(url_for('dashboard_estudiante'))
 
-            # Actualizar el grupo con el PIN activo
+            print(f"✅ Cuestionario validado como GRUPAL")
+
+            # 5. Actualizar el grupo con el PIN activo y estado 'waiting'
             cursor.execute("""
                 UPDATE grupos
                 SET active_pin = %s,
@@ -1059,16 +1113,40 @@ def juego_grupo():
             """, (pin, grupo['id']))
             conexion.commit()
 
-            print(f"✅ Juego grupal validado - Grupo: {grupo['id']}, PIN: {pin}, Modo: {cuestionario['modo_juego']}")
+            print(f"✅ Grupo actualizado:")
+            print(f"   - PIN activo: {pin}")
+            print(f"   - Estado: waiting")
+            print(f"   - Puntuación: 0")
 
+            # 6. Verificar que se actualizó correctamente
+            cursor.execute("""
+                SELECT active_pin, game_state
+                FROM grupos
+                WHERE id = %s
+            """, (grupo['id'],))
+            verificacion = cursor.fetchone()
+
+            print(f"🔍 Verificación post-actualización:")
+            print(f"   - PIN: {verificacion['active_pin']}")
+            print(f"   - Estado: {verificacion['game_state']}")
+
+            print(f"\n✅ Todo correcto - Redirigiendo a sala de espera")
+            print(f"{'='*70}\n")
+
+            # 7. Redirigir a la sala de espera
             return redirect(url_for('sala_espera_grupo', grupo_id=grupo['id']))
 
     except Exception as e:
-        flash("❌ Error al iniciar el juego grupal.", "error")
-        print(f"❌ Error en /juego_grupo: {e}")
+        print(f"\n❌❌❌ ERROR EN JUEGO_GRUPO ❌❌❌")
+        print(f"Tipo: {type(e).__name__}")
+        print(f"Mensaje: {str(e)}")
         import traceback
         traceback.print_exc()
+        print(f"{'='*70}\n")
+
+        flash(f"❌ Error al iniciar el juego grupal: {str(e)}", "error")
         return redirect(url_for('dashboard_estudiante'))
+
     finally:
         if conexion and conexion.open:
             conexion.close()
@@ -1115,13 +1193,18 @@ def api_miembros_grupo(grupo_id):
 @app.route("/sala_profesor/<codigo_pin>")
 def sala_profesor(codigo_pin):
     """Sala donde el profesor ve los grupos esperando y puede iniciar la partida"""
+    print(f"\n{'='*70}")
+    print(f"🎮 SALA PROFESOR GRUPAL - PIN: {codigo_pin}")
+    print(f"{'='*70}")
+
     if "usuario" not in session or session.get("rol") != "profesor":
+        print("❌ No autorizado")
         return redirect(url_for("login"))
 
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # Obtener información del cuestionario
+            # 1. Obtener información del cuestionario
             cursor.execute("""
                 SELECT * FROM cuestionarios
                 WHERE codigo_pin = %s AND profesor_id = %s
@@ -1129,24 +1212,65 @@ def sala_profesor(codigo_pin):
             cuestionario = cursor.fetchone()
 
             if not cuestionario:
+                print(f"❌ Cuestionario no encontrado para PIN: {codigo_pin}")
                 flash("❌ Cuestionario no encontrado", "error")
                 return redirect(url_for("dashboard_profesor"))
 
-            # Obtener grupos que están esperando para jugar este cuestionario
+            print(f"✅ Cuestionario: {cuestionario['titulo']}")
+            print(f"   Modo: {cuestionario['modo_juego']}")
+
+            # 2. VALIDAR QUE SEA MODO GRUPAL
+            if cuestionario['modo_juego'] != 'grupal':
+                print(f"❌ Cuestionario es modo {cuestionario['modo_juego']}, no grupal")
+                flash(f"❌ Este cuestionario está configurado para modo {cuestionario['modo_juego'].upper()}. Usa la sala correspondiente.", "error")
+                return redirect(url_for("dashboard_profesor"))
+
+            # 3. Obtener grupos que están esperando para jugar este cuestionario
             cursor.execute("""
-                SELECT g.id, g.nombre_grupo, g.game_state, g.lider_id,
-                       COUNT(u.id) as num_miembros,
-                       GROUP_CONCAT(u.nombre SEPARATOR ', ') as miembros
+                SELECT
+                    g.id,
+                    g.nombre_grupo,
+                    g.game_state,
+                    g.lider_id,
+                    COUNT(u.id) as num_miembros
                 FROM grupos g
                 LEFT JOIN usuarios u ON g.id = u.grupo_id
                 WHERE g.active_pin = %s
-                GROUP BY g.id
+                GROUP BY g.id, g.nombre_grupo, g.game_state, g.lider_id
+                ORDER BY g.fecha_creacion DESC
             """, (codigo_pin,))
             grupos_esperando = cursor.fetchall()
+
+            print(f"✅ Grupos esperando: {len(grupos_esperando)}")
+
+            # 4. Para cada grupo, obtener los nombres de los miembros
+            for grupo in grupos_esperando:
+                cursor.execute("""
+                    SELECT nombre FROM usuarios
+                    WHERE grupo_id = %s
+                    ORDER BY id
+                """, (grupo['id'],))
+                miembros = cursor.fetchall()
+                grupo['miembros'] = ', '.join([m['nombre'] for m in miembros]) if miembros else 'Sin miembros'
+                print(f"   - Grupo: {grupo['nombre_grupo']} ({grupo['num_miembros']} miembros)")
+
+            print(f"{'='*70}\n")
 
             return render_template("sala_profesor.html",
                                    cuestionario=cuestionario,
                                    grupos_esperando=grupos_esperando)
+
+    except Exception as e:
+        print(f"\n❌❌❌ ERROR EN SALA_PROFESOR ❌❌❌")
+        print(f"Tipo: {type(e).__name__}")
+        print(f"Mensaje: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        print(f"{'='*70}\n")
+
+        flash(f"❌ Error al cargar la sala: {str(e)}", "error")
+        return redirect(url_for("dashboard_profesor"))
+
     finally:
         if conexion and conexion.open:
             conexion.close()
@@ -1384,22 +1508,80 @@ def api_grupos_esperando(codigo_pin):
 
 @app.route("/sala_espera/<int:grupo_id>")
 def sala_espera_grupo(grupo_id):
-    if "usuario" not in session: return redirect(url_for('login'))
+    """Sala de espera para el grupo antes de que inicie la partida"""
+    print(f"\n{'='*70}")
+    print(f"⏳ CARGANDO SALA DE ESPERA")
+    print(f"📋 Grupo ID: {grupo_id}")
+    print(f"{'='*70}")
+
+    if "usuario" not in session:
+        print("❌ No hay sesión")
+        return redirect(url_for('login'))
+
+    user_id = session["user_id"]
+    print(f"👤 Usuario ID: {user_id}")
 
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
+            # Obtener información del grupo
+            cursor.execute("""
+                SELECT * FROM grupos WHERE id = %s
+            """, (grupo_id,))
             grupo = cursor.fetchone()
-            cursor.execute("SELECT id, nombre FROM usuarios WHERE grupo_id = %s", (grupo_id,))
-            miembros = cursor.fetchall()
 
             if not grupo:
+                print(f"❌ Grupo {grupo_id} no encontrado")
+                flash("❌ Grupo no encontrado", "error")
                 return redirect(url_for('dashboard_estudiante'))
 
-            return render_template('sala_espera_grupo.html', grupo=grupo, miembros=miembros, user_id=session['user_id'])
+            print(f"✅ Grupo: {grupo['nombre_grupo']}")
+            print(f"   Estado: {grupo['game_state']}")
+            print(f"   PIN activo: {grupo.get('active_pin', 'N/A')}")
+
+            # Obtener miembros del grupo
+            cursor.execute("""
+                SELECT id, nombre
+                FROM usuarios
+                WHERE grupo_id = %s
+                ORDER BY id
+            """, (grupo_id,))
+            miembros = cursor.fetchall()
+
+            print(f"✅ Miembros: {len(miembros)}")
+            for miembro in miembros:
+                lider_icon = "👑" if miembro['id'] == grupo['lider_id'] else "👤"
+                print(f"   {lider_icon} {miembro['nombre']}")
+
+            # Verificar que el usuario pertenece al grupo
+            es_miembro = any(m['id'] == user_id for m in miembros)
+            if not es_miembro:
+                print(f"❌ Usuario {user_id} no pertenece al grupo")
+                flash("❌ No perteneces a este grupo", "error")
+                return redirect(url_for('dashboard_estudiante'))
+
+            print(f"\n✅ Renderizando sala de espera")
+            print(f"{'='*70}\n")
+
+            return render_template('sala_espera_grupo.html',
+                                   grupo=grupo,
+                                   miembros=miembros,
+                                   user_id=user_id)
+
+    except Exception as e:
+        print(f"\n❌❌❌ ERROR EN SALA_ESPERA_GRUPO ❌❌❌")
+        print(f"Tipo: {type(e).__name__}")
+        print(f"Mensaje: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        print(f"{'='*70}\n")
+
+        flash("❌ Error al cargar la sala de espera", "error")
+        return redirect(url_for('dashboard_estudiante'))
+
     finally:
-        if conexion and conexion.open: conexion.close()
+        if conexion and conexion.open:
+            conexion.close()
 
 @app.route("/iniciar_partida_grupal/<int:grupo_id>", methods=["POST"])
 def iniciar_partida_grupal(grupo_id):
@@ -2024,11 +2206,16 @@ def api_estado_grupo(grupo_id):
             estado = cursor.fetchone()
 
             if not estado:
-                return jsonify(None)
+                return jsonify(None), 404
 
-            return jsonify(estado)
+            return jsonify({
+                'game_state': estado['game_state'],
+                'active_pin': estado['active_pin'],
+                'current_question_index': estado['current_question_index'],
+                'current_score': estado['current_score']
+            })
     except Exception as e:
-        print(f"Error en api_estado_grupo: {e}")
+        print(f"❌ Error en api_estado_grupo: {e}")
         return jsonify({"error": str(e)}), 500
     finally:
         if conexion and conexion.open:
@@ -4261,6 +4448,85 @@ def verificar_rostro_login():
             "success": False,
             "message": f"Error del servidor: {str(e)}"
         }), 500
+
+# ===== API PARA ESTADO DEL PROFESOR (SINCRONIZACIÓN) =====
+@app.route("/api/estado_pregunta_profesor/<sesion_id>")
+def api_estado_pregunta_profesor(sesion_id):
+    """API para que los estudiantes consulten en qué pregunta está el profesor"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT pregunta_actual, estado, tiempo_restante
+                FROM control_sesiones
+                WHERE sesion_id = %s
+            """, (sesion_id,))
+
+            estado = cursor.fetchone()
+
+            if not estado:
+                # Si no existe, crearlo
+                cursor.execute("""
+                    INSERT INTO control_sesiones (sesion_id, pregunta_actual, estado, tiempo_restante)
+                    VALUES (%s, 0, 'playing', 0)
+                """, (sesion_id,))
+                conexion.commit()
+                return jsonify({
+                    "pregunta_actual": 0,
+                    "estado": "playing",
+                    "tiempo_restante": 0
+                })
+
+            return jsonify({
+                "pregunta_actual": estado['pregunta_actual'],
+                "estado": estado['estado'],
+                "tiempo_restante": estado['tiempo_restante']
+            })
+
+    except Exception as e:
+        print(f"❌ Error en api_estado_pregunta_profesor: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
+@app.route("/api/actualizar_pregunta_profesor/<sesion_id>", methods=["POST"])
+def api_actualizar_pregunta_profesor(sesion_id):
+    """API para que el profesor actualice la pregunta actual de la sesión"""
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    try:
+        data = request.get_json()
+        nueva_pregunta = data.get('pregunta_actual')
+        nuevo_estado = data.get('estado', 'playing')
+        tiempo_restante = data.get('tiempo_restante', 0)
+
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                # Actualizar o insertar estado
+                cursor.execute("""
+                    INSERT INTO control_sesiones (sesion_id, pregunta_actual, estado, tiempo_restante, ultima_actualizacion)
+                    VALUES (%s, %s, %s, %s, NOW())
+                    ON DUPLICATE KEY UPDATE
+                        pregunta_actual = %s,
+                        estado = %s,
+                        tiempo_restante = %s,
+                        ultima_actualizacion = NOW()
+                """, (sesion_id, nueva_pregunta, nuevo_estado, tiempo_restante,
+                      nueva_pregunta, nuevo_estado, tiempo_restante))
+                conexion.commit()
+
+                return jsonify({"success": True})
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+
+    except Exception as e:
+        print(f"❌ Error en api_actualizar_pregunta_profesor: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 # --- REGISTRO FACIAL ---
 @app.route("/registro_facial")
