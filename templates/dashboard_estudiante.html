@@ -164,8 +164,7 @@
             </div>
             <div class="dropdown-menu" id="dropdownMenu">
                 <a href="{{ url_for('cambiar_datos_estudiante') }}">⚙️ Cambiar datos</a>
-                <a href="{{ url_for('registro_facial') }}">
-                🎭 Configurar Reconocimiento Facial</a>
+                <a href="{{ url_for('registro_facial') }}">🎭 Configurar Reconocimiento Facial</a>
                 <a href="{{ url_for('logout') }}">🚪 Cerrar sesión</a>
             </div>
         </div>
@@ -200,21 +199,30 @@
 
                 <div class="content-section">
                     <div class="section-header">
-                        <h2>👥 Iniciar Cuestionario Grupal</h2>
+                        <h2>👥 Unirse a Cuestionario Grupal</h2>
                     </div>
-                    {% if grupo and user_id == grupo['lider_id'] %}
-                        <p style="color: #666; margin-bottom: 15px;">Como líder, ingresa el PIN para iniciar la partida para tu grupo</p>
+                    {% if grupo %}
+                        <p style="color: #666; margin-bottom: 15px;">
+                            {% if user_id == grupo['lider_id'] %}
+                                Como líder, ingresa el PIN para que tu grupo juegue junto
+                            {% else %}
+                                Ingresa el PIN del cuestionario grupal para unirte a tu líder
+                            {% endif %}
+                        </p>
                         <form action="{{ url_for('juego_grupo') }}" method="POST">
                             <div class="pin-input-container">
-                                <input type="text" name="pin" class="pin-input" placeholder="Ingresar PIN del Cuestionario" maxlength="6" required style="text-transform: uppercase;">
-                                <button type="submit" class="btn-join">🚀 Iniciar Juego Grupal</button>
+                                <input type="text" name="pin" class="pin-input" 
+                                       placeholder="Ingresar PIN del Cuestionario Grupal" 
+                                       maxlength="6" required style="text-transform: uppercase;">
+                                <button type="submit" class="btn-join">
+                                    {% if user_id == grupo['lider_id'] %}
+                                        🚀 Iniciar Juego Grupal
+                                    {% else %}
+                                        🎮 Unirse al Juego
+                                    {% endif %}
+                                </button>
                             </div>
                         </form>
-                    {% elif grupo %}
-                        <div style="text-align: center; padding: 30px; background: #e8f5e9; border-radius: 10px; color: #2e7d32;">
-                            <p style="font-size: 18px; margin: 0;">⏳ Solo el líder del grupo puede iniciar un cuestionario</p>
-                            <p style="margin: 10px 0 0 0; opacity: 0.8;">¡Espera a que comience la partida!</p>
-                        </div>
                     {% else %}
                         <div style="text-align: center; padding: 30px; background: #fff3cd; border-radius: 10px; color: #856404;">
                             <p style="font-size: 18px; margin: 0;">⚠️ Debes estar en un grupo para jugar</p>
@@ -336,18 +344,22 @@
             }
         }
 
-        {% if grupo and user_id != grupo['lider_id'] %}
+        {% if grupo %}
+            // POLLING PARA TODOS LOS MIEMBROS DEL GRUPO (incluido el líder)
+            console.log('✅ Iniciando polling para grupo ID: {{ grupo["id"] }}');
+            
             setInterval(() => {
-                // Usamos el ID del grupo para la consulta
                 fetch(`/api/estado_grupo/{{ grupo['id'] }}`)
                     .then(response => response.json())
                     .then(data => {
-                        // CORRECCIÓN: Cambiado de data.game_state a data.estado_partida
-                        if (data && (data.estado_partida === 'waiting' || data.estado_partida === 'playing')) {
+                        if (data && (data.game_state === 'waiting' || data.game_state === 'playing')) {
+                            console.log('🎮 Juego detectado (estado: ' + data.game_state + '). Redirigiendo...');
+                            // Redirigir a la sala de espera si hay actividad
                             window.location.href = `/sala_espera/{{ grupo['id'] }}`;
                         }
-                    });
-            }, 5000);
+                    })
+                    .catch(error => console.error('❌ Error verificando estado:', error));
+            }, 3000); // Verificar cada 3 segundos
         {% endif %}
     </script>
 </body>

@@ -1070,7 +1070,7 @@ def juego_grupo():
 
             # 2. VALIDACIÓN CRÍTICA: Verificar que el cuestionario existe y es GRUPAL
             cursor.execute("""
-                SELECT id, titulo, modo_juego, num_preguntas
+                SELECT id, titulo, modo_juego
                 FROM cuestionarios
                 WHERE codigo_pin = %s
             """, (pin,))
@@ -1088,15 +1088,13 @@ def juego_grupo():
 
             print(f"✅ Cuestionario validado: {cuestionario['titulo']} (Grupal)")
 
-
-            # 3. LÓGICA DE REDIRECCIÓN DIFERENCIADA (Líder vs. Miembro)
+            # 3. LÓGICA UNIFICADA: Actualizar el grupo (solo el líder puede hacerlo)
             es_lider = (grupo['lider_id'] == user_id)
 
             if es_lider:
-                # A. LÓGICA DEL LÍDER: INICIA O REINICIA LA PARTIDA
-                print(f"✅ Usuario es el líder. Forzando estado a 'waiting'.")
+                print(f"👑 Usuario es el líder. Actualizando grupo...")
 
-                # Actualizar el grupo con el PIN activo y estado 'waiting'
+                # Solo el líder actualiza el active_pin y estado
                 cursor.execute("""
                     UPDATE grupos
                     SET active_pin = %s,
@@ -1107,30 +1105,15 @@ def juego_grupo():
                     WHERE id = %s
                 """, (pin, grupo['id']))
                 conexion.commit()
-
-                print(f"✅ Grupo actualizado - Redirigiendo a sala de espera")
-                return redirect(url_for('sala_espera_grupo', grupo_id=grupo['id']))
-
+                print(f"✅ Grupo actualizado por el líder")
             else:
-                # B. LÓGICA DEL MIEMBRO: SOLO SE UNE A PARTIDA ACTIVA
-                print(f"👤 Usuario es miembro. Redirigiendo a sala de espera para vigilancia.")
-                return redirect(url_for('sala_espera_grupo', grupo_id=grupo['id']))
+                print(f"👤 Usuario es miembro (no líder)")
 
-                cursor.execute("SELECT active_pin, game_state FROM grupos WHERE id = %s", (grupo['id'],))
-                estado_grupo_actual = cursor.fetchone()
-
-                # El miembro se une si: el grupo tiene un PIN activo Y ese PIN coincide con el ingresado.
-                if estado_grupo_actual and estado_grupo_actual['active_pin'] == pin and estado_grupo_actual['game_state'] in ['waiting', 'playing']:
-                    print(f"✅ Miembro: Partida activa detectada. Redirigiendo a sala de espera/juego.")
-                    return redirect(url_for('sala_espera_grupo', grupo_id=grupo['id']))
-                else:
-                    # El PIN es correcto, pero el líder no ha iniciado el juego con este PIN.
-                    print(f"❌ Miembro: El líder no ha iniciado el juego o el PIN no coincide con el juego activo del grupo.")
-                    flash(f"❌ Tu líder es quien debe iniciar la partida. Asegúrate de que el PIN ({pin}) es el correcto para el juego activo de tu grupo.", "error")
-                    return redirect(url_for('dashboard_estudiante'))
+            # 4. REDIRECCIÓN PARA TODOS (líder y miembros)
+            print(f"✅ Redirigiendo a sala de espera: /sala_espera/{grupo['id']}")
+            return redirect(url_for('sala_espera_grupo', grupo_id=grupo['id']))
 
     except Exception as e:
-        # ... (código de manejo de errores original)
         print(f"\n❌❌❌ ERROR EN JUEGO_GRUPO ❌❌❌")
         print(f"Mensaje: {str(e)}")
         import traceback
