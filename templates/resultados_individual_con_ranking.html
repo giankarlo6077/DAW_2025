@@ -546,7 +546,7 @@
                             <div class="score-value">{{ participante.puntuacion_final }}</div>
                         </td>
                         <td style="font-size: 13px; color: #666;">
-                            {{ participante.fecha_realizacion.strftime('%d/%m/%Y %H:%M') }}
+                            {{ participante.fecha_realizacion | hora_peru }}
                         </td>
                     </tr>
                     {% endfor %}

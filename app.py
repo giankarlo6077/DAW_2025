@@ -5,19 +5,22 @@ import random
 import string
 import re
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from io import BytesIO
 import json
 import pandas as pd
 import google.oauth2.credentials
 from flask import send_file
 import traceback
-
+import pytz
 
 from io import BytesIO
 import json
 
+PERU_TZ = pytz.timezone('America/Lima')
+
 app = Flask(__name__)
+
 
 # --- CONFIGURACIÓN DE LA APLICACIÓN ---
 app.secret_key = 'una-clave-secreta-muy-larga-y-dificil-de-adivinar'
@@ -43,6 +46,18 @@ SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 
 # --- FUNCIONES DE AYUDA ---
+
+def convertir_a_hora_peru(fecha_utc):
+    """Convierte una fecha UTC a hora de Perú"""
+    if fecha_utc is None:
+        return None
+
+    # Si la fecha no tiene timezone, asumimos que es UTC
+    if fecha_utc.tzinfo is None:
+        fecha_utc = pytz.utc.localize(fecha_utc)
+
+    # Convertir a hora de Perú
+    return fecha_utc.astimezone(PERU_TZ)
 
 def es_password_segura(password):
     """Verifica si la contraseña cumple con los requisitos de seguridad."""
@@ -2214,6 +2229,7 @@ def visualizar_cuestionario():
 
 
     return redirect(url_for("sala_espera_individual", codigo_pin=pin))
+
 @app.route("/exportar_resultados/<int:cuestionario_id>")
 def exportar_resultados(cuestionario_id):
     """Página de opciones de exportación"""
@@ -3802,6 +3818,22 @@ def crear_cuestionario_desde_excel():
         import traceback
         traceback.print_exc()
         return redirect(url_for("dashboard_profesor"))
+
+@app.template_filter('hora_peru')
+def hora_peru_filter(fecha_utc):
+    """Filtro para convertir fechas a hora de Perú"""
+    if fecha_utc is None:
+        return "Fecha no disponible"
+
+    PERU_TZ = pytz.timezone('America/Lima')
+
+    # Si la fecha no tiene timezone, asumimos que es UTC
+    if fecha_utc.tzinfo is None:
+        fecha_utc = pytz.utc.localize(fecha_utc)
+
+    # Convertir a hora de Perú
+    fecha_peru = fecha_utc.astimezone(PERU_TZ)
+    return fecha_peru.strftime('%d/%m/%Y %H:%M')
 
 # --- MANEJO DE ERRORES ---
 
