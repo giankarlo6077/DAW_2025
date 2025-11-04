@@ -6,61 +6,255 @@
     <title>Login con Reconocimiento Facial</title>
     <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
             min-height: 100vh;
-            margin: 0;
             padding: 20px;
         }
+        
         .container {
             background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
             text-align: center;
-            max-width: 500px;
+            max-width: 550px;
+            width: 100%;
+            animation: slideIn 0.5s ease;
         }
-        video, canvas {
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        h2 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        p {
+            color: #666;
+            margin-bottom: 25px;
+        }
+        
+        .video-container {
+            position: relative;
             width: 100%;
             max-width: 400px;
-            border-radius: 10px;
-            margin: 10px 0;
+            margin: 0 auto 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
         }
+        
+        video {
+            width: 100%;
+            display: block;
+            border-radius: 15px;
+            transform: scaleX(-1);
+        }
+        
+        canvas {
+            display: none;
+        }
+        
+        .face-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 220px;
+            height: 220px;
+            border: 3px dashed rgba(56, 239, 125, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 0.6;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.05);
+            }
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
         button {
-            background: #667eea;
+            flex: 1;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
             color: white;
             border: none;
-            padding: 12px 30px;
-            border-radius: 8px;
+            padding: 14px 25px;
+            border-radius: 10px;
             cursor: pointer;
-            font-size: 16px;
-            margin: 5px;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        button:hover { background: #5568d3; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
+        
+        button:hover:not(:disabled) { 
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(17, 153, 142, 0.4);
+        }
+        
+        button:disabled { 
+            background: #ccc; 
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #d0d0d0;
+            box-shadow: none;
+        }
+        
         .message {
-            margin-top: 15px;
-            padding: 10px;
-            border-radius: 5px;
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: 600;
+            animation: fadeIn 0.3s ease;
         }
-        .success { background: #d4edda; color: #155724; }
-        .error { background: #f8d7da; color: #721c24; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .success { 
+            background: #d4edda; 
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error { 
+            background: #f8d7da; 
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .instructions {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: left;
+            border-left: 4px solid #11998e;
+        }
+        
+        .instructions h4 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .instructions ul {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .instructions li {
+            color: #666;
+            padding: 5px 0;
+            padding-left: 20px;
+            position: relative;
+            font-size: 14px;
+        }
+        
+        .instructions li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #11998e;
+            font-weight: bold;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 25px;
+            }
+            
+            h2 {
+                font-size: 24px;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .face-overlay {
+                width: 180px;
+                height: 180px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>🔐 Iniciar Sesión con Rostro</h2>
-        <p>Mira a la cámara para iniciar sesión</p>
+        <h2>🎭 Login con Reconocimiento Facial</h2>
+        <p>Mira directamente a la cámara para iniciar sesión</p>
         
-        <video id="video" autoplay muted></video>
+        <div class="instructions">
+            <h4>📋 Instrucciones:</h4>
+            <ul>
+                <li>Asegúrate de tener buena iluminación</li>
+                <li>Posiciona tu rostro dentro del círculo</li>
+                <li>Mira directamente a la cámara</li>
+                <li>Haz clic en "Iniciar Sesión"</li>
+            </ul>
+        </div>
+        
+        <div class="video-container">
+            <video id="video" autoplay playsinline muted></video>
+            <div class="face-overlay"></div>
+        </div>
+        
         <canvas id="canvas"></canvas>
         
-        <button id="loginBtn" disabled>🎭 Iniciar Sesión</button>
-        <button onclick="location.href='/login'">⬅️ Login Normal</button>
+        <div class="button-group">
+            <button id="loginBtn" disabled>🔐 Iniciar Sesión</button>
+            <button class="btn-secondary" onclick="location.href='/login'">← Volver</button>
+        </div>
         
         <div id="message"></div>
     </div>
@@ -73,27 +267,42 @@
 
         let modelsLoaded = false;
 
+        // Cargar modelos de face-api.js
+        showMessage('⏳ Cargando modelos de reconocimiento...', 'info');
+
         Promise.all([
             faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model'),
             faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model'),
             faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model')
         ]).then(() => {
             modelsLoaded = true;
+            console.log('✅ Modelos cargados');
+            showMessage('✅ Modelos cargados. Iniciando cámara...', 'success');
             startVideo();
         }).catch(err => {
-            showMessage('❌ Error al cargar modelos: ' + err, 'error');
+            console.error('❌ Error al cargar modelos:', err);
+            showMessage('❌ Error al cargar modelos: ' + err.message, 'error');
         });
 
         function startVideo() {
-            navigator.mediaDevices.getUserMedia({ video: {} })
-                .then(stream => {
-                    video.srcObject = stream;
-                    loginBtn.disabled = false;
-                    showMessage('✅ Cámara lista. Haz clic para iniciar sesión.', 'success');
-                })
-                .catch(err => {
-                    showMessage('❌ No se pudo acceder a la cámara: ' + err, 'error');
-                });
+            navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: 'user'
+                } 
+            })
+            .then(stream => {
+                video.srcObject = stream;
+                video.play();
+                loginBtn.disabled = false;
+                showMessage('✅ Cámara activa. Posiciona tu rostro y haz clic en "Iniciar Sesión".', 'success');
+                console.log('✅ Cámara iniciada');
+            })
+            .catch(err => {
+                console.error('❌ Error de cámara:', err);
+                showMessage('❌ No se pudo acceder a la cámara: ' + err.message, 'error');
+            });
         }
 
         loginBtn.addEventListener('click', async () => {
@@ -103,46 +312,76 @@
             }
 
             loginBtn.disabled = true;
-            showMessage('🔍 Verificando rostro...', 'success');
+            showMessage('🔍 Detectando y verificando rostro...', 'info');
+            console.log('🔍 Iniciando detección de rostro...');
 
-            const detection = await faceapi
-                .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-                .withFaceLandmarks()
-                .withFaceDescriptor();
+            try {
+                const detection = await faceapi
+                    .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
 
-            if (!detection) {
-                showMessage('❌ No se detectó ningún rostro. Inténtalo de nuevo.', 'error');
-                loginBtn.disabled = false;
-                return;
-            }
+                if (!detection) {
+                    console.log('❌ No se detectó rostro');
+                    showMessage('❌ No se detectó ningún rostro. Inténtalo de nuevo.', 'error');
+                    loginBtn.disabled = false;
+                    return;
+                }
 
-            const embedding = Array.from(detection.descriptor);
+                const embedding = Array.from(detection.descriptor);
+                console.log('✅ Rostro detectado, embedding generado:', embedding.length, 'dimensiones');
 
-            fetch('/verificar_login_facial', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ embedding: embedding })
-            })
-            .then(response => response.json())
-            .then(data => {
+                // IMPORTANTE: Usar la ruta correcta del backend
+                const response = await fetch('/verificar_rostro_login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ embedding: embedding })
+                });
+
+                const data = await response.json();
+                console.log('📡 Respuesta del servidor:', data);
+
                 if (data.success) {
-                    showMessage('✅ ' + data.message, 'success');
-                    setTimeout(() => location.href = data.redirect, 1500);
+                    showMessage('✅ ' + data.message + ' Redirigiendo...', 'success');
+                    
+                    // Detener cámara
+                    const stream = video.srcObject;
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                    }
+                    
+                    // Redirigir según rol
+                    setTimeout(() => {
+                        if (data.rol === 'profesor') {
+                            window.location.href = '/dashboard_profesor';
+                        } else {
+                            window.location.href = '/dashboard_estudiante';
+                        }
+                    }, 1500);
                 } else {
+                    console.log('❌ Verificación fallida:', data.message);
                     showMessage('❌ ' + data.message, 'error');
                     loginBtn.disabled = false;
                 }
-            })
-            .catch(err => {
-                showMessage('❌ Error de red: ' + err, 'error');
+            } catch (err) {
+                console.error('❌ Error en el proceso:', err);
+                showMessage('❌ Error de conexión: ' + err.message, 'error');
                 loginBtn.disabled = false;
-            });
+            }
         });
 
         function showMessage(text, type) {
             messageDiv.textContent = text;
             messageDiv.className = 'message ' + type;
         }
+        
+        // Limpiar al salir
+        window.addEventListener('beforeunload', () => {
+            const stream = video.srcObject;
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
     </script>
 </body>
 </html>

@@ -4167,7 +4167,100 @@ def api_verificar_sincronizacion_grupal(grupo_id, pregunta_index):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-import json
+# ==================== LOGIN FACIAL ====================
+
+@app.route("/login_facial")
+def login_facial():
+    """Muestra la página de login con reconocimiento facial"""
+    return render_template("login_facial.html")
+
+
+@app.route("/verificar_rostro_login", methods=["POST"])
+def verificar_rostro_login():
+    """Verifica el rostro capturado contra los embeddings en la base de datos"""
+    try:
+        data = request.get_json()
+        embedding_capturado = data.get('embedding')
+
+        if not embedding_capturado or len(embedding_capturado) != 128:
+            return jsonify({
+                "success": False,
+                "message": "Datos de rostro inválidos"
+            }), 400
+
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                # Obtener todos los embeddings registrados
+                cursor.execute("""
+                    SELECT fe.usuario_id, fe.embedding, u.nombre, u.correo, u.rol, u.verificado
+                    FROM face_embeddings fe
+                    JOIN usuarios u ON fe.usuario_id = u.id
+                """)
+
+                usuarios_registrados = cursor.fetchall()
+
+                if not usuarios_registrados:
+                    return jsonify({
+                        "success": False,
+                        "message": "No hay usuarios con reconocimiento facial registrado"
+                    }), 404
+
+                # Buscar coincidencia por distancia euclidiana
+                mejor_coincidencia = None
+                mejor_similitud = float('inf')
+                umbral_similitud = 0.6
+
+                for usuario in usuarios_registrados:
+                    embedding_db = json.loads(usuario['embedding'])
+
+                    # Calcular distancia euclidiana
+                    distancia = sum((a - b) ** 2 for a, b in zip(embedding_capturado, embedding_db)) ** 0.5
+
+                    if distancia < mejor_similitud:
+                        mejor_similitud = distancia
+                        mejor_coincidencia = usuario
+
+                # Verificar si la similitud es suficiente
+                if mejor_coincidencia and mejor_similitud < umbral_similitud:
+                    if not mejor_coincidencia['verificado']:
+                        return jsonify({
+                            "success": False,
+                            "message": "Tu cuenta aún no está verificada. Revisa tu correo."
+                        }), 403
+
+                    # Login exitoso - crear sesión
+                    session.permanent = True
+                    session['usuario'] = mejor_coincidencia['nombre']
+                    session['correo'] = mejor_coincidencia['correo']
+                    session['rol'] = mejor_coincidencia['rol']
+                    session['user_id'] = mejor_coincidencia['usuario_id']
+
+                    print(f"✅ Login facial exitoso: {mejor_coincidencia['nombre']} ({mejor_coincidencia['rol']})")
+
+                    return jsonify({
+                        "success": True,
+                        "message": "Identidad verificada correctamente",
+                        "rol": mejor_coincidencia['rol']
+                    })
+                else:
+                    return jsonify({
+                        "success": False,
+                        "message": "No se pudo verificar tu identidad. Intenta con login normal."
+                    }), 401
+
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+
+    except Exception as e:
+        print(f"❌ Error en verificar_rostro_login: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "message": f"Error del servidor: {str(e)}"
+        }), 500
 
 # --- REGISTRO FACIAL ---
 @app.route("/registro_facial")

@@ -31,6 +31,47 @@
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
         .btn-secondary { background: #e0e0e0; color: #666; }
         .btn-secondary:hover { background: #d0d0d0; }
+        
+        /* NUEVO: Botón de Login Facial */
+        .btn-facial { 
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); 
+            color: white;
+            width: 100%;
+            padding: 14px;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .btn-facial:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 5px 20px rgba(17, 153, 142, 0.4); 
+        }
+        
+        .alternative-methods {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px dashed #e0e0e0;
+        }
+        
+        .alternative-methods h3 {
+            text-align: center;
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
         .divider { text-align: center; margin: 25px 0; position: relative; }
         .divider::before { content: ''; position: absolute; left: 0; top: 50%; width: 100%; height: 1px; background: #e0e0e0; }
         .divider span { background: white; padding: 0 15px; color: #999; font-size: 14px; position: relative; }
@@ -41,6 +82,15 @@
         .forgot-password { text-align: right; margin-top: -10px; margin-bottom: 20px; }
         .forgot-password a { color: #667eea; text-decoration: none; font-size: 13px; }
         .forgot-password a:hover { text-decoration: underline; }
+        
+        @media (max-width: 500px) {
+            .button-group {
+                flex-direction: column;
+            }
+            .container {
+                padding: 30px 20px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -50,6 +100,7 @@
             <h1>Iniciar Sesión</h1>
             <p class="subtitle">Sistema de Cuestionarios Interactivos</p>
         </div>
+        
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -60,6 +111,7 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
+        
         <form method="POST" action="{{ url_for('login') }}">
             <div class="form-group">
                 <label for="correo">Correo Electrónico</label>
@@ -68,32 +120,52 @@
                     <input type="email" id="correo" name="correo" placeholder="tu@email.com" required>
                 </div>
             </div>
+            
             <div class="form-group">
                 <label for="password">Contraseña</label>
                 <div class="input-container">
                     <span class="input-icon">🔒</span>
                     <input type="password" id="password" name="password" placeholder="••••••••" required>
                     <span class="password-toggle-icon" onclick="togglePasswordVisibility('password', this)">
-                        <svg id="eye-open" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-eye-fill" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg>
-                        <svg id="eye-closed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-eye-slash-fill" viewBox="0 0 16 16" style="display: none;"><path d="m10.79 12.912-1.614-1.615a3.5 3.5 0 0 1-4.474-4.474l-2.06-2.06C.938 6.278 0 8 0 8s3 5.5 8 5.5a7.029 7.029 0 0 0 2.79-.588zM5.21 3.088A7.028 7.028 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.939 1.721-2.641 3.238l-2.062-2.062a3.5 3.5 0 0 0-4.474-4.474L5.21 3.089z"/><path d="M5.525 7.646a2.5 2.5 0 0 0 2.829 2.829l-2.83-2.829zm4.95.708-2.829-2.83a2.5 2.5 0 0 1 2.829 2.829zm3.171 6-12-12 .708-.708 12 12-.708.708z"/></svg>
+                        <svg id="eye-open" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-eye-fill" viewBox="0 0 16 16">
+                            <path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/>
+                            <path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>
+                        </svg>
+                        <svg id="eye-closed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-eye-slash-fill" viewBox="0 0 16 16" style="display: none;">
+                            <path d="m10.79 12.912-1.614-1.615a3.5 3.5 0 0 1-4.474-4.474l-2.06-2.06C.938 6.278 0 8 0 8s3 5.5 8 5.5a7.029 7.029 0 0 0 2.79-.588zM5.21 3.088A7.028 7.028 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.939 1.721-2.641 3.238l-2.062-2.062a3.5 3.5 0 0 0-4.474-4.474L5.21 3.089z"/>
+                            <path d="M5.525 7.646a2.5 2.5 0 0 0 2.829 2.829l-2.83-2.829zm4.95.708-2.829-2.83a2.5 2.5 0 0 1 2.829 2.829zm3.171 6-12-12 .708-.708 12 12-.708.708z"/>
+                        </svg>
                     </span>
                 </div>
             </div>
+            
             <div class="forgot-password">
                 <a href="{{ url_for('recuperar_password') }}">¿Olvidaste tu contraseña?</a>
             </div>
+            
             <div class="button-group">
                 <button type="submit" class="btn btn-primary">Iniciar Sesión</button>
                 <button type="reset" class="btn btn-secondary">Cancelar</button>
             </div>
         </form>
 
+        <!-- NUEVO: Sección de Login Facial -->
+        <div class="alternative-methods">
+            <h3>🎭 Método Alternativo</h3>
+            <button type="button" class="btn-facial" onclick="irALoginFacial()">
+                <span style="font-size: 20px;">📷</span>
+                <span>Iniciar con Reconocimiento Facial</span>
+            </button>
+        </div>
+
         <div class="divider"><span>o</span></div>
+        
         <div class="register-link">
             <p>¿Es nuevo aquí?</p>
             <a href="{{ url_for('registro') }}">Crear una cuenta →</a>
         </div>
     </div>
+    
     <script>
         function togglePasswordVisibility(fieldId, icon) {
             const input = document.getElementById(fieldId);
@@ -108,6 +180,11 @@
                 eyeOpen.style.display = 'block';
                 eyeClosed.style.display = 'none';
             }
+        }
+        
+        // NUEVO: Función para ir a login facial
+        function irALoginFacial() {
+            window.location.href = "{{ url_for('login_facial') }}";
         }
     </script>
 </body>
