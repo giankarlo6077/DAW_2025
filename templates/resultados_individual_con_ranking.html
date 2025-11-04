@@ -241,15 +241,6 @@
             font-weight: bold;
             color: var(--color-success-dark);
         }
-        
-        .time-badge {
-            background: #e3f2fd;
-            color: #1976d2;
-            padding: 5px 12px;
-            border-radius: 15px;
-            font-size: 13px;
-            font-weight: 600;
-        }
 
         /* Sección de revisión detallada */
         .details-section {
@@ -524,7 +515,6 @@
                         <th>Posición</th>
                         <th>Estudiante</th>
                         <th>Puntuación</th>
-                        <th>Tiempo</th>
                         <th>Fecha</th>
                     </tr>
                 </thead>
@@ -554,9 +544,6 @@
                         </td>
                         <td>
                             <div class="score-value">{{ participante.puntuacion_final }}</div>
-                        </td>
-                        <td>
-                            <span class="time-badge">⏱️ {{ participante.tiempo_total }}s</span>
                         </td>
                         <td style="font-size: 13px; color: #666;">
                             {{ participante.fecha_realizacion.strftime('%d/%m/%Y %H:%M') }}
