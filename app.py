@@ -46,6 +46,110 @@ SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 
 # --- FUNCIONES DE AYUDA ---
+def verificar_todos_listos_individual(sesion_id, pregunta_index):
+    """Verifica si todos los estudiantes de una sesión terminaron la pregunta actual"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Contar estudiantes en la sesión
+            cursor.execute("""
+                SELECT COUNT(*) as total
+                FROM salas_espera
+                WHERE sesion_id = %s
+            """, (sesion_id,))
+            total = cursor.fetchone()['total']
+
+            # Contar estudiantes listos para la siguiente pregunta
+            cursor.execute("""
+                SELECT COUNT(*) as listos
+                FROM salas_espera
+                WHERE sesion_id = %s
+                AND pregunta_actual >= %s
+                AND listo_para_siguiente = TRUE
+            """, (sesion_id, pregunta_index))
+            listos = cursor.fetchone()['listos']
+
+            return listos >= total
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+def verificar_todos_listos_grupal(grupo_id, pregunta_index):
+    """Verifica si todos los miembros del grupo terminaron la pregunta actual"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Contar miembros del grupo
+            cursor.execute("""
+                SELECT COUNT(*) as total
+                FROM usuarios
+                WHERE grupo_id = %s
+            """, (grupo_id,))
+            total = cursor.fetchone()['total']
+
+            # Contar miembros que respondieron
+            cursor.execute("""
+                SELECT COUNT(DISTINCT usuario_id) as respondidos
+                FROM progreso_grupal
+                WHERE grupo_id = %s
+                AND pregunta_index = %s
+                AND respondio = TRUE
+            """, (grupo_id, pregunta_index))
+            respondidos = cursor.fetchone()['respondidos']
+
+            return respondidos >= total
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+def marcar_estudiante_listo_individual(usuario_id, sesion_id, pregunta_index):
+    """Marca que un estudiante terminó de responder una pregunta"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE salas_espera
+                SET pregunta_actual = %s,
+                    listo_para_siguiente = TRUE
+                WHERE usuario_id = %s AND sesion_id = %s
+            """, (pregunta_index, usuario_id, sesion_id))
+            conexion.commit()
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+def marcar_miembro_listo_grupal(grupo_id, usuario_id, pregunta_index):
+    """Marca que un miembro del grupo terminó de responder"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO progreso_grupal
+                (grupo_id, usuario_id, pregunta_index, respondio, fecha_respuesta)
+                VALUES (%s, %s, %s, TRUE, NOW())
+                ON DUPLICATE KEY UPDATE
+                respondio = TRUE,
+                fecha_respuesta = NOW()
+            """, (grupo_id, usuario_id, pregunta_index))
+            conexion.commit()
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+def resetear_barrera_individual(sesion_id):
+    """Resetea el estado de 'listo' para la siguiente pregunta"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE salas_espera
+                SET listo_para_siguiente = FALSE
+                WHERE sesion_id = %s
+            """, (sesion_id,))
+            conexion.commit()
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
 
 def convertir_a_hora_peru(fecha_utc):
     """Convierte una fecha UTC a hora de Perú"""
@@ -1824,7 +1928,8 @@ def partida_individual(codigo_pin):
     return render_template("juego_individual.html",
                            cuestionario=cuestionario,
                            preguntas=preguntas,
-                           nombre_estudiante=nombre_estudiante)
+                           nombre_estudiante=nombre_estudiante,
+                           sesion_id=sesion_id)
 
 
 # --- RUTA PARA UNIRSE A UN CUESTIONARIO INDIVIDUAL ---
@@ -2232,7 +2337,7 @@ def visualizar_cuestionario():
 
 @app.route("/exportar_resultados/<int:cuestionario_id>")
 def exportar_resultados(cuestionario_id):
-    """Página de opciones de exportación"""
+    """Página de opciones de exportación - SOPORTA INDIVIDUAL Y GRUPAL"""
     if "usuario" not in session or session.get("rol") != "profesor":
         return redirect(url_for("login"))
 
@@ -2241,7 +2346,7 @@ def exportar_resultados(cuestionario_id):
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT titulo, num_preguntas FROM cuestionarios
+                SELECT titulo, num_preguntas, modo_juego FROM cuestionarios
                 WHERE id = %s AND profesor_id = %s
             """, (cuestionario_id, session["user_id"]))
 
@@ -2250,10 +2355,18 @@ def exportar_resultados(cuestionario_id):
                 flash("❌ Cuestionario no encontrado", "error")
                 return redirect(url_for("dashboard_profesor"))
 
-            cursor.execute("""
-                SELECT COUNT(*) as total FROM historial_partidas
-                WHERE cuestionario_id = %s
-            """, (cuestionario_id,))
+            # Contar resultados según el modo de juego
+            if cuestionario['modo_juego'] == 'grupal':
+                cursor.execute("""
+                    SELECT COUNT(*) as total FROM historial_partidas
+                    WHERE cuestionario_id = %s
+                """, (cuestionario_id,))
+            else:  # individual
+                cursor.execute("""
+                    SELECT COUNT(*) as total FROM historial_individual
+                    WHERE cuestionario_id = %s AND puntuacion_final > 0
+                """, (cuestionario_id,))
+
             total_resultados = cursor.fetchone()['total']
 
     finally:
@@ -2267,23 +2380,21 @@ def exportar_resultados(cuestionario_id):
 
 @app.route("/descargar_excel/<int:cuestionario_id>")
 def descargar_excel(cuestionario_id):
-    """Descarga directa del Excel"""
+    """Descarga directa del Excel - SOPORTA INDIVIDUAL Y GRUPAL"""
     if "usuario" not in session or session.get("rol") != "profesor":
         return redirect(url_for("login"))
 
     try:
-        # --- CORRECCIÓN: Imports movidos aquí ---
         import pandas as pd
         import openpyxl
         from flask import send_file
-        # --- FIN CORRECCIÓN ---
 
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
                 # Verificar que el cuestionario pertenece al profesor
                 cursor.execute("""
-                    SELECT titulo FROM cuestionarios
+                    SELECT titulo, modo_juego, num_preguntas FROM cuestionarios
                     WHERE id = %s AND profesor_id = %s
                 """, (cuestionario_id, session["user_id"]))
 
@@ -2292,22 +2403,40 @@ def descargar_excel(cuestionario_id):
                     flash("❌ Cuestionario no encontrado", "error")
                     return redirect(url_for("dashboard_profesor"))
 
-                # Obtener resultados de las partidas
-                cursor.execute("""
-                    SELECT
-                        h.id as partida_id,
-                        h.nombre_grupo,
-                        h.puntuacion_final,
-                        h.num_preguntas_total,
-                        h.num_miembros,
-                        h.fecha_partida,
-                        GROUP_CONCAT(p.nombre_usuario SEPARATOR ', ') as participantes
-                    FROM historial_partidas h
-                    LEFT JOIN participantes_partida p ON h.id = p.partida_id
-                    WHERE h.cuestionario_id = %s
-                    GROUP BY h.id
-                    ORDER BY h.fecha_partida DESC
-                """, (cuestionario_id,))
+                # ===== CONSULTA SEGÚN MODO DE JUEGO =====
+                if cuestionario['modo_juego'] == 'grupal':
+                    # Obtener resultados GRUPALES
+                    cursor.execute("""
+                        SELECT
+                            h.id as partida_id,
+                            h.nombre_grupo as identificador,
+                            h.puntuacion_final,
+                            h.num_preguntas_total,
+                            h.num_miembros as extras,
+                            h.fecha_partida as fecha,
+                            GROUP_CONCAT(p.nombre_usuario SEPARATOR ', ') as participantes
+                        FROM historial_partidas h
+                        LEFT JOIN participantes_partida p ON h.id = p.partida_id
+                        WHERE h.cuestionario_id = %s
+                        GROUP BY h.id
+                        ORDER BY h.fecha_partida DESC
+                    """, (cuestionario_id,))
+                else:
+                    # Obtener resultados INDIVIDUALES
+                    cursor.execute("""
+                        SELECT
+                            h.id as partida_id,
+                            h.nombre_estudiante as identificador,
+                            h.puntuacion_final,
+                            h.num_preguntas_total,
+                            h.tiempo_total as extras,
+                            h.fecha_realizacion as fecha,
+                            NULL as participantes
+                        FROM historial_individual h
+                        WHERE h.cuestionario_id = %s
+                          AND h.puntuacion_final > 0
+                        ORDER BY h.fecha_realizacion DESC
+                    """, (cuestionario_id,))
 
                 resultados = cursor.fetchall()
 
@@ -2318,14 +2447,24 @@ def descargar_excel(cuestionario_id):
                 # Crear DataFrame
                 df = pd.DataFrame(resultados)
 
-                # Renombrar columnas
-                df.columns = ['ID Partida', 'Grupo', 'Puntuación', 'Total Preguntas',
-                               'Miembros', 'Fecha', 'Participantes']
+                # Renombrar columnas según el modo
+                if cuestionario['modo_juego'] == 'grupal':
+                    df.columns = ['ID Partida', 'Grupo', 'Puntuación', 'Total Preguntas',
+                                  'Miembros', 'Fecha', 'Participantes']
 
-                # Calcular porcentaje y estadísticas
-                df['Porcentaje (%)'] = (df['Puntuación'] / (df['Total Preguntas'] * 100) * 100).round(2)
-                df['Preguntas Correctas'] = (df['Puntuación'] / 100).astype(int)
-                df['Preguntas Incorrectas'] = df['Total Preguntas'] - df['Preguntas Correctas']
+                    # Calcular estadísticas grupales
+                    df['Porcentaje (%)'] = (df['Puntuación'] / (df['Total Preguntas'] * 100) * 100).round(2)
+                    df['Preguntas Correctas'] = (df['Puntuación'] / 100).astype(int)
+                    df['Preguntas Incorrectas'] = df['Total Preguntas'] - df['Preguntas Correctas']
+                else:
+                    df.columns = ['ID Partida', 'Estudiante', 'Puntuación', 'Total Preguntas',
+                                  'Tiempo (seg)', 'Fecha', 'Participantes']
+                    df = df.drop('Participantes', axis=1)  # No aplica en individual
+
+                    # Calcular estadísticas individuales
+                    # Para individual, puntos máximos = preguntas * 1000 (sistema de puntos por velocidad)
+                    df['Porcentaje (%)'] = (df['Puntuación'] / (df['Total Preguntas'] * 1000) * 100).round(2)
+                    df['Tiempo Promedio/Preg'] = (df['Tiempo (seg)'] / df['Total Preguntas']).round(1)
 
                 # Crear archivo Excel en memoria con múltiples hojas
                 output = BytesIO()
@@ -2334,28 +2473,57 @@ def descargar_excel(cuestionario_id):
                     df.to_excel(writer, sheet_name='Resultados Detallados', index=False)
 
                     # Hoja 2: Estadísticas generales
-                    stats_data = {
-                        'Métrica': [
-                            'Total de Partidas',
-                            'Total de Jugadores (sumado)',
-                            'Puntuación Promedio',
-                            'Puntuación Máxima',
-                            'Puntuación Mínima',
-                            'Porcentaje Promedio',
-                            'Grupos con +80%',
-                            'Grupos con +60%'
-                        ],
-                        'Valor': [
-                            len(df),
-                            df['Miembros'].sum(),
-                            df['Puntuación'].mean().round(2),
-                            df['Puntuación'].max(),
-                            df['Puntuación'].min(),
-                            df['Porcentaje (%)'].mean().round(2),
-                            len(df[df['Porcentaje (%)'] >= 80]),
-                            len(df[df['Porcentaje (%)'] >= 60])
-                        ]
-                    }
+                    if cuestionario['modo_juego'] == 'grupal':
+                        stats_data = {
+                            'Métrica': [
+                                'Total de Partidas',
+                                'Total de Jugadores (sumado)',
+                                'Puntuación Promedio',
+                                'Puntuación Máxima',
+                                'Puntuación Mínima',
+                                'Porcentaje Promedio',
+                                'Grupos con +80%',
+                                'Grupos con +60%'
+                            ],
+                            'Valor': [
+                                len(df),
+                                df['Miembros'].sum(),
+                                df['Puntuación'].mean().round(2),
+                                df['Puntuación'].max(),
+                                df['Puntuación'].min(),
+                                df['Porcentaje (%)'].mean().round(2),
+                                len(df[df['Porcentaje (%)'] >= 80]),
+                                len(df[df['Porcentaje (%)'] >= 60])
+                            ]
+                        }
+                    else:
+                        stats_data = {
+                            'Métrica': [
+                                'Total de Partidas',
+                                'Total de Estudiantes',
+                                'Puntuación Promedio',
+                                'Puntuación Máxima',
+                                'Puntuación Mínima',
+                                'Porcentaje Promedio',
+                                'Estudiantes con +80%',
+                                'Estudiantes con +60%',
+                                'Tiempo Promedio Total',
+                                'Mejor Tiempo'
+                            ],
+                            'Valor': [
+                                len(df),
+                                len(df),
+                                df['Puntuación'].mean().round(2),
+                                df['Puntuación'].max(),
+                                df['Puntuación'].min(),
+                                df['Porcentaje (%)'].mean().round(2),
+                                len(df[df['Porcentaje (%)'] >= 80]),
+                                len(df[df['Porcentaje (%)'] >= 60]),
+                                df['Tiempo (seg)'].mean().round(1),
+                                df['Tiempo (seg)'].min()
+                            ]
+                        }
+
                     stats_df = pd.DataFrame(stats_data)
                     stats_df.to_excel(writer, sheet_name='Estadísticas', index=False)
 
@@ -2367,11 +2535,8 @@ def descargar_excel(cuestionario_id):
                             column_cells = [cell for cell in column]
                             for cell in column_cells:
                                 try:
-                                    # --- CORRECCIÓN DE BUG ---
-                                    # Convertir a string ANTES de medir la longitud
                                     if len(str(cell.value)) > max_length:
                                         max_length = len(str(cell.value))
-                                    # --- FIN CORRECCIÓN ---
                                 except:
                                     pass
                             adjusted_width = min(max_length + 2, 50)
@@ -2380,7 +2545,8 @@ def descargar_excel(cuestionario_id):
                 output.seek(0)
 
                 # Nombre del archivo
-                filename = f"Resultados_{cuestionario['titulo'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                modo_texto = "Grupal" if cuestionario['modo_juego'] == 'grupal' else "Individual"
+                filename = f"Resultados_{modo_texto}_{cuestionario['titulo'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
                 return send_file(
                     output,
@@ -2406,7 +2572,7 @@ def descargar_excel(cuestionario_id):
 
 @app.route("/enviar_excel_correo/<int:cuestionario_id>", methods=["POST"])
 def enviar_excel_correo(cuestionario_id):
-    """Envía el archivo Excel por correo electrónico"""
+    """Envía el archivo Excel por correo electrónico - SOPORTA INDIVIDUAL Y GRUPAL"""
     if "usuario" not in session or session.get("rol") != "profesor":
         return redirect(url_for("login"))
 
@@ -2418,7 +2584,7 @@ def enviar_excel_correo(cuestionario_id):
             with conexion.cursor() as cursor:
                 # Verificar que el cuestionario pertenece al profesor
                 cursor.execute("""
-                    SELECT titulo FROM cuestionarios
+                    SELECT titulo, modo_juego, num_preguntas FROM cuestionarios
                     WHERE id = %s AND profesor_id = %s
                 """, (cuestionario_id, session["user_id"]))
 
@@ -2427,22 +2593,31 @@ def enviar_excel_correo(cuestionario_id):
                     flash("❌ Cuestionario no encontrado", "error")
                     return redirect(url_for("dashboard_profesor"))
 
-                # Obtener resultados de las partidas
-                cursor.execute("""
-                    SELECT
-                        h.id as partida_id,
-                        h.nombre_grupo,
-                        h.puntuacion_final,
-                        h.num_preguntas_total,
-                        h.num_miembros,
-                        h.fecha_partida,
-                        GROUP_CONCAT(p.nombre_usuario SEPARATOR ', ') as participantes
-                    FROM historial_partidas h
-                    LEFT JOIN participantes_partida p ON h.id = p.partida_id
-                    WHERE h.cuestionario_id = %s
-                    GROUP BY h.id
-                    ORDER BY h.fecha_partida DESC
-                """, (cuestionario_id,))
+                # Obtener resultados según modo
+                if cuestionario['modo_juego'] == 'grupal':
+                    cursor.execute("""
+                        SELECT
+                            h.id as partida_id, h.nombre_grupo as identificador,
+                            h.puntuacion_final, h.num_preguntas_total,
+                            h.num_miembros as extras, h.fecha_partida as fecha,
+                            GROUP_CONCAT(p.nombre_usuario SEPARATOR ', ') as participantes
+                        FROM historial_partidas h
+                        LEFT JOIN participantes_partida p ON h.id = p.partida_id
+                        WHERE h.cuestionario_id = %s
+                        GROUP BY h.id
+                        ORDER BY h.fecha_partida DESC
+                    """, (cuestionario_id,))
+                else:
+                    cursor.execute("""
+                        SELECT
+                            h.id as partida_id, h.nombre_estudiante as identificador,
+                            h.puntuacion_final, h.num_preguntas_total,
+                            h.tiempo_total as extras, h.fecha_realizacion as fecha,
+                            NULL as participantes
+                        FROM historial_individual h
+                        WHERE h.cuestionario_id = %s AND h.puntuacion_final > 0
+                        ORDER BY h.fecha_realizacion DESC
+                    """, (cuestionario_id,))
 
                 resultados = cursor.fetchall()
 
@@ -2450,22 +2625,41 @@ def enviar_excel_correo(cuestionario_id):
                     flash("⚠️ No hay resultados para exportar", "warning")
                     return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
 
-                # Crear DataFrame
+                # Crear DataFrame y calcular estadísticas
                 df = pd.DataFrame(resultados)
-                df.columns = ['ID Partida', 'Grupo', 'Puntuación', 'Total Preguntas', 'Miembros', 'Fecha', 'Participantes']
-                df['Porcentaje (%)'] = (df['Puntuación'] / (df['Total Preguntas'] * 100) * 100).round(2)
-                df['Preguntas Correctas'] = (df['Puntuación'] / 100).astype(int)
-                df['Preguntas Incorrectas'] = df['Total Preguntas'] - df['Preguntas Correctas']
 
-                # Crear archivo Excel en memoria
+                if cuestionario['modo_juego'] == 'grupal':
+                    df.columns = ['ID Partida', 'Grupo', 'Puntuación', 'Total Preguntas', 'Miembros', 'Fecha', 'Participantes']
+                    df['Porcentaje (%)'] = (df['Puntuación'] / (df['Total Preguntas'] * 100) * 100).round(2)
+                    df['Preguntas Correctas'] = (df['Puntuación'] / 100).astype(int)
+                    df['Preguntas Incorrectas'] = df['Total Preguntas'] - df['Preguntas Correctas']
+
+                    total_jugadores = int(df['Miembros'].sum())
+                else:
+                    df.columns = ['ID Partida', 'Estudiante', 'Puntuación', 'Total Preguntas', 'Tiempo (seg)', 'Fecha', 'Participantes']
+                    df = df.drop('Participantes', axis=1)
+                    df['Porcentaje (%)'] = (df['Puntuación'] / (df['Total Preguntas'] * 1000) * 100).round(2)
+                    df['Tiempo Promedio/Preg'] = (df['Tiempo (seg)'] / df['Total Preguntas']).round(1)
+
+                    total_jugadores = len(df)
+
+                # Crear Excel en memoria
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     df.to_excel(writer, sheet_name='Resultados Detallados', index=False)
 
-                    stats_data = {
-                        'Métrica': ['Total de Partidas', 'Total de Jugadores', 'Puntuación Promedio', 'Puntuación Máxima', 'Puntuación Mínima', 'Porcentaje Promedio', 'Grupos con +80%', 'Grupos con +60%'],
-                        'Valor': [len(df), df['Miembros'].sum(), df['Puntuación'].mean().round(2), df['Puntuación'].max(), df['Puntuación'].min(), df['Porcentaje (%)'].mean().round(2), len(df[df['Porcentaje (%)'] >= 80]), len(df[df['Porcentaje (%)'] >= 60])]
-                    }
+                    # Estadísticas
+                    if cuestionario['modo_juego'] == 'grupal':
+                        stats_data = {
+                            'Métrica': ['Total de Partidas', 'Total de Jugadores', 'Puntuación Promedio', 'Puntuación Máxima', 'Puntuación Mínima', 'Porcentaje Promedio', 'Grupos con +80%', 'Grupos con +60%'],
+                            'Valor': [len(df), df['Miembros'].sum(), df['Puntuación'].mean().round(2), df['Puntuación'].max(), df['Puntuación'].min(), df['Porcentaje (%)'].mean().round(2), len(df[df['Porcentaje (%)'] >= 80]), len(df[df['Porcentaje (%)'] >= 60])]
+                        }
+                    else:
+                        stats_data = {
+                            'Métrica': ['Total de Partidas', 'Total de Estudiantes', 'Puntuación Promedio', 'Puntuación Máxima', 'Puntuación Mínima', 'Porcentaje Promedio', 'Estudiantes con +80%', 'Estudiantes con +60%', 'Tiempo Promedio'],
+                            'Valor': [len(df), len(df), df['Puntuación'].mean().round(2), df['Puntuación'].max(), df['Puntuación'].min(), df['Porcentaje (%)'].mean().round(2), len(df[df['Porcentaje (%)'] >= 80]), len(df[df['Porcentaje (%)'] >= 60]), df['Tiempo (seg)'].mean().round(1)]
+                        }
+
                     stats_df = pd.DataFrame(stats_data)
                     stats_df.to_excel(writer, sheet_name='Estadísticas', index=False)
 
@@ -2484,52 +2678,48 @@ def enviar_excel_correo(cuestionario_id):
                             worksheet.column_dimensions[column_cells[0].column_letter].width = adjusted_width
 
                 output.seek(0)
-                filename = "Resultados_" + cuestionario['titulo'].replace(' ', '_') + "_" + datetime.now().strftime('%Y%m%d_%H%M%S') + ".xlsx"
+                modo_texto = "Grupal" if cuestionario['modo_juego'] == 'grupal' else "Individual"
+                filename = f"Resultados_{modo_texto}_{cuestionario['titulo'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
-                # Preparar variables para el correo
+                # Preparar correo
                 correo_destino = session.get('correo')
                 nombre_profesor = session.get('usuario')
                 titulo_cuestionario = cuestionario['titulo']
                 total_partidas = len(df)
-                total_jugadores = int(df['Miembros'].sum())
                 fecha_generacion = datetime.now().strftime('%d/%m/%Y a las %H:%M')
 
-                # Crear el mensaje
                 msg = Message(
-                    subject='Resultados del Cuestionario: ' + titulo_cuestionario,
+                    subject=f'Resultados del Cuestionario {modo_texto}: {titulo_cuestionario}',
                     recipients=[correo_destino]
                 )
 
-                # Construir HTML del correo sin f-strings
-                html_body = '<html><body style="font-family: Arial, sans-serif; background-color: #f5f6fa; padding: 20px;">'
-                html_body += '<div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1);">'
-                html_body += '<div style="text-align: center; margin-bottom: 30px;"><div style="font-size: 48px; margin-bottom: 15px;">📊</div>'
-                html_body += '<h2 style="color: #667eea; margin: 0;">Resultados de Cuestionario</h2></div>'
-                html_body += '<p style="color: #333; font-size: 16px;">Hola <strong>' + nombre_profesor + '</strong>,</p>'
-                html_body += '<p style="color: #666; line-height: 1.6;">Adjunto encontrarás el archivo Excel con los resultados detallados del cuestionario <strong>"' + titulo_cuestionario + '"</strong>.</p>'
-                html_body += '<div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px; margin: 25px 0; border-radius: 8px;">'
-                html_body += '<h3 style="color: #1976d2; margin-top: 0;">📄 Contenido del Archivo</h3><ul style="color: #0d47a1; line-height: 1.8;">'
-                html_body += '<li><strong>Hoja 1:</strong> Resultados detallados de todas las partidas</li>'
-                html_body += '<li><strong>Hoja 2:</strong> Estadísticas generales y promedios</li>'
-                html_body += '<li><strong>Total de partidas:</strong> ' + str(total_partidas) + '</li>'
-                html_body += '<li><strong>Total de jugadores:</strong> ' + str(total_jugadores) + '</li></ul></div>'
-                html_body += '<div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">'
-                html_body += '<p style="color: #856404; margin: 0; font-size: 14px;">💡 <strong>Consejo:</strong> Abre el archivo con Microsoft Excel, Google Sheets o LibreOffice Calc.</p></div>'
-                html_body += '<div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">'
-                html_body += '<p style="color: #999; font-size: 12px; margin: 0;">Sistema de Cuestionarios Interactivos<br>Generado el ' + fecha_generacion + '</p></div>'
-                html_body += '</div></body></html>'
+                # HTML del correo
+                html_body = f'''<html><body style="font-family: Arial, sans-serif; background-color: #f5f6fa; padding: 20px;">
+                <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1);">
+                <div style="text-align: center; margin-bottom: 30px;"><div style="font-size: 48px; margin-bottom: 15px;">📊</div>
+                <h2 style="color: #667eea; margin: 0;">Resultados de Cuestionario {modo_texto}</h2></div>
+                <p style="color: #333; font-size: 16px;">Hola <strong>{nombre_profesor}</strong>,</p>
+                <p style="color: #666; line-height: 1.6;">Adjunto encontrarás el archivo Excel con los resultados detallados del cuestionario <strong>"{titulo_cuestionario}"</strong> (Modo: {modo_texto}).</p>
+                <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px; margin: 25px 0; border-radius: 8px;">
+                <h3 style="color: #1976d2; margin-top: 0;">📄 Contenido del Archivo</h3><ul style="color: #0d47a1; line-height: 1.8;">
+                <li><strong>Hoja 1:</strong> Resultados detallados de todas las partidas</li>
+                <li><strong>Hoja 2:</strong> Estadísticas generales y promedios</li>
+                <li><strong>Total de partidas:</strong> {total_partidas}</li>
+                <li><strong>Total de {"jugadores" if cuestionario['modo_juego'] == 'grupal' else "estudiantes"}:</strong> {total_jugadores}</li></ul></div>
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="color: #856404; margin: 0; font-size: 14px;">💡 <strong>Consejo:</strong> Abre el archivo con Microsoft Excel, Google Sheets o LibreOffice Calc.</p></div>
+                <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <p style="color: #999; font-size: 12px; margin: 0;">Sistema de Cuestionarios Interactivos<br>Generado el {fecha_generacion}</p></div>
+                </div></body></html>'''
 
                 msg.html = html_body
-
-                # Adjuntar Excel
                 msg.attach(filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', output.getvalue())
 
-                # Enviar
                 with app.app_context():
                     mail.send(msg)
 
-                print("Correo enviado exitosamente a " + correo_destino)
-                flash("✅ ¡Correo enviado exitosamente a " + correo_destino + "! Revisa tu bandeja de entrada.", "success")
+                print(f"✅ Correo enviado exitosamente a {correo_destino}")
+                flash(f"✅ ¡Correo enviado exitosamente a {correo_destino}! Revisa tu bandeja de entrada.", "success")
                 return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
 
         finally:
@@ -2540,15 +2730,15 @@ def enviar_excel_correo(cuestionario_id):
         flash("❌ Error: Necesitas instalar pandas y openpyxl", "error")
         return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
     except Exception as e:
-        flash("❌ Error al enviar el correo: " + str(e), "error")
-        print("Error en enviar_excel_correo: " + str(e))
+        flash(f"❌ Error al enviar el correo: {str(e)}", "error")
+        print(f"Error en enviar_excel_correo: {e}")
         import traceback
         traceback.print_exc()
         return redirect(url_for("exportar_resultados", cuestionario_id=cuestionario_id))
 
 @app.route("/guardar_respuesta_individual", methods=["POST"])
 def guardar_respuesta_individual():
-    """Guarda la respuesta de una pregunta individual y devuelve si fue correcta"""
+    """Guarda la respuesta y espera a que todos terminen"""
     if "usuario" not in session or session.get("rol") != "estudiante":
         return jsonify({"success": False, "message": "No autorizado"}), 403
 
@@ -2557,6 +2747,7 @@ def guardar_respuesta_individual():
         pregunta_id = data.get('pregunta_id')
         respuesta = data.get('respuesta')
         tiempo_respuesta = data.get('tiempo_respuesta', 0)
+        pregunta_index = data.get('pregunta_index', 0)  # NUEVO
 
         user_id = session["user_id"]
         historial_id = session.get('historial_individual_id')
@@ -2567,7 +2758,14 @@ def guardar_respuesta_individual():
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
-                # Obtener pregunta y tiempo límite del cuestionario
+                # Obtener sesion_id
+                cursor.execute("""
+                    SELECT sesion_id FROM historial_individual WHERE id = %s
+                """, (historial_id,))
+                historial = cursor.fetchone()
+                sesion_id = historial['sesion_id'] if historial else None
+
+                # Obtener pregunta y calcular puntos (código existente)
                 cursor.execute("""
                     SELECT p.respuesta_correcta, c.tiempo_pregunta
                     FROM preguntas p
@@ -2579,7 +2777,6 @@ def guardar_respuesta_individual():
                 if not pregunta:
                     return jsonify({"success": False, "message": "Pregunta no encontrada"}), 404
 
-                # Calcular puntos basados en velocidad de respuesta
                 puntos_obtenidos = 0
                 es_correcta = False
 
@@ -2588,13 +2785,6 @@ def guardar_respuesta_individual():
 
                     if es_correcta:
                         tiempo_limite = pregunta['tiempo_pregunta']
-
-                        # Sistema de puntos basado en velocidad:
-                        # - Respuesta en primeros 25% del tiempo: 1000 puntos
-                        # - Respuesta en primeros 50% del tiempo: 800 puntos
-                        # - Respuesta en primeros 75% del tiempo: 600 puntos
-                        # - Respuesta antes del límite: 400 puntos
-
                         porcentaje_tiempo = (tiempo_respuesta / tiempo_limite) * 100 if tiempo_limite > 0 else 100
 
                         if porcentaje_tiempo <= 25:
@@ -2616,7 +2806,7 @@ def guardar_respuesta_individual():
                     tiempo_respuesta = VALUES(tiempo_respuesta)
                 """, (historial_id, pregunta_id, respuesta, tiempo_respuesta))
 
-                # Actualizar puntuación total
+                # Actualizar puntuación
                 if es_correcta:
                     cursor.execute("""
                         UPDATE historial_individual
@@ -2626,11 +2816,23 @@ def guardar_respuesta_individual():
 
                 conexion.commit()
 
+                # ✅ MARCAR COMO LISTO
+                if sesion_id:
+                    marcar_estudiante_listo_individual(user_id, sesion_id, pregunta_index)
+
+                # ✅ VERIFICAR SI TODOS ESTÁN LISTOS
+                todos_listos = verificar_todos_listos_individual(sesion_id, pregunta_index) if sesion_id else False
+
+                # ✅ SI TODOS LISTOS, RESETEAR BARRERA
+                if todos_listos and sesion_id:
+                    resetear_barrera_individual(sesion_id)
+
                 return jsonify({
                     "success": True,
                     "correcta": es_correcta,
                     "respuesta_correcta": pregunta['respuesta_correcta'],
-                    "puntos": puntos_obtenidos
+                    "puntos": puntos_obtenidos,
+                    "todos_listos": todos_listos  # NUEVO
                 })
 
         finally:
@@ -3841,6 +4043,88 @@ def hora_peru_filter(fecha_utc):
     # Convertir a hora de Perú
     fecha_peru = fecha_utc.astimezone(PERU_TZ)
     return fecha_peru.strftime('%d/%m/%Y %H:%M')
+@app.route("/api/verificar_sincronizacion_individual/<sesion_id>/<int:pregunta_index>")
+def api_verificar_sincronizacion_individual(sesion_id, pregunta_index):
+    """API para que los estudiantes verifiquen si todos están listos"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    try:
+        todos_listos = verificar_todos_listos_individual(sesion_id, pregunta_index)
+
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                # Contar cuántos están listos
+                cursor.execute("""
+                    SELECT COUNT(*) as listos
+                    FROM salas_espera
+                    WHERE sesion_id = %s
+                    AND pregunta_actual >= %s
+                    AND listo_para_siguiente = TRUE
+                """, (sesion_id, pregunta_index))
+                listos = cursor.fetchone()['listos']
+
+                cursor.execute("""
+                    SELECT COUNT(*) as total
+                    FROM salas_espera
+                    WHERE sesion_id = %s
+                """, (sesion_id,))
+                total = cursor.fetchone()['total']
+
+                return jsonify({
+                    "todos_listos": todos_listos,
+                    "listos": listos,
+                    "total": total
+                })
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+
+    except Exception as e:
+        print(f"❌ Error en verificar sincronización: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/api/verificar_sincronizacion_grupal/<int:grupo_id>/<int:pregunta_index>")
+def api_verificar_sincronizacion_grupal(grupo_id, pregunta_index):
+    """API para que los miembros del grupo verifiquen si todos están listos"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    try:
+        todos_listos = verificar_todos_listos_grupal(grupo_id, pregunta_index)
+
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                cursor.execute("""
+                    SELECT COUNT(DISTINCT usuario_id) as respondidos
+                    FROM progreso_grupal
+                    WHERE grupo_id = %s
+                    AND pregunta_index = %s
+                    AND respondio = TRUE
+                """, (grupo_id, pregunta_index))
+                respondidos = cursor.fetchone()['respondidos']
+
+                cursor.execute("""
+                    SELECT COUNT(*) as total
+                    FROM usuarios
+                    WHERE grupo_id = %s
+                """, (grupo_id,))
+                total = cursor.fetchone()['total']
+
+                return jsonify({
+                    "todos_listos": todos_listos,
+                    "respondidos": respondidos,
+                    "total": total
+                })
+        finally:
+            if conexion and conexion.open:
+                conexion.close()
+
+    except Exception as e:
+        print(f"❌ Error en verificar sincronización grupal: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 # --- MANEJO DE ERRORES ---
 

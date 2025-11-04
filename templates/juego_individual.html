@@ -167,39 +167,54 @@
             color: #721c24;
         }
         
-        /* ¡CAMBIO! Ocultamos los botones de control */
-        .controls {
-            display: none; 
-            justify-content: space-between;
-            padding: 30px 40px;
-            border-top: 2px solid #e9ecef;
+        /* ✅ Mensaje de espera */
+        .waiting-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
         }
-
-        .btn {
-            padding: 15px 35px;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
+        .waiting-overlay.show {
+            display: flex;
+        }
+        .waiting-box {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+        }
+        .waiting-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+            animation: rotate 2s linear infinite;
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .waiting-text {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .waiting-counter {
+            font-size: 24px;
             font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
+            color: #667eea;
+            margin-bottom: 15px;
         }
-        .btn-primary {
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            color: white;
+        .waiting-timer {
+            font-size: 16px;
+            color: #666;
         }
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(17, 153, 142, 0.4);
-        }
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
+        
         .progress-bar {
             height: 8px;
             background: #e9ecef;
@@ -257,15 +272,15 @@
 
             <div class="feedback" id="feedback"></div>
         </div>
+    </div>
 
-        <div class="controls">
-            <!-- Los botones están ocultos con CSS -->
-            <button class="btn btn-secondary" id="btnPrevious" onclick="previousQuestion()" disabled>
-                ⬅️ Anterior
-            </button>
-            <button class="btn btn-primary" id="btnNext" onclick="nextQuestion()" disabled>
-                Siguiente ➡️
-            </button>
+    <!-- ✅ Overlay de espera -->
+    <div class="waiting-overlay" id="waitingOverlay">
+        <div class="waiting-box">
+            <div class="waiting-icon">⏳</div>
+            <div class="waiting-text">Esperando a que todos respondan...</div>
+            <div class="waiting-counter" id="waitingCounter">0/0 estudiantes listos</div>
+            <div class="waiting-timer" id="waitingTimer">Tiempo restante: <span id="tiempoRestante">0</span>s</div>
         </div>
     </div>
 
@@ -274,21 +289,25 @@
         const preguntas = {{ preguntas | tojson }};
         const tiempoPorPregunta = {{ cuestionario.tiempo_pregunta }};
         const cuestionarioId = {{ cuestionario.id }};
+        const sesionId = '{{ sesion_id }}';
 
         // Estado del juego
         let preguntaActual = 0;
         let puntuacionTotal = 0;
-        let respuestas = []; // Array local para guardar respuestas
+        let respuestas = [];
         let tiempoRestantePregunta = tiempoPorPregunta;
-        let timerIntervalPregunta; // Se define en iniciarTimerParaPreguntaActual
+        let timerIntervalPregunta;
         let tiempoInicioRespuesta;
         let respuestaEnviada = false;
         let tiempoTotalTranscurrido = 0; 
-        let timerIntervalTotal; 
+        let timerIntervalTotal;
+        let intervalSincronizacion = null;
+        let esperandoSincronizacion = false; // ✅ NUEVO
 
         // Inicializar juego
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🎮 Iniciando juego individual...');
+            console.log('📌 Sesión ID:', sesionId);
             
             if (!preguntas || preguntas.length === 0) {
                 console.error("❌ No se cargaron preguntas. Redirigiendo...");
@@ -298,14 +317,11 @@
             }
             
             console.log('📋 Total de preguntas:', preguntas.length);
-            console.log('⏱️ Tiempo por pregunta:', tiempoPorPregunta, 's');
 
-            // Inicia el timer general del cuestionario
             timerIntervalTotal = setInterval(() => {
                 tiempoTotalTranscurrido++;
             }, 1000);
 
-            // Carga la primera pregunta (que también iniciará su timer)
             cargarPregunta();
         });
 
@@ -315,14 +331,15 @@
             const pregunta = preguntas[preguntaActual];
             
             if (!pregunta) {
-                console.error(`❌ Error: Se intentó cargar la pregunta ${preguntaActual} pero no existe.`);
+                console.error(`❌ Error: pregunta ${preguntaActual} no existe.`);
                 finalizarCuestionario(); 
                 return;
             }
 
             respuestaEnviada = false;
+            esperandoSincronizacion = false; // ✅ RESETEAR
+            ocultarMensajeEspera();
 
-            // Actualizar UI
             tiempoRestantePregunta = tiempoPorPregunta;
             document.getElementById('questionTimer').textContent = tiempoRestantePregunta + 's';
             document.getElementById('questionTimer').classList.remove('warning');
@@ -330,13 +347,12 @@
             const progressBar = document.getElementById('progressBar');
             progressBar.style.transition = 'none'; 
             progressBar.style.width = '100%';
-            void progressBar.offsetWidth; 
+            void progressBar.offsetWidth;
 
             document.getElementById('currentQuestion').textContent = (preguntaActual + 1) + '/' + preguntas.length;
             document.getElementById('questionNumber').textContent = preguntaActual + 1;
-            document.getElementById('questionText').textContent = pregunta.pregunta; 
+            document.getElementById('questionText').textContent = pregunta.pregunta;
 
-            // Generar opciones
             const optionsGrid = document.getElementById('optionsGrid');
             optionsGrid.innerHTML = '';
             const opciones = [
@@ -357,13 +373,8 @@
                 optionsGrid.appendChild(btn);
             });
 
-            // Ocultar feedback
             document.getElementById('feedback').classList.remove('show');
-            
-            // Reiniciar tiempo de respuesta
             tiempoInicioRespuesta = Date.now();
-
-            // ¡CAMBIO! Iniciar el timer específico para esta pregunta
             iniciarTimerParaPreguntaActual();
         }
 
@@ -378,22 +389,23 @@
             const pregunta = preguntas[preguntaActual];
             const opciones = document.querySelectorAll('.option-btn');
 
-            // Deshabilitar todas las opciones
             opciones.forEach(btn => btn.classList.add('disabled'));
             respuestaEnviada = true;
 
-            // Calcular tiempo de respuesta
+            // ✅ NO DETENER EL TIMER AÚN - Sigue corriendo
+            // clearInterval(timerIntervalPregunta); // ❌ COMENTADO
+
             const tiempoRespuesta = Math.floor((Date.now() - tiempoInicioRespuesta) / 1000);
             console.log(`⏱️ Tiempo de respuesta: ${tiempoRespuesta}s`);
 
-            // Verificar si es correcta
             fetch('/guardar_respuesta_individual', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     pregunta_id: pregunta.id,
                     respuesta: letra,
-                    tiempo_respuesta: tiempoRespuesta
+                    tiempo_respuesta: tiempoRespuesta,
+                    pregunta_index: preguntaActual
                 })
             })
             .then(response => response.json())
@@ -401,7 +413,6 @@
                 if (data.success) {
                     console.log(`${data.correcta ? '✅ CORRECTA' : '❌ INCORRECTA'} - Puntos: ${data.puntos}`);
 
-                    // Guardar respuesta localmente
                     respuestas.push({
                         pregunta_id: pregunta.id,
                         respuesta: letra,
@@ -410,13 +421,11 @@
                         tiempo_respuesta: tiempoRespuesta
                     });
 
-                    // Actualizar puntuación
                     if (data.correcta) {
                         puntuacionTotal += (data.puntos || 0); 
                         document.getElementById('score').textContent = puntuacionTotal;
                     }
 
-                    // Mostrar feedback visual
                     opciones.forEach((btn, index) => {
                         const letraBtn = ['A', 'B', 'C', 'D'][index];
                         if (letraBtn === data.respuesta_correcta) {
@@ -427,7 +436,6 @@
                         }
                     });
 
-                    // Mostrar feedback textual
                     const feedback = document.getElementById('feedback');
                     if (data.correcta) {
                         feedback.className = 'feedback correct show';
@@ -437,57 +445,93 @@
                         feedback.innerHTML = `❌ Incorrecto. La respuesta correcta era: ${data.respuesta_correcta}`;
                     }
 
-                    // ¡CAMBIO! Ya no habilitamos 'btnNext' ni hacemos setTimeout.
-                    // El juego simplemente espera a que el timer (iniciarTimerParaPreguntaActual) llegue a 0.
+                    // ✅ NUEVO: Verificar sincronización pero NO avanzar aún
+                    if (data.todos_listos) {
+                        console.log('✅ Todos respondieron');
+                        esperandoSincronizacion = false;
+                        // El timer se encargará de avanzar cuando llegue a 0
+                    } else {
+                        console.log('⏳ Esperando a que todos respondan...');
+                        esperandoSincronizacion = true;
+                        mostrarMensajeEspera();
+                        esperarSincronizacion();
+                    }
 
                 } else {
                     console.error('Error del servidor:', data.message);
                     alert('Error: ' + data.message);
-                    respuestaEnviada = false; // Permitir reintentar
+                    respuestaEnviada = false;
                 }
             })
             .catch(error => {
                 console.error('❌ Error al guardar respuesta:', error);
                 alert('Error de red al guardar la respuesta.');
-                respuestaEnviada = false; // Permitir reintentar
+                respuestaEnviada = false;
             });
         }
 
-        // ¡CAMBIO! Esta función ahora controla el avance
+        // ✅ Funciones de sincronización
+        function mostrarMensajeEspera() {
+            document.getElementById('waitingOverlay').classList.add('show');
+        }
+
+        function ocultarMensajeEspera() {
+            document.getElementById('waitingOverlay').classList.remove('show');
+            if (intervalSincronizacion) {
+                clearInterval(intervalSincronizacion);
+                intervalSincronizacion = null;
+            }
+        }
+
+        async function esperarSincronizacion() {
+            if (!sesionId || sesionId === 'None') {
+                console.warn('⚠️ No hay sesion_id, saltando sincronización');
+                esperandoSincronizacion = false;
+                return;
+            }
+
+            intervalSincronizacion = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/verificar_sincronizacion_individual/${sesionId}/${preguntaActual}`);
+                    const data = await response.json();
+
+                    // Actualizar contador
+                    document.getElementById('waitingCounter').textContent = 
+                        `${data.listos}/${data.total} estudiantes listos`;
+
+                    if (data.todos_listos) {
+                        console.log('✅ Todos listos!');
+                        esperandoSincronizacion = false;
+                        ocultarMensajeEspera();
+                        // El timer sigue corriendo y avanzará cuando llegue a 0
+                    }
+                } catch (error) {
+                    console.error('❌ Error verificando sincronización:', error);
+                }
+            }, 1500);
+        }
+
         function avanzarALaSiguiente() {
-            console.log('Avanzando...');
+            console.log('⏭️ Avanzando a la siguiente pregunta...');
             if (preguntaActual < preguntas.length - 1) {
                 preguntaActual++;
-                cargarPregunta(); // Cargar la siguiente pregunta (que iniciará su propio timer)
+                cargarPregunta();
             } else {
                 finalizarCuestionario();
             }
         }
-        
-        // La función 'nextQuestion' llamada por el botón ahora está muerta (no se usa)
-        function nextQuestion() {
-            console.log("Botón 'next' presionado (pero está oculto)");
-        }
-        function previousQuestion() {
-            return; // No hacer nada
-        }
 
-        // ¡CAMBIO! Lógica del timer movida y mejorada
         function iniciarTimerParaPreguntaActual() {
             console.log('⏱️ Iniciando timer para pregunta', preguntaActual + 1);
 
-            // Limpiar el timer anterior si existe
             if (timerIntervalPregunta) {
                 clearInterval(timerIntervalPregunta);
             }
 
-            // Timer por pregunta
             timerIntervalPregunta = setInterval(() => {
-                
                 tiempoRestantePregunta--;
                 const timerElement = document.getElementById('questionTimer');
 
-                // Lógica de barra de tiempo
                 const progressBar = document.getElementById('progressBar');
                 const porcentajeRestante = (tiempoRestantePregunta / tiempoPorPregunta) * 100;
                 progressBar.style.width = porcentajeRestante + '%';
@@ -495,29 +539,37 @@
 
                 timerElement.textContent = tiempoRestantePregunta + 's';
 
-                // Animación de advertencia
+                // ✅ Actualizar tiempo en el overlay de espera
+                if (esperandoSincronizacion) {
+                    document.getElementById('tiempoRestante').textContent = tiempoRestantePregunta;
+                }
+
                 if (tiempoRestantePregunta <= 5) {
                     timerElement.classList.add('warning');
                 }
 
-                // ¡LÓGICA DE AVANCE!
+                // ✅ LÓGICA CORREGIDA: Esperar SIEMPRE hasta que el tiempo llegue a 0
                 if (tiempoRestantePregunta <= 0) {
                     console.log('⏰ Tiempo agotado en pregunta', preguntaActual + 1);
-                    clearInterval(timerIntervalPregunta); // Detener este timer
+                    clearInterval(timerIntervalPregunta);
+                    ocultarMensajeEspera(); // Por si estaba esperando
 
                     if (!respuestaEnviada) {
                         console.log('⚠️ Usuario no respondió, guardando respuesta vacía...');
-                        guardarRespuestaVacia(); // Esta función avanzará cuando termine
+                        guardarRespuestaVacia();
                     } else {
-                        console.log('✅ Usuario ya respondió, tiempo agotado, avanzando...');
-                        avanzarALaSiguiente(); // Avanzar directamente
+                        // ✅ Usuario ya respondió Y el tiempo terminó
+                        console.log('✅ Avanzando después de que el tiempo terminó');
+                        setTimeout(() => {
+                            avanzarALaSiguiente();
+                        }, 1000); // 1 segundo para ver el feedback
                     }
                 }
             }, 1000);
         }
 
         function guardarRespuestaVacia() {
-            if (respuestaEnviada) return; // Doble chequeo de seguridad
+            if (respuestaEnviada) return;
 
             const pregunta = preguntas[preguntaActual];
             respuestaEnviada = true;
@@ -531,14 +583,14 @@
                 body: JSON.stringify({
                     pregunta_id: pregunta.id,
                     respuesta: null, 
-                    tiempo_respuesta: tiempoPorPregunta
+                    tiempo_respuesta: tiempoPorPregunta,
+                    pregunta_index: preguntaActual
                 })
             })
             .then(response => response.json())
             .then(data => {
                 console.log('✅ Respuesta vacía guardada');
                 
-                // Mostrar feedback
                 const feedback = document.getElementById('feedback');
                 feedback.className = 'feedback incorrect show';
                 feedback.innerHTML = `⏰ ¡Tiempo agotado! La respuesta correcta era: ${data.respuesta_correcta}`;
@@ -550,14 +602,25 @@
                     }
                 });
                 
-                // ¡CAMBIO! Esperar 2 segundos para que el usuario vea el feedback y LUEGO avanzar
-                setTimeout(() => {
-                    avanzarALaSiguiente();
-                }, 2000); // 2 segundos de espera
+                // ✅ Verificar si todos están listos
+                if (data.todos_listos) {
+                    setTimeout(() => {
+                        avanzarALaSiguiente();
+                    }, 2000);
+                } else {
+                    // Esperar un máximo de 5 segundos más
+                    mostrarMensajeEspera();
+                    esperarSincronizacion();
+                    setTimeout(() => {
+                        if (esperandoSincronizacion) {
+                            console.log('⚠️ Timeout esperando sincronización, avanzando de todas formas');
+                            avanzarALaSiguiente();
+                        }
+                    }, 5000);
+                }
             })
             .catch(error => {
                 console.error('❌ Error al guardar respuesta vacía:', error);
-                // Avanzar de todas formas para no bloquear al usuario
                 avanzarALaSiguiente();
             });
         }
@@ -566,21 +629,12 @@
             console.log('\n🏁 FINALIZANDO CUESTIONARIO');
             console.log('📊 Puntuación final:', puntuacionTotal);
             console.log('⏱️ Tiempo total:', tiempoTotalTranscurrido, 's');
-            console.log('📝 Respuestas guardadas:', respuestas.length);
 
-            // Detener timers
             clearInterval(timerIntervalTotal);
             if (timerIntervalPregunta) {
                 clearInterval(timerIntervalPregunta);
             }
-
-            // Mostrar "Guardando..." en lugar del botón
-            // (El botón está oculto, pero podemos actualizar el texto por si acaso)
-            const btnNext = document.getElementById('btnNext');
-            if(btnNext) { // Chequeo de seguridad
-                btnNext.disabled = true;
-                btnNext.textContent = '⏳ Guardando...';
-            }
+            ocultarMensajeEspera();
 
             try {
                 const response = await fetch('/finalizar_cuestionario_individual', {
@@ -597,16 +651,13 @@
                 }
 
                 const data = await response.json();
-                console.log('📊 Datos recibidos:', data);
 
                 if (data.success) {
                     if (data.redirect_url) {
                         console.log('✅ Cuestionario finalizado exitosamente');
-                        console.log('🔗 Redirigiendo a:', data.redirect_url);
-                        window.location.href = data.redirect_url; // Redirigir a la URL del servidor
+                        window.location.href = data.redirect_url;
                     } else {
-                        console.error("❌ Cuestionario finalizado, pero no se pudo redirigir. Volviendo al dashboard.");
-                        alert("Cuestionario finalizado, pero no se pudo redirigir. Volviendo al dashboard.");
+                        alert("Cuestionario finalizado, pero no se pudo redirigir.");
                         window.location.href = "/dashboard_estudiante";
                     }
                 } else {
@@ -616,14 +667,12 @@
                 }
             } catch (error) {
                 console.error('❌ ERROR CRÍTICO al finalizar:', error);
-                alert('Error al finalizar el cuestionario. Por favor, contacta al profesor.\n\nDetalles: ' + error.message);
+                alert('Error al finalizar el cuestionario.\n\nDetalles: ' + error.message);
                 window.location.href = "/dashboard_estudiante";
             }
         }
 
-        // Prevenir que el usuario salga accidentalmente
         window.addEventListener('beforeunload', function(e) {
-            // Solo mostrar advertencia si el cuestionario no está terminado
             if (preguntaActual < preguntas.length - 1) {
                 e.preventDefault();
                 e.returnValue = '¿Estás seguro de que quieres salir? Tu progreso se perderá.';
@@ -632,4 +681,3 @@
     </script>
 </body>
 </html>
-
