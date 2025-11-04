@@ -50,44 +50,59 @@
             </div>
             {% endfor %}
         </div>
-
+        <div class="leader-controls">
+    <p>Esperando la confirmación del profesor para iniciar el juego...</p>
+    <div style="margin-top: 10px; font-weight: bold; color: #dc3545;" id="status-wait-text">
+        ⏳ Conectado. Estado: Esperando inicio
+    </div>
+</div>
         <a href="{{ url_for('salir_grupo') }}" class="btn-exit" onclick="return confirm('¿Estás seguro de que quieres salir del grupo?');">Salir del Grupo</a>
     </div>
 
   <script>
-        const grupoId = {{ grupo['id'] }};
-        let pollInterval;
+    const grupoId = {{ grupo['id'] }};
+    let pollInterval;
+    const statusTextElement = document.getElementById('status-wait-text');
 
-        console.log('✅ Sala de espera - Grupo ID:', grupoId);
+    console.log('✅ Sala de espera - Grupo ID:', grupoId);
 
-        function verificarEstadoJuego() {
-            fetch(`/api/estado_grupo/${grupoId}`)
-                .then(response => response.json())
-                .then(data => {
-                    console.log('📡 Estado del grupo:', data);
+    function verificarEstadoJuego() {
+        statusTextElement.textContent = '🔄 Verificando estado...';
 
-                    if (data && data.game_state === 'playing') {
-                        console.log('🎮 El juego ha iniciado, redirigiendo...');
-                        clearInterval(pollInterval);
-                        window.location.href = `/partida_grupal/${grupoId}`;
-                    }
-                })
-                .catch(error => {
-                    console.error('❌ Error al verificar estado:', error);
-                });
-        }
+        fetch(`/api/estado_grupo/${grupoId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.game_state === 'playing') {
+                    console.log('🎮 Estado "playing" detectado. Redirigiendo...');
+                    statusTextElement.textContent = '🚀 ¡Iniciando! Redirigiendo...';
+                    clearInterval(pollInterval);
 
-        // Verificar cada 2 segundos
-        pollInterval = setInterval(verificarEstadoJuego, 2000);
+                    // REDIRECCIÓN FINAL PARA EL GRUPO
+                    window.location.href = `/partida_grupal/${grupoId}`;
+                } else if (data && data.game_state === 'waiting') {
+                    statusTextElement.textContent = '⏳ Conectado. Esperando inicio del profesor.';
+                } else if (data && data.game_state === 'archived') {
+                    statusTextElement.textContent = '⛔ Partida finalizada o archivada. Vuelve al Dashboard.';
+                    clearInterval(pollInterval);
+                } else {
+                    statusTextElement.textContent = '⚠️ Error de estado desconocido.';
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error al verificar estado:', error);
+                statusTextElement.textContent = '❌ Error de conexión al servidor.';
+            });
+    }
 
-        // Primera verificación inmediata
-        verificarEstadoJuego();
+    // Iniciar polling más rápido (1.5 segundos)
+    pollInterval = setInterval(verificarEstadoJuego, 1500);
+    verificarEstadoJuego(); // Primera verificación inmediata
 
-        // Limpiar al salir
-        window.addEventListener('beforeunload', function() {
-            if (pollInterval) clearInterval(pollInterval);
-        });
-    </script>
+    // Limpiar al salir
+    window.addEventListener('beforeunload', function() {
+        if (pollInterval) clearInterval(pollInterval);
+    });
+</script>
 </body>
 </html>
 
