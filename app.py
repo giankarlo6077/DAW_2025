@@ -1,4 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+import pymysql
+import pymysql.cursors
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from flask_mail import Mail, Message
 from bd import obtener_conexion
 import random
@@ -9,7 +11,6 @@ from datetime import datetime, timedelta, date
 from io import BytesIO
 import json
 import pandas as pd
-from flask import send_file
 import traceback
 import pytz
 
@@ -35,7 +36,6 @@ app.config['MAIL_DEFAULT_SENDER'] = 'cevar4@gmail.com'
 app.config['MAIL_DEBUG'] = True
 
 mail = Mail(app)
-
 
 
 # --- FUNCIONES DE AYUDA ---
@@ -182,17 +182,19 @@ def generar_codigo_grupo():
             if conexion and conexion.open:
                 conexion.close()
 
-def obtener_items_equipados(usuario_id):
+def obtener_items_equipados(user_id):
     """Obtiene todos los items equipados del estudiante"""
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
+            # NOTA: La tabla estudiantes_items usa la columna usuario_id
+            # El dashboard_estudiante necesita el user_id de la sesión
             cursor.execute("""
                 SELECT ti.tipo, ti.icono, ti.nombre
                 FROM estudiantes_items ei
                 JOIN tienda_items ti ON ei.item_id = ti.id
                 WHERE ei.usuario_id = %s AND ei.equipado = 1
-            """, (usuario_id,))
+            """, (user_id,))
 
             items = cursor.fetchall()
 
@@ -415,20 +417,15 @@ def login():
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
-                # ✅ ASEGÚRATE DE SELECCIONAR TODAS LAS COLUMNAS
-                cursor.execute("SELECT * FROM usuarios WHERE correo = %s", (correo,))
+                # ✅ Corregido para seleccionar todas las columnas y ser robusto
+                cursor.execute("SELECT id, nombre, correo, password, rol, verificado FROM usuarios WHERE correo = %s", (correo,))
                 usuario = cursor.fetchone()
         finally:
             if conexion and conexion.open:
                 conexion.close()
 
-        # ✅ VERIFICAR QUE usuario NO SEA NONE
-        if not usuario:
-            flash("❌ Correo o contraseña incorrectos", "error")
-            return redirect(url_for("login"))
-
-        # ✅ AHORA SÍ VERIFICAR PASSWORD
-        if usuario["password"] != password:
+        # ✅ Comprobación robusta de usuario y contraseña para evitar KeyError
+        if not usuario or usuario.get("password") != password:
             flash("❌ Correo o contraseña incorrectos", "error")
             return redirect(url_for("login"))
 
@@ -782,7 +779,7 @@ def dashboard_estudiante():
     except Exception as e:
         print(f"❌ Error crítico en bloque de grupo: {e}")
 
-    # === BLOQUE 2: Historial de partidas (CORREGIDO) ===
+    # === BLOQUE 2: Historial de partidas ===
     print(f"\n📚 Cargando historial...")
 
     partidas_grupales = []
@@ -818,7 +815,7 @@ def dashboard_estudiante():
     except Exception as e:
         print(f"   ❌ Error en conexión grupal: {e}")
 
-    # 2.2 Cargar historial INDIVIDUAL (CORREGIDO)
+    # 2.2 Cargar historial INDIVIDUAL
     try:
         conexion = obtener_conexion()
         try:
@@ -854,8 +851,6 @@ def dashboard_estudiante():
 
         except Exception as e:
             print(f"   ⚠️ No se pudo cargar historial individual: {e}")
-            import traceback
-            traceback.print_exc()
         finally:
             if conexion and conexion.open:
                 conexion.close()
@@ -880,24 +875,22 @@ def dashboard_estudiante():
         print(f"   ⚠️ Error al combinar historiales: {e}")
         cuestionarios_recientes = []
 
-    # === RENDERIZAR ===
-    print(f"\n✅ Dashboard cargado")
-    print(f"   - Grupo: {'Sí' if grupo_info else 'No'}")
-    print(f"   - Miembros: {len(miembros)}")
-    print(f"   - Historial: {len(cuestionarios_recientes)}")
-    print(f"{'='*70}\n")
-
-    items_equipados = obtener_items_equipados(user_id)
- # Obtener stats del estudiante para el nivel
+    # === BLOQUE 3: Stats y Items ===
+    # Obtener stats del estudiante para el nivel
+    stats = None
     try:
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
+                # ✅ CORREGIDO: Usar 'user_id'
                 cursor.execute("SELECT nivel, monedas FROM estudiantes_stats WHERE user_id = %s", (user_id,))
                 stats = cursor.fetchone()
                 if not stats:
                     # Inicializar si no existe
                     inicializar_stats_estudiante(user_id)
+                    cursor.execute("SELECT nivel, monedas FROM estudiantes_stats WHERE user_id = %s", (user_id,))
+                    stats = cursor.fetchone() # Volver a leer
+                if not stats: # Fallback si falla la lectura tras inicialización
                     stats = {'nivel': 1, 'monedas': 0}
         finally:
             if conexion and conexion.open:
@@ -906,14 +899,24 @@ def dashboard_estudiante():
         print(f"Error al cargar stats: {e}")
         stats = {'nivel': 1, 'monedas': 0}
 
-    # Luego en el return, agregar:
+
+    items_equipados = obtener_items_equipados(user_id) # ✅ Ahora usa el ID correcto
+
+    # === RENDERIZAR ===
+    print(f"\n✅ Dashboard cargado")
+    print(f"   - Grupo: {'Sí' if grupo_info else 'No'}")
+    print(f"   - Miembros: {len(miembros)}")
+    print(f"   - Historial: {len(cuestionarios_recientes)}")
+    print(f"{'='*70}\n")
+
+
     return render_template("dashboard_estudiante.html",
                            nombre=session["usuario"],
                            grupo=grupo_info,
                            miembros=miembros,
                            user_id=user_id,
                            cuestionarios_recientes=cuestionarios_recientes,
-                           items_equipados=items_equipados,  # NUEVO
+                           items_equipados=items_equipados,
                            stats=stats)
 
 @app.route("/crear_grupo", methods=["POST"])
@@ -1865,7 +1868,7 @@ def partida_individual(codigo_pin):
         with conexion.cursor() as cursor:
             print("\n📊 Consultando base de datos...")
 
-            # ✅ OBTENER SESION_ID DE LA SALA DE ESPERA
+            # OBTENER SESION_ID DE LA SALA DE ESPERA
             cursor.execute("""
                 SELECT sesion_id FROM salas_espera
                 WHERE usuario_id = %s AND codigo_pin = %s
@@ -1901,7 +1904,7 @@ def partida_individual(codigo_pin):
                 flash("❌ Este cuestionario no tiene preguntas disponibles", "error")
                 return redirect(url_for("dashboard_estudiante"))
 
-            # ✅ CREAR HISTORIAL INDIVIDUAL CON SESION_ID
+            # CREAR HISTORIAL INDIVIDUAL CON SESION_ID
             print(f"\n💾 Creando historial individual con sesion_id...")
             cursor.execute("""
                 INSERT INTO historial_individual
@@ -2304,7 +2307,7 @@ def visualizar_cuestionario():
         return redirect(url_for("login"))
 
     # 2. Obtener el PIN del formulario
-    pin = request.form.get("pin")
+    pin = request.form.get("codigo_pin")
     if not pin:
         flash("❌ Debes ingresar un código PIN.", "error")
         return redirect(url_for("dashboard_estudiante"))
@@ -2822,14 +2825,14 @@ def guardar_respuesta_individual():
 
                 conexion.commit()
 
-                # ✅ MARCAR COMO LISTO
+                # MARCAR COMO LISTO
                 if sesion_id:
                     marcar_estudiante_listo_individual(user_id, sesion_id, pregunta_index)
 
-                # ✅ VERIFICAR SI TODOS ESTÁN LISTOS
+                # VERIFICAR SI TODOS ESTÁN LISTOS
                 todos_listos = verificar_todos_listos_individual(sesion_id, pregunta_index) if sesion_id else False
 
-                # ✅ SI TODOS LISTOS, RESETEAR BARRERA
+                # SI TODOS LISTOS, RESETEAR BARRERA
                 if todos_listos and sesion_id:
                     resetear_barrera_individual(sesion_id)
 
@@ -3007,6 +3010,10 @@ def resultados_individual(historial_id):
     user_id = session["user_id"]
     print(f"👤 Usuario ID: {user_id}")
 
+    # Inicializar variables para evitar NameError
+    respuestas_raw = []
+    ranking_completo = []
+
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
@@ -3086,7 +3093,6 @@ def resultados_individual(historial_id):
                         participante['fecha_realizacion']
                     )
 
-            # --- INICIO DE LA CORRECCIÓN ---
             # 3. Obtener el detalle de las respuestas para este historial
             print("\n📋 Consultando detalle de respuestas...")
             cursor.execute("""
@@ -3102,7 +3108,7 @@ def resultados_individual(historial_id):
                 ORDER BY p.orden
             """, (historial_id,))
             respuestas_raw = cursor.fetchall()
-            print(f"✅ Respuestas cargadas: {len(respuestas_raw)}")
+            print(f"✅ Respuestas cargadas: {len(respuestas_raw)}") # ✅ FIX 1
 
             # 4. Calcular puntos basados en velocidad para cada respuesta
             respuestas = []
@@ -3153,17 +3159,15 @@ def resultados_individual(historial_id):
 
                 respuestas.append(respuesta_completa)
 
-            # --- INICIO DE LA CORRECCIÓN 2 ---
-            # 3. Determinar posición actual en el ranking
+            # 5. Determinar posición actual en el ranking
             posicion_actual = 0
             for i, participante in enumerate(ranking_completo, 1):
                 if participante['id'] == historial_id:
                     posicion_actual = i
                     break
             print(f"   - Posición en ranking: {posicion_actual}")
-            # --- FIN DE LA CORRECCIÓN 2 ---
 
-            # 5. Calcular estadísticas
+            # 6. Calcular estadísticas
             total_respuestas = len(respuestas)
             if total_respuestas > 0:
                 porcentaje = round((correctas / total_respuestas) * 100, 1)
@@ -3178,7 +3182,7 @@ def resultados_individual(historial_id):
             print(f"   - Porcentaje: {porcentaje}%")
             print(f"   - Tiempo promedio: {tiempo_promedio}s")
 
-            # 6. Formatear fecha
+            # 7. Formatear fecha
             try:
                 fecha_realizacion_peru = convertir_a_hora_peru(historial['fecha_realizacion'])
                 fecha_realizacion_str = fecha_realizacion_peru.strftime('%d/%m/%Y a las %H:%M')
@@ -3216,16 +3220,17 @@ def resultados_individual(historial_id):
 
 # ==================== SISTEMA DE RECOMPENSAS ====================
 
-def inicializar_stats_estudiante(usuario_id):
+def inicializar_stats_estudiante(user_id):
     """Crea el registro de estadísticas para un nuevo estudiante"""
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
+            # ✅ CORREGIDO: Usar 'user_id'
             cursor.execute("""
                 INSERT INTO estudiantes_stats (user_id)
                 VALUES (%s)
-                ON DUPLICATE KEY UPDATE usuario_id=usuario_id
-            """, (usuario_id,))
+                ON DUPLICATE KEY UPDATE user_id=user_id
+            """, (user_id,))
             conexion.commit()
     finally:
         if conexion and conexion.open:
@@ -3235,18 +3240,19 @@ def calcular_xp_necesaria(nivel):
     """Calcula XP necesaria para el siguiente nivel (escala progresiva)"""
     return 100 * nivel + (nivel - 1) * 50
 
-def otorgar_xp(usuario_id, xp_ganada):
+def otorgar_xp(user_id, xp_ganada):
     """Otorga XP al estudiante y verifica si sube de nivel"""
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
             # Obtener stats actuales
-            cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (usuario_id,))
+            # ✅ CORREGIDO: Usar 'user_id'
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
             stats = cursor.fetchone()
 
             if not stats:
-                inicializar_stats_estudiante(usuario_id)
-                cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (usuario_id,))
+                inicializar_stats_estudiante(user_id)
+                cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
                 stats = cursor.fetchone()
 
             nuevo_xp_actual = stats['experiencia_actual'] + xp_ganada
@@ -3266,13 +3272,14 @@ def otorgar_xp(usuario_id, xp_ganada):
                     break
 
             # Actualizar stats
+            # ✅ CORREGIDO: Usar 'user_id'
             cursor.execute("""
                 UPDATE estudiantes_stats
                 SET experiencia_actual = %s,
                     experiencia_total = %s,
                     nivel = %s
                 WHERE user_id = %s
-            """, (nuevo_xp_actual, nuevo_xp_total, nivel_actual, usuario_id))
+            """, (nuevo_xp_actual, nuevo_xp_total, nivel_actual, user_id))
             conexion.commit()
 
             return {
@@ -3286,22 +3293,23 @@ def otorgar_xp(usuario_id, xp_ganada):
         if conexion and conexion.open:
             conexion.close()
 
-def otorgar_monedas(usuario_id, monedas):
+def otorgar_monedas(user_id, monedas):
     """Otorga monedas al estudiante"""
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
+            # ✅ CORREGIDO: Usar 'user_id'
             cursor.execute("""
                 UPDATE estudiantes_stats
                 SET monedas = monedas + %s
                 WHERE user_id = %s
-            """, (monedas, usuario_id))
+            """, (monedas, user_id))
             conexion.commit()
     finally:
         if conexion and conexion.open:
             conexion.close()
 
-def verificar_y_desbloquear_insignias(usuario_id):
+def verificar_y_desbloquear_insignias(user_id):
     """Verifica y desbloquea insignias que el estudiante haya ganado"""
     conexion = obtener_conexion()
     insignias_desbloqueadas = []
@@ -3309,19 +3317,21 @@ def verificar_y_desbloquear_insignias(usuario_id):
     try:
         with conexion.cursor() as cursor:
             # Obtener stats del estudiante
-            cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (usuario_id,))
+            # ✅ CORREGIDO: Usar 'user_id'
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
             stats = cursor.fetchone()
 
             if not stats:
                 return []
 
             # Obtener insignias que aún no tiene
+            # NOTA: La tabla estudiantes_insignias usa la columna usuario_id
             cursor.execute("""
                 SELECT i.* FROM insignias i
                 WHERE i.id NOT IN (
-                    SELECT insignia_id FROM estudiantes_insignias WHERE user_id = %s
+                    SELECT insignia_id FROM estudiantes_insignias WHERE usuario_id = %s
                 )
-            """, (usuario_id,))
+            """, (user_id,))
             insignias_disponibles = cursor.fetchall()
 
             for insignia in insignias_disponibles:
@@ -3346,26 +3356,29 @@ def verificar_y_desbloquear_insignias(usuario_id):
 
                 # Desbloquear si cumple requisitos
                 if debe_desbloquear:
+                    # NOTA: La tabla estudiantes_insignias usa la columna usuario_id
                     cursor.execute("""
                         INSERT INTO estudiantes_insignias (usuario_id, insignia_id)
                         VALUES (%s, %s)
-                    """, (usuario_id, insignia['id']))
+                    """, (user_id, insignia['id']))
 
                     # Otorgar recompensas
                     if insignia['recompensa_xp'] > 0:
+                        # ✅ CORREGIDO: Usar 'user_id'
                         cursor.execute("""
                             UPDATE estudiantes_stats
                             SET experiencia_total = experiencia_total + %s,
                                 experiencia_actual = experiencia_actual + %s
-                            WHERE usuario_id = %s
-                        """, (insignia['recompensa_xp'], insignia['recompensa_xp'], usuario_id))
+                            WHERE user_id = %s
+                        """, (insignia['recompensa_xp'], insignia['recompensa_xp'], user_id))
 
                     if insignia['recompensa_monedas'] > 0:
+                        # ✅ CORREGIDO: Usar 'user_id'
                         cursor.execute("""
                             UPDATE estudiantes_stats
                             SET monedas = monedas + %s
-                            WHERE usuario_id = %s
-                        """, (insignia['recompensa_monedas'], usuario_id))
+                            WHERE user_id = %s
+                        """, (insignia['recompensa_monedas'], user_id))
 
                     insignias_desbloqueadas.append(insignia)
 
@@ -3377,7 +3390,7 @@ def verificar_y_desbloquear_insignias(usuario_id):
 
     return insignias_desbloqueadas
 
-def actualizar_stats_despues_partida(usuario_id, puntuacion, correctas, incorrectas):
+def actualizar_stats_despues_partida(user_id, puntuacion, correctas, incorrectas):
     """Actualiza las estadísticas del estudiante después de una partida"""
     from datetime import datetime, date
 
@@ -3385,12 +3398,13 @@ def actualizar_stats_despues_partida(usuario_id, puntuacion, correctas, incorrec
     try:
         with conexion.cursor() as cursor:
             # Inicializar stats si no existen
-            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (usuario_id,))
+            # ✅ CORREGIDO: Usar 'user_id'
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
             stats = cursor.fetchone()
 
             if not stats:
-                inicializar_stats_estudiante(usuario_id)
-                cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (usuario_id,))
+                inicializar_stats_estudiante(user_id)
+                cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
                 stats = cursor.fetchone()
 
             # Calcular nueva racha
@@ -3410,6 +3424,7 @@ def actualizar_stats_despues_partida(usuario_id, puntuacion, correctas, incorrec
             mejor_puntaje = max(stats['mejor_puntaje'], puntuacion)
 
             # Actualizar stats
+            # ✅ CORREGIDO: Usar 'user_id'
             cursor.execute("""
                 UPDATE estudiantes_stats SET
                     total_partidas = total_partidas + 1,
@@ -3419,8 +3434,8 @@ def actualizar_stats_despues_partida(usuario_id, puntuacion, correctas, incorrec
                     racha_actual = %s,
                     mejor_racha = %s,
                     ultima_partida = %s
-                WHERE usuario_id = %s
-            """, (correctas, incorrectas, mejor_puntaje, nueva_racha, mejor_racha, hoy, usuario_id))
+                WHERE user_id = %s
+            """, (correctas, incorrectas, mejor_puntaje, nueva_racha, mejor_racha, hoy, user_id))
             conexion.commit()
 
             # Calcular XP basada en rendimiento
@@ -3431,12 +3446,12 @@ def actualizar_stats_despues_partida(usuario_id, puntuacion, correctas, incorrec
             total_xp = xp_base + (correctas * xp_por_correcta) + xp_bonus_perfecto
 
             # Otorgar XP y monedas
-            resultado_xp = otorgar_xp(usuario_id, total_xp)
+            resultado_xp = otorgar_xp(user_id, total_xp)
             monedas_ganadas = 5 + (correctas * 2)
-            otorgar_monedas(usuario_id, monedas_ganadas)
+            otorgar_monedas(user_id, monedas_ganadas)
 
             # Verificar insignias
-            insignias_nuevas = verificar_y_desbloquear_insignias(usuario_id)
+            insignias_nuevas = verificar_y_desbloquear_insignias(user_id)
 
             return {
                 'xp_info': resultado_xp,
@@ -3462,19 +3477,22 @@ def perfil_recompensas():
     try:
         with conexion.cursor() as cursor:
             # Obtener stats
-            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+            # ✅ CORREGIDO: Usar 'user_id'
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
             stats = cursor.fetchone()
 
             if not stats:
                 inicializar_stats_estudiante(user_id)
-                cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+                cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
                 stats = cursor.fetchone()
 
+            # ✅ ROBUSTEZ: Asegurar que stats no es None
             if not stats:
-                flash("Error al cargar tu perfil. Por favor, contacta al administrador.", "error")
+                flash("❌ Error al cargar tu perfil. Inténtalo de nuevo.", "error")
                 return redirect(url_for("dashboard_estudiante"))
 
             # Obtener insignias desbloqueadas
+            # NOTA: La tabla estudiantes_insignias usa la columna usuario_id
             cursor.execute("""
                 SELECT i.*, ei.fecha_desbloqueo
                 FROM estudiantes_insignias ei
@@ -3517,13 +3535,19 @@ def tienda():
     try:
         with conexion.cursor() as cursor:
             # Obtener stats del estudiante (para mostrar monedas y nivel)
-            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+            # ✅ CORREGIDO: Usar 'user_id'
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
             stats = cursor.fetchone()
 
             if not stats:
                 inicializar_stats_estudiante(user_id)
-                cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+                cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
                 stats = cursor.fetchone()
+
+            # ✅ ROBUSTEZ: Asegurar que stats no es None
+            if not stats:
+                stats = {'nivel': 1, 'monedas': 0}
+
 
             # Obtener items de la tienda
             cursor.execute("""
@@ -3534,6 +3558,7 @@ def tienda():
             items_tienda = cursor.fetchall()
 
             # Obtener items que el usuario ya compró
+            # NOTA: La tabla estudiantes_items usa la columna usuario_id
             cursor.execute("""
                 SELECT item_id FROM estudiantes_items
                 WHERE usuario_id = %s
@@ -3571,7 +3596,8 @@ def comprar_item(item_id):
     try:
         with conexion.cursor() as cursor:
             # Obtener stats del estudiante
-            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+            # ✅ CORREGIDO: Usar 'user_id'
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
             stats = cursor.fetchone()
 
             # Obtener info del item
@@ -3582,6 +3608,7 @@ def comprar_item(item_id):
                 return jsonify({"success": False, "message": "Item no disponible"}), 404
 
             # Verificar si ya lo compró
+            # NOTA: La tabla estudiantes_items usa la columna usuario_id
             cursor.execute("""
                 SELECT id FROM estudiantes_items
                 WHERE usuario_id = %s AND item_id = %s
@@ -3604,16 +3631,18 @@ def comprar_item(item_id):
                 }), 400
 
             # Realizar la compra
+            # NOTA: La tabla estudiantes_items usa la columna usuario_id
             cursor.execute("""
                 INSERT INTO estudiantes_items (usuario_id, item_id)
                 VALUES (%s, %s)
             """, (user_id, item_id))
 
             # Descontar monedas
+            # ✅ CORREGIDO: Usar 'user_id'
             cursor.execute("""
                 UPDATE estudiantes_stats
                 SET monedas = monedas - %s
-                WHERE usuario_id = %s
+                WHERE user_id = %s
             """, (item['precio'], user_id))
 
             conexion.commit()
@@ -3644,6 +3673,7 @@ def equipar_item(item_id):
     try:
         with conexion.cursor() as cursor:
             # Verificar que el item fue comprado
+            # NOTA: La tabla estudiantes_items usa la columna usuario_id
             cursor.execute("""
                 SELECT ei.*, ti.tipo
                 FROM estudiantes_items ei
@@ -3659,6 +3689,7 @@ def equipar_item(item_id):
             tipo_item = item_comprado['tipo']
 
             # Desequipar todos los items del mismo tipo
+            # NOTA: La tabla estudiantes_items usa la columna usuario_id
             cursor.execute("""
                 UPDATE estudiantes_items ei
                 JOIN tienda_items ti ON ei.item_id = ti.id
@@ -3667,6 +3698,7 @@ def equipar_item(item_id):
             """, (user_id, tipo_item))
 
             # Equipar el nuevo item
+            # NOTA: La tabla estudiantes_items usa la columna usuario_id
             cursor.execute("""
                 UPDATE estudiantes_items
                 SET equipado = 1
@@ -3697,6 +3729,7 @@ def mi_inventario():
     try:
         with conexion.cursor() as cursor:
             # Obtener items comprados
+            # NOTA: La tabla estudiantes_items usa la columna usuario_id
             cursor.execute("""
                 SELECT ti.*, ei.equipado, ei.fecha_compra
                 FROM estudiantes_items ei
@@ -3708,7 +3741,8 @@ def mi_inventario():
             items_comprados = cursor.fetchall()
 
             # Obtener stats
-            cursor.execute("SELECT * FROM estudiantes_stats WHERE usuario_id = %s", (user_id,))
+            # ✅ CORREGIDO: Usar 'user_id'
+            cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
             stats = cursor.fetchone()
 
     finally:

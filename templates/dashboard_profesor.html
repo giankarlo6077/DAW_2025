@@ -530,7 +530,7 @@
                 align-items: flex-start;
                 gap: 10px;
             }
-            
+
             .quiz-actions {
                 grid-template-columns: 1fr;
             }
@@ -563,6 +563,8 @@
             </div>
             <div class="dropdown-menu" id="dropdownMenu">
                 <a href="#" onclick="cambiarDatos()">⚙️ Cambiar datos</a>
+                <a href="{{ url_for('registro_facial') }}">
+                🎭 Configurar Reconocimiento Facial </a>
                 <a href="/logout">🚪 Cerrar sesión</a>
             </div>
         </div>
@@ -700,7 +702,7 @@
             <div class="modal-header">
                 <h3>📥 Crear Cuestionario desde Excel</h3>
             </div>
-            
+
             <div class="info-text">
                 ℹ️ El número de preguntas se determinará automáticamente según las filas de tu archivo Excel.
             </div>
@@ -710,12 +712,12 @@
                     <label>Título del Cuestionario</label>
                     <input type="text" name="titulo" placeholder="Ej: Matemáticas Básicas" required>
                 </div>
-                
+
                 <div class="form-group">
                     <label>Descripción</label>
                     <textarea name="descripcion" rows="3" placeholder="Describe de qué trata este cuestionario..." required></textarea>
                 </div>
-                
+
                 <div class="form-group">
                     <label>Modo de Juego</label>
                     <select name="modo_juego" required>
@@ -723,7 +725,7 @@
                         <option value="grupal">Grupal</option>
                     </select>
                 </div>
-                
+
                 <div class="form-group">
                     <label>Tiempo por Pregunta (segundos)</label>
                     <input type="number" name="tiempo_pregunta" value="30" min="10" max="120" required>
@@ -736,10 +738,10 @@
                             <div class="upload-icon">📄</div>
                             <div class="upload-text">Haz clic para seleccionar tu Excel</div>
                             <div class="upload-hint">Formatos: .xlsx, .xls</div>
-                            <input type="file" 
-                                   id="archivo_excel_crear" 
-                                   name="archivo_excel" 
-                                   accept=".xlsx,.xls" 
+                            <input type="file"
+                                   id="archivo_excel_crear"
+                                   name="archivo_excel"
+                                   accept=".xlsx,.xls"
                                    required
                                    onchange="mostrarNombreArchivoExcel(this)">
                         </label>
@@ -749,10 +751,10 @@
 
                 <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                     <p style="color: #856404; font-size: 14px; margin: 0;">
-                        💡 <strong>Tip:</strong> 
+                        💡 <strong>Tip:</strong>
                         <a href="{{ url_for('descargar_plantilla_preguntas') }}" style="color: #856404; text-decoration: underline;">
                             Descarga la plantilla Excel
-                        </a> 
+                        </a>
                         para asegurarte del formato correcto.
                     </p>
                 </div>

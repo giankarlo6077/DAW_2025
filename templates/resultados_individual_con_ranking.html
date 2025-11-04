@@ -547,7 +547,7 @@
                         </td>
                         <td style="font-size: 13px; color: #666;">
                                 {% if participante.fecha_realizacion %}
-                                {{ participante.fecha_realizacion.strftime('%d/%m/%Y %H:%M') }}
+                                {{ participante.fecha_realizacion | hora_peru }}
                                  {% else %}
                                 Fecha no disponible
                                 {% endif %}
