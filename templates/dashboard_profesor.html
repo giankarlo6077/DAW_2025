@@ -826,8 +826,10 @@
 
         function startQuiz(code, modoJuego) {
             if (modoJuego === 'grupal') {
+                // Ir primero a la sala de espera
                 window.location.href = `/sala_profesor/${code}`;
             } else {
+                // Modo individual sigue igual
                 window.location.href = `/sala_profesor_individual/${code}`;
             }
         }
@@ -844,15 +846,6 @@
             window.location.href = `/editar_cuestionario/${id}`;
         }
 
-        function startQuiz(code, modoJuego) {
-            if (modoJuego === 'grupal') {
-                // Ir primero a la sala de espera
-                window.location.href = `/sala_profesor/${code}`;
-            } else {
-                // Modo individual sigue igual
-                window.location.href = `/sala_profesor_individual/${code}`;
-            }
-        }
         function deleteQuiz(id) {
             if (confirm('¿Estás seguro de eliminar este cuestionario? Se eliminarán también todas sus preguntas.')) {
                 fetch(`/eliminar_cuestionario/${id}`, {
