@@ -13,6 +13,7 @@ import json
 import pandas as pd
 import traceback
 import pytz
+from apis import registrar_apis
 
 from io import BytesIO
 import json
@@ -25,6 +26,7 @@ app = Flask(__name__)
 # --- CONFIGURACIÓN DE LA APLICACIÓN ---
 app.secret_key = 'una-clave-secreta-muy-larga-y-dificil-de-adivinar'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+registrar_apis(app)
 
 # Configuración de correo
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
