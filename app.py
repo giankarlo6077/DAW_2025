@@ -13,6 +13,8 @@ import json
 import pandas as pd
 import traceback
 import pytz
+import jwt
+from functools import wraps
 
 from io import BytesIO
 import json
@@ -25,6 +27,8 @@ app = Flask(__name__)
 # --- CONFIGURACIÓN DE LA APLICACIÓN ---
 app.secret_key = 'una-clave-secreta-muy-larga-y-dificil-de-adivinar'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+app.config['JWT_SECRET_KEY'] = 'tu-jwt-secret-key-super-segura-cambiala'
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
 
 # Configuración de correo
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -36,6 +40,87 @@ app.config['MAIL_DEFAULT_SENDER'] = 'cevar4@gmail.com'
 app.config['MAIL_DEBUG'] = True
 
 mail = Mail(app)
+
+# ========== NUEVO: FUNCIONES Y DECORADORES JWT ==========
+
+def generar_token_jwt(usuario_id, rol):
+    """Genera un token JWT para el usuario"""
+    try:
+        payload = {
+            'usuario_id': usuario_id,
+            'rol': rol,
+            'exp': datetime.utcnow() + app.config['JWT_ACCESS_TOKEN_EXPIRES'],
+            'iat': datetime.utcnow()
+        }
+        token = jwt.encode(payload, app.config['JWT_SECRET_KEY'], algorithm='HS256')
+        return token
+    except Exception as e:
+        print(f"Error generando token: {e}")
+        return None
+
+
+def token_requerido(f):
+    """Decorador para proteger rutas con JWT"""
+    @wraps(f)
+    def decorador(*args, **kwargs):
+        token = None
+
+        # Buscar token en headers
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            try:
+                token = auth_header.split(" ")[1]  # Format: "Bearer TOKEN"
+            except IndexError:
+                return jsonify({'success': False, 'mensaje': 'Formato de token inválido'}), 401
+
+        # Si no hay token en headers, buscar en cookies (para compatibilidad con navegador)
+        if not token and 'token_jwt' in request.cookies:
+            token = request.cookies.get('token_jwt')
+
+        if not token:
+            return jsonify({'success': False, 'mensaje': 'Token faltante. Inicia sesión nuevamente.'}), 401
+
+        try:
+            # Decodificar token
+            datos = jwt.decode(token, app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+            usuario_id = datos['usuario_id']
+            rol = datos['rol']
+
+            # Verificar que el usuario existe
+            conexion = obtener_conexion()
+            with conexion.cursor() as cursor:
+                cursor.execute("SELECT id, rol FROM usuarios WHERE id = %s", (usuario_id,))
+                usuario = cursor.fetchone()
+
+                if not usuario:
+                    return jsonify({'success': False, 'mensaje': 'Usuario no encontrado'}), 401
+
+            conexion.close()
+
+        except jwt.ExpiredSignatureError:
+            return jsonify({'success': False, 'mensaje': 'Token expirado. Inicia sesión nuevamente.'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'success': False, 'mensaje': 'Token inválido'}), 401
+        except Exception as e:
+            print(f"Error validando token: {e}")
+            return jsonify({'success': False, 'mensaje': 'Error en la autenticación'}), 401
+
+        # Pasar usuario_id y rol a la función
+        return f(usuario_id, rol, *args, **kwargs)
+
+    return decorador
+
+
+def rol_requerido(roles_permitidos):
+    """Decorador adicional para verificar roles específicos"""
+    def decorador_rol(f):
+        @wraps(f)
+        def wrapper(usuario_id, rol, *args, **kwargs):
+            if rol not in roles_permitidos:
+                return jsonify({'success': False, 'mensaje': 'No tienes permisos para esta acción'}), 403
+            return f(usuario_id, rol, *args, **kwargs)
+        return wrapper
+    return decorador_rol
 
 
 # --- FUNCIONES DE AYUDA ---
@@ -411,35 +496,101 @@ def reenviar_codigo():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        correo = request.form["correo"]
-        password = request.form["password"]
+        correo = request.form.get("correo", "").strip().lower()
+        password = request.form.get("password", "")
+
+        if not correo or not password:
+            flash("Por favor, ingresa tu correo y contraseña.", "warning")
+            return render_template("login.html")
 
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
-                # ✅ Corregido para seleccionar todas las columnas y ser robusto
-                cursor.execute("SELECT id, nombre, correo, password, rol, verificado FROM usuarios WHERE correo = %s", (correo,))
+                cursor.execute("SELECT * FROM usuarios WHERE correo = %s", (correo,))
                 usuario = cursor.fetchone()
+
+                if usuario and usuario["password"] == password:
+                    session.permanent = True
+                    session["user_id"] = usuario["id"]
+                    session["user_name"] = usuario["nombre"]
+                    session["user_role"] = usuario["rol"]
+
+                    # ← NUEVO: Generar token JWT
+                    token = generar_token_jwt(usuario["id"], usuario["rol"])
+
+                    if usuario["rol"] == "profesor":
+                        response = redirect(url_for("dashboard_profesor"))
+                    else:
+                        response = redirect(url_for("dashboard_estudiante"))
+
+                    # ← NUEVO: Guardar token en cookie (para requests del navegador)
+                    response.set_cookie('token_jwt', token, httponly=True, secure=False, samesite='Lax')
+
+                    flash(f"¡Bienvenido, {usuario['nombre']}!", "success")
+                    return response
+                else:
+                    flash("Correo o contraseña incorrectos.", "danger")
         finally:
             if conexion and conexion.open:
                 conexion.close()
 
-        # ✅ Comprobación robusta de usuario y contraseña para evitar KeyError
-        if not usuario or usuario.get("password") != password:
-            flash("❌ Correo o contraseña incorrectos", "error")
-            return redirect(url_for("login"))
-
-        if not usuario["verificado"]:
-            flash("❌ Debes verificar tu cuenta.", "error")
-            session.update(temp_usuario_id=usuario['id'], temp_correo=usuario['correo'], temp_nombre=usuario['nombre'])
-            return redirect(url_for("verificar_cuenta"))
-
-        session.permanent = True
-        session.update(usuario=usuario["nombre"], correo=usuario["correo"], rol=usuario["rol"], user_id=usuario["id"])
-
-        return redirect(url_for("dashboard_profesor") if usuario["rol"] == "profesor" else url_for("dashboard_estudiante"))
-
     return render_template("iniciosesion.html")
+
+@app.route("/api/auth/token", methods=["POST"])
+def obtener_token():
+    """Endpoint para obtener un token JWT mediante credenciales"""
+    try:
+        data = request.get_json()
+
+        correo = data.get('correo', '').strip().lower()
+        password = data.get('password', '')
+
+        if not correo or not password:
+            return jsonify({
+                'success': False,
+                'mensaje': 'Correo y contraseña son requeridos'
+            }), 400
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("SELECT id, nombre, rol, password FROM usuarios WHERE correo = %s", (correo,))
+            usuario = cursor.fetchone()
+
+            if not usuario or usuario['password'] != password:
+                return jsonify({
+                    'success': False,
+                    'mensaje': 'Credenciales inválidas'
+                }), 401
+
+            # Generar token
+            token = generar_token_jwt(usuario['id'], usuario['rol'])
+
+            if not token:
+                return jsonify({
+                    'success': False,
+                    'mensaje': 'Error generando token'
+                }), 500
+
+            return jsonify({
+                'success': True,
+                'token': token,
+                'usuario': {
+                    'id': usuario['id'],
+                    'nombre': usuario['nombre'],
+                    'rol': usuario['rol']
+                },
+                'expira_en': str(app.config['JWT_ACCESS_TOKEN_EXPIRES'])
+            }), 200
+
+    except Exception as e:
+        print(f"Error en obtener_token: {e}")
+        return jsonify({
+            'success': False,
+            'mensaje': f'Error del servidor: {str(e)}'
+        }), 500
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
 
 @app.route("/recuperar_password", methods=["GET", "POST"])
 def recuperar_password():
@@ -6824,38 +6975,27 @@ def api_eliminar_respuesta_individual(respuesta_id):
 # ========================================
 
 @app.route("/api/reconocimiento_facial", methods=["GET"])
-def api_obtener_reconocimiento_facial():
-    """GET: Lista registros de reconocimiento facial"""
+@token_requerido
+def api_obtener_reconocimiento_facial(usuario_id, rol):
+    """GET: Obtiene todos los registros de reconocimiento facial"""
+    conexion = None
     try:
-        usuario_id = request.args.get('usuario_id')
-
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            if usuario_id:
-                cursor.execute("""
-                    SELECT rf.id, rf.usuario_id, rf.fecha_registro,
-                           u.nombre, u.correo
-                    FROM reconocimiento_facial rf
-                    LEFT JOIN usuarios u ON rf.usuario_id = u.id
-                    WHERE rf.usuario_id = %s
-                    ORDER BY rf.fecha_registro DESC
-                """, (usuario_id,))
-            else:
-                cursor.execute("""
-                    SELECT rf.id, rf.usuario_id, rf.fecha_registro,
-                           u.nombre, u.correo
-                    FROM reconocimiento_facial rf
-                    LEFT JOIN usuarios u ON rf.usuario_id = u.id
-                    ORDER BY rf.fecha_registro DESC
-                """)
+            cursor.execute("""
+                SELECT rf.id, rf.usuario_id, rf.fecha_registro,
+                       u.nombre, u.correo
+                FROM reconocimiento_facial rf
+                LEFT JOIN usuarios u ON rf.usuario_id = u.id
+                ORDER BY rf.fecha_registro DESC
+            """)
 
             registros = cursor.fetchall()
 
-            # NO incluir el embedding en la respuesta por seguridad
             for r in registros:
                 if r.get('fecha_registro'):
                     r['fecha_registro'] = r['fecha_registro'].strftime('%Y-%m-%d %H:%M:%S')
-                r['tiene_embedding'] = True  # Solo indicar que existe
+                r['tiene_embedding'] = True
 
             return jsonify({
                 "success": True,
@@ -6873,7 +7013,8 @@ def api_obtener_reconocimiento_facial():
 
 
 @app.route("/api/reconocimiento_facial/<int:reconocimiento_id>", methods=["GET"])
-def api_obtener_reconocimiento_facial_por_id(reconocimiento_id):
+@token_requerido
+def api_obtener_reconocimiento_facial_por_id(usuario_id, rol, reconocimiento_id):
     """GET: Obtiene un registro de reconocimiento facial específico"""
     try:
         conexion = obtener_conexion()
@@ -6913,7 +7054,8 @@ def api_obtener_reconocimiento_facial_por_id(reconocimiento_id):
 
 
 @app.route("/api/reconocimiento_facial", methods=["POST"])
-def api_registrar_reconocimiento_facial():
+@token_requerido
+def api_registrar_reconocimiento_facial(usuario_id, rol):
     """POST: Registra un embedding facial"""
     try:
         data = request.get_json()
@@ -6925,6 +7067,13 @@ def api_registrar_reconocimiento_facial():
                 "message": "usuario_id y embedding son requeridos"
             }), 400
 
+        # Verificar que el usuario solo pueda registrar su propio embedding (o ser profesor)
+        if rol != 'profesor' and data.get('usuario_id') != usuario_id:
+            return jsonify({
+                "success": False,
+                "message": "No puedes registrar el embedding de otro usuario"
+            }), 403
+
         # Validar que el embedding tenga 128 dimensiones
         if len(data.get('embedding')) != 128:
             return jsonify({
@@ -6934,7 +7083,6 @@ def api_registrar_reconocimiento_facial():
 
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # Verificar si ya existe un registro
             cursor.execute("""
                 SELECT id FROM reconocimiento_facial WHERE usuario_id = %s
             """, (data.get('usuario_id'),))
@@ -6944,7 +7092,6 @@ def api_registrar_reconocimiento_facial():
             embedding_json = json.dumps(data.get('embedding'))
 
             if existing:
-                # Actualizar el registro existente
                 cursor.execute("""
                     UPDATE reconocimiento_facial
                     SET embedding = %s, fecha_registro = NOW()
@@ -6953,7 +7100,6 @@ def api_registrar_reconocimiento_facial():
                 registro_id = existing['id']
                 mensaje = "Reconocimiento facial actualizado exitosamente"
             else:
-                # Crear nuevo registro
                 cursor.execute("""
                     INSERT INTO reconocimiento_facial
                     (usuario_id, embedding, fecha_registro)
@@ -6980,8 +7126,9 @@ def api_registrar_reconocimiento_facial():
 
 
 @app.route("/api/reconocimiento_facial/<int:reconocimiento_id>", methods=["PUT"])
-def api_actualizar_reconocimiento_facial(reconocimiento_id):
-    """POST/PUT: Actualiza un registro de reconocimiento facial"""
+@token_requerido
+def api_actualizar_reconocimiento_facial(usuario_id, rol, reconocimiento_id):
+    """PUT: Actualiza un registro de reconocimiento facial"""
     try:
         data = request.get_json()
 
@@ -6999,12 +7146,21 @@ def api_actualizar_reconocimiento_facial(reconocimiento_id):
 
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT id FROM reconocimiento_facial WHERE id = %s", (reconocimiento_id,))
-            if not cursor.fetchone():
+            cursor.execute("SELECT usuario_id FROM reconocimiento_facial WHERE id = %s", (reconocimiento_id,))
+            registro = cursor.fetchone()
+
+            if not registro:
                 return jsonify({
                     "success": False,
                     "message": "Registro no encontrado"
                 }), 404
+
+            # Verificar permisos
+            if rol != 'profesor' and registro['usuario_id'] != usuario_id:
+                return jsonify({
+                    "success": False,
+                    "message": "No tienes permisos para actualizar este registro"
+                }), 403
 
             embedding_json = json.dumps(data.get('embedding'))
 
@@ -7030,8 +7186,10 @@ def api_actualizar_reconocimiento_facial(reconocimiento_id):
 
 
 @app.route("/api/reconocimiento_facial/<int:reconocimiento_id>", methods=["DELETE"])
-def api_eliminar_reconocimiento_facial(reconocimiento_id):
-    """POST/DELETE: Elimina un registro de reconocimiento facial"""
+@token_requerido
+@rol_requerido(['profesor'])  # Solo profesores pueden eliminar
+def api_eliminar_reconocimiento_facial(usuario_id, rol, reconocimiento_id):
+    """DELETE: Elimina un registro de reconocimiento facial"""
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
