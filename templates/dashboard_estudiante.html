@@ -6,13 +6,35 @@
     <title>Dashboard Estudiante - Cuestionarios</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f6fa; min-height: 100vh; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f6fa;
+            min-height: 100vh;
+        }
 
-        /* Header mejorado con avatar */
-        .top-header { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
+        /* ========== HEADER ========== */
+        .top-header {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
         .header-left h1 { font-size: 24px; }
         .header-right { position: relative; }
-        .user-menu { display: flex; align-items: center; cursor: pointer; padding: 10px 15px; border-radius: 8px; transition: background 0.3s; }
+        .user-menu {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 10px 15px;
+            border-radius: 8px;
+            transition: background 0.3s;
+        }
         .user-menu:hover { background: rgba(255,255,255,0.1); }
 
         /* Avatar con marco personalizado */
@@ -31,44 +53,29 @@
             position: relative;
             box-shadow: 0 3px 10px rgba(0,0,0,0.2);
         }
-
-        /* Marco para el avatar */
         .user-avatar.con-marco {
             border: 4px solid transparent;
             background-clip: padding-box;
-            animation: rotar-marco 8s linear infinite;
         }
-
         .user-avatar.con-marco::before {
             content: '';
             position: absolute;
-            top: -4px;
-            left: -4px;
-            right: -4px;
-            bottom: -4px;
+            top: -4px; left: -4px; right: -4px; bottom: -4px;
             border-radius: 50%;
             background: linear-gradient(45deg, #FFD700, #FFA500, #FF6B6B, #667eea, #FFD700);
             background-size: 300% 300%;
             animation: gradiente-marco 3s ease infinite;
             z-index: -1;
         }
-
         @keyframes gradiente-marco {
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
 
-        @keyframes rotar-marco {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
         .user-info-header { flex-grow: 1; }
         .user-info-header h3 { font-size: 16px; margin: 0; display: flex; align-items: center; gap: 8px; }
         .user-info-header p { font-size: 14px; opacity: 0.9; margin: 0; }
-
-        /* Título personalizado */
         .titulo-personalizado {
             display: inline-block;
             padding: 3px 10px;
@@ -83,66 +90,531 @@
 
         .dropdown-arrow { margin-left: 10px; font-size: 12px; transition: transform 0.3s; }
         .dropdown-arrow.active { transform: rotate(180deg); }
-        .dropdown-menu { position: absolute; top: 60px; right: 0; background: white; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); min-width: 200px; display: none; z-index: 1000; }
+        .dropdown-menu {
+            position: absolute;
+            top: 60px;
+            right: 0;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            min-width: 200px;
+            display: none;
+            z-index: 1000;
+        }
         .dropdown-menu.show { display: block; animation: slideDown 0.3s ease; }
-        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        .dropdown-menu a { display: flex; align-items: center; padding: 12px 20px; color: #333; text-decoration: none; transition: background 0.3s; }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .dropdown-menu a {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            color: #333;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
         .dropdown-menu a:hover { background: #f5f6fa; }
 
-        .main-container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-        .alert { padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        /* ========== LAYOUT PRINCIPAL ========== */
+        .main-layout {
+            display: flex;
+            min-height: calc(100vh - 70px);
+        }
+
+        /* ========== SIDEBAR NAVEGACIÓN ========== */
+        .sidebar-nav {
+            width: 280px;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            padding: 30px 0;
+            position: sticky;
+            top: 70px;
+            height: calc(100vh - 70px);
+            overflow-y: auto;
+        }
+
+        .nav-section {
+            padding: 0 20px;
+            margin-bottom: 30px;
+        }
+
+        .nav-section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            padding-left: 10px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            margin-bottom: 5px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .nav-item:hover {
+            background: #f5f6fa;
+            transform: translateX(5px);
+        }
+
+        .nav-item.active {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            box-shadow: 0 3px 10px rgba(17, 153, 142, 0.3);
+        }
+
+        .nav-item .icon {
+            font-size: 20px;
+            margin-right: 12px;
+            min-width: 25px;
+        }
+
+        .nav-badge {
+            margin-left: auto;
+            background: #ff6b6b;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        /* Stats en sidebar */
+        .sidebar-stats {
+            padding: 20px;
+            margin: 0 20px 20px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            color: white;
+            text-align: center;
+        }
+
+        .sidebar-stats .stat-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .sidebar-stats h3 {
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .stat-box {
+            background: rgba(255,255,255,0.2);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .stat-box p {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .stat-box .value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        /* ========== CONTENIDO PRINCIPAL ========== */
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideInDown 0.3s ease;
+        }
         .alert-error { background: #fee; border-left: 4px solid #e74c3c; color: #c0392b; }
         .alert-success { background: #d4edda; border-left: 4px solid #28a745; color: #155724; }
 
-        .grid-container { display: grid; grid-template-columns: 1fr 350px; gap: 30px; }
-        .main-content { display: flex; flex-direction: column; gap: 30px; }
-        .content-section { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .section-header { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #f0f0f0; }
-        .section-header h2 { color: #333; font-size: 22px; }
+        /* Secciones de contenido */
+        .content-section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+            display: none; /* Ocultar por defecto */
+        }
 
-        .pin-input-container { display: flex; gap: 10px; }
-        .pin-input { flex-grow: 1; padding: 12px 15px; font-size: 16px; border: 2px solid #e0e0e0; border-radius: 8px; }
-        .btn-join { padding: 12px 25px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.3s; }
-        .btn-join:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(17, 153, 142, 0.3); }
+        .content-section.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
 
-        .group-management { display: flex; flex-direction: column; gap: 20px; }
-        .btn { padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 0.5px; width: 100%; }
-        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
-        .form-group input { width: 100%; padding: 12px 15px; font-size: 16px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 10px; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
-        .grupo-info-card { text-align: center; }
-        .grupo-info-card h3 { font-size: 22px; color: #667eea; margin-bottom: 15px; }
-        .grupo-info-card p { color: #666; font-size: 16px; margin-bottom: 5px; }
-        .grupo-info-card .codigo-grupo { font-size: 20px; color: #333; background: #e9ecef; padding: 8px 15px; border-radius: 8px; user-select: all; display: inline-block; margin-top: 10px; }
-        .miembros-lista { text-align: left; margin-top: 20px; }
-        .miembros-lista h4 { font-size: 16px; color: #333; margin-bottom: 10px; }
-        .miembros-lista ul { list-style: none; }
-        .miembros-lista li { padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
-        .btn-danger { background: #e74c3c; color: white; }
-        .btn-danger:hover { background: #c0392b; }
+        .section-header {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
 
-        .recent-list { display: flex; flex-direction: column; gap: 15px; }
-        .recent-item { display: flex; align-items: center; background: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 5px solid #11998e; }
-        .item-icon { font-size: 24px; margin-right: 15px; }
-        .item-details { flex-grow: 1; }
-        .item-details h4 { margin: 0 0 5px 0; color: #333; font-size: 16px; }
-        .item-details p { margin: 0; color: #666; font-size: 12px; }
-        .item-score { text-align: right; }
-        .item-score span { font-size: 24px; font-weight: bold; color: #38ef7d; }
-        .item-score small { display: block; font-size: 12px; color: #666; }
+        .section-header h2 {
+            color: #333;
+            font-size: 28px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
 
-        @media (max-width: 900px) { .grid-container { grid-template-columns: 1fr; } }
+        .section-description {
+            color: #666;
+            margin-top: 8px;
+            line-height: 1.6;
+        }
+
+        /* ========== FORMULARIOS ========== */
+        .pin-input-container {
+            display: flex;
+            gap: 10px;
+            max-width: 600px;
+        }
+
+        .pin-input {
+            flex-grow: 1;
+            padding: 15px 20px;
+            font-size: 18px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+
+        .pin-input:focus {
+            outline: none;
+            border-color: #11998e;
+            box-shadow: 0 0 0 3px rgba(17, 153, 142, 0.1);
+        }
+
+        .btn-join {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-join:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(17, 153, 142, 0.3);
+        }
+
+        /* ========== GRUPOS ========== */
+        .grupo-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .grupo-card h3 {
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+
+        .codigo-grupo {
+            font-size: 28px;
+            font-weight: bold;
+            background: rgba(255,255,255,0.2);
+            padding: 15px 25px;
+            border-radius: 10px;
+            display: inline-block;
+            margin: 15px 0;
+            user-select: all;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .codigo-grupo:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.05);
+        }
+
+        .miembros-lista {
+            background: white;
+            color: #333;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .miembros-lista h4 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        .miembro-item {
+            padding: 12px;
+            background: #f5f6fa;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f5f6fa;
+            color: #333;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        /* ========== HISTORIAL ========== */
+        .historial-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .historial-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 5px solid #11998e;
+            transition: all 0.3s;
+        }
+
+        .historial-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .historial-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .historial-icon {
+            font-size: 28px;
+        }
+
+        .historial-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .historial-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .historial-date {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .historial-score {
+            font-size: 24px;
+            font-weight: bold;
+            color: #38ef7d;
+        }
+
+        /* ========== TIENDA ========== */
+        .tienda-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .item-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .item-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border-color: #667eea;
+        }
+
+        .item-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+        }
+
+        .item-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .item-price {
+            font-size: 24px;
+            color: #f5576c;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        .item-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .badge-comun { background: #d4edda; color: #155724; }
+        .badge-raro { background: #cce5ff; color: #004085; }
+        .badge-epico { background: #e7d4ff; color: #6f42c1; }
+        .badge-legendario { background: #fff3cd; color: #856404; }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 1024px) {
+            .sidebar-nav {
+                width: 240px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-layout {
+                flex-direction: column;
+            }
+
+            .sidebar-nav {
+                width: 100%;
+                height: auto;
+                position: relative;
+                top: 0;
+            }
+
+            .nav-section {
+                display: flex;
+                overflow-x: auto;
+                padding: 15px;
+            }
+
+            .nav-item {
+                flex-shrink: 0;
+                margin-right: 10px;
+            }
+
+            .historial-grid,
+            .tienda-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .empty-state-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 24px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            color: #999;
+            font-size: 16px;
+        }
     </style>
 </head>
 <body>
+    <!-- HEADER -->
     <div class="top-header">
         <div class="header-left">
             <h1>🎮 Cuestionarios Interactivos</h1>
         </div>
         <div class="header-right">
             <div class="user-menu" onclick="toggleDropdown()">
-                <!-- Avatar con marco si está equipado -->
                 <div class="user-avatar {{ 'con-marco' if items_equipados.marco else '' }}">
                     {% if items_equipados.avatar %}
                         {{ items_equipados.avatar.icono }}
@@ -164,203 +636,486 @@
             </div>
             <div class="dropdown-menu" id="dropdownMenu">
                 <a href="{{ url_for('cambiar_datos_estudiante') }}">⚙️ Cambiar datos</a>
-                <a href="{{ url_for('registro_facial') }}">🎭 Configurar Reconocimiento Facial</a>
+                <a href="{{ url_for('registro_facial') }}">🎭 Reconocimiento Facial</a>
                 <a href="{{ url_for('logout') }}">🚪 Cerrar sesión</a>
             </div>
         </div>
     </div>
 
-    <div class="main-container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}">
-                    <span>{{ '✅' if category == 'success' else '⚠️' }}</span>
-                    <span>{{ message }}</span>
+    <!-- LAYOUT PRINCIPAL -->
+    <div class="main-layout">
+        <!-- SIDEBAR NAVEGACIÓN -->
+        <aside class="sidebar-nav">
+            <!-- Stats Card -->
+            <div class="sidebar-stats">
+                <div class="stat-icon">🏆</div>
+                <h3>Mi Progreso</h3>
+                <div class="stat-box">
+                    <p>Nivel</p>
+                    <div class="value">{{ stats.nivel if stats else 1 }}</div>
                 </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <div class="grid-container">
-            <div class="main-content">
-                <div class="content-section">
-                    <div class="section-header">
-                        <h2>👤 Unirse a Cuestionario Individual</h2>
-                    </div>
-                    <p style="color: #666; margin-bottom: 15px;">Ingresa el PIN del cuestionario para jugar de manera individual</p>
-                    <form action="{{ url_for('unirse_individual') }}" method="POST">
-                        <div class="pin-input-container">
-                            <input type="text" name="codigo_pin" class="pin-input" placeholder="Ingresa el Código PIN" maxlength="6" required style="text-transform: uppercase;">
-                            <button type="submit" class="btn-join">🎯 Unirse</button>
-                        </div>
-                    </form>
+                <div class="stat-box">
+                    <p>Monedas</p>
+                    <div class="value">💰 {{ stats.monedas if stats else 0 }}</div>
                 </div>
+            </div>
 
-                <div class="content-section">
-                    <div class="section-header">
-                        <h2>👥 Unirse a Cuestionario Grupal</h2>
-                    </div>
+            <!-- Navegación Principal -->
+            <nav class="nav-section">
+                <div class="nav-section-title">Menú Principal</div>
+                <a href="#" class="nav-item active" data-section="inicio">
+                    <span class="icon">🏠</span>
+                    <span>Inicio</span>
+                </a>
+                <a href="#" class="nav-item" data-section="individual">
+                    <span class="icon">👤</span>
+                    <span>Individual</span>
+                </a>
+                <a href="#" class="nav-item" data-section="grupal">
+                    <span class="icon">👥</span>
+                    <span>Grupal</span>
                     {% if grupo %}
-                        <p style="color: #666; margin-bottom: 15px;">
+                    <span class="nav-badge">1</span>
+                    {% endif %}
+                </a>
+            </nav>
+
+            <!-- Recompensas -->
+            <nav class="nav-section">
+                <div class="nav-section-title">Recompensas</div>
+                <a href="#" class="nav-item" data-section="perfil">
+                    <span class="icon">🎯</span>
+                    <span>Mi Perfil</span>
+                </a>
+                <a href="#" class="nav-item" data-section="tienda">
+                    <span class="icon">🛒</span>
+                    <span>Tienda</span>
+                </a>
+                <a href="#" class="nav-item" data-section="inventario">
+                    <span class="icon">🎒</span>
+                    <span>Inventario</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- CONTENIDO PRINCIPAL -->
+        <main class="main-content">
+            <!-- Alertas -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}">
+                        <span>{{ '✅' if category == 'success' else '⚠️' }}</span>
+                        <span>{{ message }}</span>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- ========== SECCIÓN: INICIO ========== -->
+            <section id="inicio" class="content-section active">
+    <div class="section-header">
+        <h2>🏠 Panel de Inicio</h2>
+        <p class="section-description">Bienvenido de nuevo, {{ nombre }}. Aquí está tu resumen de actividad.</p>
+    </div>
+
+    <!-- Resumen de estadísticas -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 15px; text-align: center; box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);">
+            <div style="font-size: 56px; margin-bottom: 15px;">📊</div>
+            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Partidas Jugadas</div>
+            <div style="font-size: 48px; font-weight: bold;">{{ stats.total_partidas if stats else 0 }}</div>
+        </div>
+
+        <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 30px; border-radius: 15px; text-align: center; box-shadow: 0 5px 15px rgba(17, 153, 142, 0.3);">
+            <div style="font-size: 56px; margin-bottom: 15px;">✅</div>
+            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Respuestas Correctas</div>
+            <div style="font-size: 48px; font-weight: bold;">{{ stats.total_preguntas_correctas if stats else 0 }}</div>
+        </div>
+
+        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 30px; border-radius: 15px; text-align: center; box-shadow: 0 5px 15px rgba(245, 87, 108, 0.3);">
+            <div style="font-size: 56px; margin-bottom: 15px;">🔥</div>
+            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Racha Actual</div>
+            <div style="font-size: 48px; font-weight: bold;">{{ stats.racha_actual if stats else 0 }}</div>
+        </div>
+
+        <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; padding: 30px; border-radius: 15px; text-align: center; box-shadow: 0 5px 15px rgba(250, 112, 154, 0.3);">
+            <div style="font-size: 56px; margin-bottom: 15px;">⭐</div>
+            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Mejor Puntaje</div>
+            <div style="font-size: 48px; font-weight: bold;">{{ stats.mejor_puntaje if stats else 0 }}</div>
+        </div>
+    </div>
+
+    <!-- Historial reciente -->
+    {% if cuestionarios_recientes %}
+    <div class="section-header" style="margin-top: 40px;">
+        <h2>📜 Actividad Reciente</h2>
+    </div>
+    <div class="historial-grid">
+        {% for c in cuestionarios_recientes %}
+        <div class="historial-card">
+            <div class="historial-header">
+                <div class="historial-icon">
+                    {% if c.tipo == 'grupal' %}👥{% else %}👤{% endif %}
+                </div>
+                <div>
+                    <div class="historial-title">{{ c.titulo_cuestionario }}</div>
+                    {% if c.nombre_grupo %}
+                    <div style="font-size: 12px; color: #667eea; font-weight: 600;">📦 {{ c.nombre_grupo }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="historial-info">
+                <div class="historial-date">
+                    📅 {{ c.fecha_partida.strftime('%d/%m/%Y %H:%M') }}
+                </div>
+                <div class="historial-score">{{ c.puntuacion_final }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="margin-top: 40px;">
+        <div class="empty-state-icon">📭</div>
+        <h3>Aún no has jugado ningún cuestionario</h3>
+        <p>¡Empieza ahora usando el menú de navegación!</p>
+    </div>
+    {% endif %}
+</section>
+
+            <!-- ========== SECCIÓN: INDIVIDUAL ========== -->
+            <section id="individual" class="content-section">
+                <div class="section-header">
+                    <h2>👤 Modo Individual</h2>
+                    <p class="section-description">Juega cuestionarios de forma individual ingresando el código PIN.</p>
+                </div>
+
+                <form action="{{ url_for('unirse_individual') }}" method="POST">
+                    <div class="pin-input-container">
+                        <input type="text" name="codigo_pin" class="pin-input"
+                               placeholder="Ingresa el Código PIN (6 dígitos)"
+                               maxlength="6" required style="text-transform: uppercase;">
+                        <button type="submit" class="btn-join">🎯 Unirse al Cuestionario</button>
+                    </div>
+                </form>
+
+                <!-- Historial Individual -->
+                <div class="section-header" style="margin-top: 50px;">
+                    <h2>📊 Mi Historial Individual</h2>
+                </div>
+                {% if cuestionarios_recientes %}
+                <div class="historial-grid">
+                    {% for c in cuestionarios_recientes %}
+                        {% if c.tipo == 'individual' %}
+                        <div class="historial-card">
+                            <div class="historial-header">
+                                <div class="historial-icon">👤</div>
+                                <div class="historial-title">{{ c.titulo_cuestionario }}</div>
+                            </div>
+                            <div class="historial-info">
+                                <div class="historial-date">
+                                    {{ c.fecha_partida.strftime('%d/%m/%Y %H:%M') }}
+                                </div>
+                                <div class="historial-score">{{ c.puntuacion_final }}</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">📝</div>
+                    <h3>No has jugado cuestionarios individuales</h3>
+                    <p>Ingresa un PIN arriba para comenzar tu primera partida</p>
+                </div>
+                {% endif %}
+            </section>
+
+            <!-- ========== SECCIÓN: GRUPAL ========== -->
+            <section id="grupal" class="content-section">
+                <div class="section-header">
+                    <h2>👥 Modo Grupal</h2>
+                    <p class="section-description">Crea o únete a un grupo para jugar cuestionarios en equipo.</p>
+                </div>
+
+                {% if grupo %}
+                    <!-- Mostrar grupo actual -->
+                    <div class="grupo-card">
+                        <h3>{{ grupo['nombre_grupo'] }}</h3>
+                        <p style="opacity: 0.9;">Código para invitar a otros miembros:</p>
+                        <div class="codigo-grupo" onclick="copiarCodigo(this)" title="Click para copiar">
+                            {{ grupo['codigo_grupo'] }}
+                        </div>
+                        <p style="font-size: 12px; opacity: 0.8; margin-top: 10px;">
                             {% if user_id == grupo['lider_id'] %}
-                                Como líder, ingresa el PIN para que tu grupo juegue junto
+                                👑 Eres el líder del grupo
                             {% else %}
-                                Ingresa el PIN del cuestionario grupal para unirte a tu líder
+                                Líder: {{ miembros|selectattr('id', 'equalto', grupo['lider_id'])|map(attribute='nombre')|first }}
                             {% endif %}
                         </p>
+                    </div>
+
+                    <!-- Miembros -->
+                    <div class="miembros-lista">
+                        <h4>👥 Miembros del Grupo ({{ miembros|length }})</h4>
+                        {% for miembro in miembros %}
+                        <div class="miembro-item">
+                            {% if miembro['id'] == grupo['lider_id'] %}👑{% else %}👤{% endif %}
+                            <strong>{{ miembro['nombre'] }}</strong>
+                            {% if miembro['id'] == user_id %}
+                            <span style="margin-left: auto; font-size: 12px; color: #667eea;">(Tú)</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Unirse a cuestionario grupal -->
+                    <div style="margin-top: 30px; background: #f8f9fa; padding: 25px; border-radius: 15px;">
+                        <h3 style="margin-bottom: 15px; color: #333;">
+                            {% if user_id == grupo['lider_id'] %}
+                                🚀 Iniciar Juego Grupal
+                            {% else %}
+                                🎮 Unirse al Juego del Líder
+                            {% endif %}
+                        </h3>
                         <form action="{{ url_for('juego_grupo') }}" method="POST">
                             <div class="pin-input-container">
-                                <input type="text" name="pin" class="pin-input" 
-                                       placeholder="Ingresar PIN del Cuestionario Grupal" 
+                                <input type="text" name="pin" class="pin-input"
+                                       placeholder="Código PIN del Cuestionario Grupal"
                                        maxlength="6" required style="text-transform: uppercase;">
                                 <button type="submit" class="btn-join">
                                     {% if user_id == grupo['lider_id'] %}
-                                        🚀 Iniciar Juego Grupal
+                                        ▶️ Iniciar
                                     {% else %}
-                                        🎮 Unirse al Juego
+                                        🔗 Unirse
                                     {% endif %}
                                 </button>
                             </div>
                         </form>
-                    {% else %}
-                        <div style="text-align: center; padding: 30px; background: #fff3cd; border-radius: 10px; color: #856404;">
-                            <p style="font-size: 18px; margin: 0;">⚠️ Debes estar en un grupo para jugar</p>
-                            <p style="margin: 10px 0 0 0; opacity: 0.8;">Crea uno o únete a uno existente en el panel lateral →</p>
-                        </div>
-                    {% endif %}
-                </div>
+                    </div>
 
-                {% if cuestionarios_recientes %}
-                <div class="content-section">
-                    <div class="section-header">
-                        <h2>📜 Cuestionarios Recientes</h2>
+                    <!-- Botón salir del grupo -->
+                    <div style="margin-top: 30px;">
+                        <a href="{{ url_for('salir_grupo') }}"
+                           class="btn btn-danger"
+                           onclick="return confirm('¿Estás seguro de que quieres salir del grupo?');">
+                            🚪 Salir del Grupo
+                        </a>
                     </div>
-                    <div class="recent-list">
-                        {% for c in cuestionarios_recientes %}
-                        <div class="recent-item">
-                            <div class="item-icon">📚</div>
-                            <div class="item-details">
-                                <h4>{{ c.titulo_cuestionario }}</h4>
-                                <p>Finalizado: {{ c.fecha_partida.strftime('%d/%m/%Y a las %H:%M') }}</p>
-                            </div>
-                            <div class="item-score">
-                                <span>{{ c.puntuacion_final }}</span>
-                                <small>puntos</small>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-            </div>
 
-            <aside class="sidebar">
-                <div class="content-section" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; margin-bottom: 30px;">
-                    <div style="font-size: 48px; margin-bottom: 10px;">🏆</div>
-                    <h3 style="color: white; margin-bottom: 15px;">Mi Progreso</h3>
-                    <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
-                        <p style="font-size: 14px; margin-bottom: 5px; opacity: 0.9;">Nivel</p>
-                        <p style="font-size: 32px; font-weight: bold; margin: 0;">{{ stats.nivel if stats else 1 }}</p>
-                    </div>
-                    <a href="{{ url_for('perfil_recompensas') }}" style="display: block; background: white; color: #667eea; padding: 12px; border-radius: 10px; text-decoration: none; font-weight: 600; transition: all 0.3s;">
-                        Ver Mi Perfil 🎮
-                    </a>
-                </div>
-
-                <div class="content-section" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; text-align: center; margin-bottom: 30px;">
-                    <div style="font-size: 48px; margin-bottom: 10px;">🛒</div>
-                    <h3 style="color: white; margin-bottom: 15px;">Tienda</h3>
-                    <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
-                        <p style="font-size: 14px; margin-bottom: 5px; opacity: 0.9;">Monedas</p>
-                        <p style="font-size: 32px; font-weight: bold; margin: 0;">{{ stats.monedas if stats else 0 }}</p>
-                    </div>
-                    <a href="{{ url_for('tienda') }}" style="display: block; background: white; color: #f5576c; padding: 12px; border-radius: 10px; text-decoration: none; font-weight: 600; transition: all 0.3s;">
-                        Ir a la Tienda 🛍️
-                    </a>
-                </div>
-
-                <div class="content-section">
-                    <div class="section-header">
-                        <h2>👥 Gestión de Grupos</h2>
-                    </div>
-                    {% if grupo %}
-                        <div class="grupo-info-card">
-                            <h3>{{ grupo['nombre_grupo'] }}</h3>
-                            <p>Código para invitar:</p>
-                            <span class="codigo-grupo">{{ grupo['codigo_grupo'] }}</span>
-                            <div class="miembros-lista">
-                                <h4>Miembros ({{ miembros|length }})</h4>
-                                <ul>
-                                {% for miembro in miembros %}
-                                    <li>
-                                        {% if miembro['id'] == grupo['lider_id'] %}👑{% else %}👤{% endif %}
-                                        {{ miembro['nombre'] }}
-                                    </li>
-                                {% endfor %}
-                                </ul>
-                            </div>
-                            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
-                                <a href="{{ url_for('salir_grupo') }}" class="btn btn-danger" onclick="return confirm('¿Estás seguro de que quieres salir del grupo?');" style="width: 100%; margin-top: 10px;">
-                                    🚪 Salir del Grupo
-                                </a>
-                            </div>
-                        </div>
-                    {% else %}
-                        <div class="group-management">
+                {% else %}
+                    <!-- No tiene grupo: formularios para crear o unirse -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                        <!-- Crear grupo -->
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 15px;">
+                            <h3 style="font-size: 24px; margin-bottom: 20px;">➕ Crear Nuevo Grupo</h3>
                             <form action="{{ url_for('crear_grupo') }}" method="POST">
                                 <div class="form-group">
-                                    <input type="text" name="nombre_grupo" placeholder="Nombre de tu nuevo grupo" required>
-                                    <button type="submit" class="btn btn-primary">Crear Grupo</button>
+                                    <input type="text" name="nombre_grupo"
+                                           placeholder="Nombre de tu grupo"
+                                           required
+                                           style="background: rgba(255,255,255,0.9); border: none;">
                                 </div>
-                            </form>
-                            <hr>
-                            <form action="{{ url_for('unirse_grupo') }}" method="POST">
-                                <div class="form-group">
-                                    <input type="text" name="codigo_grupo" placeholder="Código para unirse a un grupo" required>
-                                    <button type="submit" class="btn">Unirse a Grupo</button>
-                                </div>
+                                <button type="submit" class="btn" style="background: white; color: #667eea; font-weight: bold;">
+                                    Crear Grupo
+                                </button>
                             </form>
                         </div>
-                    {% endif %}
+
+                        <!-- Unirse a grupo -->
+                        <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 30px; border-radius: 15px;">
+                            <h3 style="font-size: 24px; margin-bottom: 20px;">🔗 Unirse a Grupo Existente</h3>
+                            <form action="{{ url_for('unirse_grupo') }}" method="POST">
+                                <div class="form-group">
+                                    <input type="text" name="codigo_grupo"
+                                           placeholder="Código del grupo"
+                                           required
+                                           style="background: rgba(255,255,255,0.9); border: none; text-transform: uppercase;">
+                                </div>
+                                <button type="submit" class="btn" style="background: white; color: #11998e; font-weight: bold;">
+                                    Unirse
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% endif %}
+            </section>
+
+            <!-- ========== SECCIÓN: PERFIL ========== -->
+            <section id="perfil" class="content-section">
+                <div class="section-header">
+                    <h2>🎯 Mi Perfil de Jugador</h2>
+                    <p class="section-description">Visualiza tu progreso, nivel, experiencia e insignias desbloqueadas.</p>
                 </div>
-            </aside>
-        </div>
+
+                <div style="text-align: center; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 15px; margin-bottom: 30px;">
+                    <div style="font-size: 80px; margin-bottom: 20px;">🏆</div>
+                    <h2 style="font-size: 36px; margin-bottom: 10px;">Nivel {{ stats.nivel if stats else 1 }}</h2>
+                    <p style="font-size: 18px; opacity: 0.9;">{{ stats.experiencia_total if stats else 0 }} XP Total</p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('perfil_recompensas') }}" class="btn" style="background: white; color: #667eea; display: inline-block; width: auto; padding: 15px 40px;">
+                            Ver Perfil Completo
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Grid de estadísticas -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                    <div style="background: white; border: 2px solid #e0e0e0; padding: 25px; border-radius: 15px; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">📊</div>
+                        <div style="font-size: 32px; font-weight: bold; color: #333; margin-bottom: 5px;">
+                            {{ stats.total_partidas if stats else 0 }}
+                        </div>
+                        <div style="color: #666;">Partidas Jugadas</div>
+                    </div>
+                    <div style="background: white; border: 2px solid #e0e0e0; padding: 25px; border-radius: 15px; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">✅</div>
+                        <div style="font-size: 32px; font-weight: bold; color: #38ef7d; margin-bottom: 5px;">
+                            {{ stats.total_preguntas_correctas if stats else 0 }}
+                        </div>
+                        <div style="color: #666;">Correctas</div>
+                    </div>
+                    <div style="background: white; border: 2px solid #e0e0e0; padding: 25px; border-radius: 15px; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">❌</div>
+                        <div style="font-size: 32px; font-weight: bold; color: #e74c3c; margin-bottom: 5px;">
+                            {{ stats.total_preguntas_incorrectas if stats else 0 }}
+                        </div>
+                        <div style="color: #666;">Incorrectas</div>
+                    </div>
+                    <div style="background: white; border: 2px solid #e0e0e0; padding: 25px; border-radius: 15px; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">🔥</div>
+                        <div style="font-size: 32px; font-weight: bold; color: #ff6b6b; margin-bottom: 5px;">
+                            {{ stats.mejor_racha if stats else 0 }}
+                        </div>
+                        <div style="color: #666;">Mejor Racha</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========== SECCIÓN: TIENDA ========== -->
+            <section id="tienda" class="content-section">
+                <div class="section-header">
+                    <h2>🛒 Tienda de Recompensas</h2>
+                    <p class="section-description">
+                        Tienes <strong style="color: #f5576c; font-size: 20px;">💰 {{ stats.monedas if stats else 0 }}</strong> monedas disponibles
+                    </p>
+                </div>
+
+                <div style="text-align: center; padding: 30px; background: #f8f9fa; border-radius: 15px; margin-bottom: 30px;">
+                    <h3 style="font-size: 24px; color: #333; margin-bottom: 15px;">🎁 ¡Personaliza tu perfil!</h3>
+                    <p style="color: #666;">Compra avatares, marcos y títulos exclusivos para destacar</p>
+                    <a href="{{ url_for('tienda') }}" class="btn btn-primary" style="display: inline-block; width: auto; margin-top: 20px; padding: 15px 40px;">
+                        Ir a la Tienda Completa
+                    </a>
+                </div>
+            </section>
+
+            <!-- ========== SECCIÓN: INVENTARIO ========== -->
+            <section id="inventario" class="content-section">
+                <div class="section-header">
+                    <h2>🎒 Mi Inventario</h2>
+                    <p class="section-description">Gestiona y equipa los items que has comprado.</p>
+                </div>
+
+                <div style="text-align: center; padding: 40px;">
+                    <div style="font-size: 80px; margin-bottom: 20px;">🎒</div>
+                    <h3 style="font-size: 24px; color: #333; margin-bottom: 15px;">Tus Items Comprados</h3>
+                    <a href="{{ url_for('mi_inventario') }}" class="btn btn-primary" style="display: inline-block; width: auto; padding: 15px 40px;">
+                        Ver Inventario Completo
+                    </a>
+                </div>
+            </section>
+        </main>
     </div>
 
     <script>
-        function toggleDropdown() {
-            document.getElementById('dropdownMenu').classList.toggle('show');
-            document.getElementById('dropdownArrow').classList.toggle('active');
-        }
+    // Toggle dropdown menu
+    function toggleDropdown() {
+        document.getElementById('dropdownMenu').classList.toggle('show');
+        document.getElementById('dropdownArrow').classList.toggle('active');
+    }
 
-        window.onclick = function(event) {
-            if (!event.target.closest('.user-menu')) {
-                const menu = document.getElementById('dropdownMenu');
-                if (menu.classList.contains('show')) {
-                    menu.classList.remove('show');
-                    document.getElementById('dropdownArrow').classList.remove('active');
-                }
+    window.onclick = function(event) {
+        if (!event.target.closest('.user-menu')) {
+            const menu = document.getElementById('dropdownMenu');
+            if (menu.classList.contains('show')) {
+                menu.classList.remove('show');
+                document.getElementById('dropdownArrow').classList.remove('active');
             }
         }
+    }
 
-        {% if grupo %}
-            // POLLING PARA TODOS LOS MIEMBROS DEL GRUPO (incluido el líder)
-            console.log('✅ Iniciando polling para grupo ID: {{ grupo["id"] }}');
-            
-            setInterval(() => {
-                fetch(`/api/estado_grupo/{{ grupo['id'] }}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data && (data.game_state === 'waiting' || data.game_state === 'playing')) {
-                            console.log('🎮 Juego detectado (estado: ' + data.game_state + '). Redirigiendo...');
-                            // Redirigir a la sala de espera si hay actividad
-                            window.location.href = `/sala_espera/{{ grupo['id'] }}`;
-                        }
-                    })
-                    .catch(error => console.error('❌ Error verificando estado:', error));
-            }, 3000); // Verificar cada 3 segundos
-        {% endif %}
-    </script>
+    // ✅ NUEVO: Detectar sección desde URL al cargar
+    window.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const seccion = urlParams.get('seccion');
+
+        if (seccion) {
+            // Remover active de todos
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+
+            // Activar la sección indicada
+            const navItem = document.querySelector(`[data-section="${seccion}"]`);
+            const contentSection = document.getElementById(seccion);
+
+            if (navItem && contentSection) {
+                navItem.classList.add('active');
+                contentSection.classList.add('active');
+            }
+        }
+    });
+
+    // Navegación entre secciones
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            // Remover active de todos
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+
+            // Activar seleccionado
+            this.classList.add('active');
+            const section = this.getAttribute('data-section');
+            document.getElementById(section).classList.add('active');
+
+            // ✅ NUEVO: Actualizar URL sin recargar página
+            const newUrl = window.location.pathname + '?seccion=' + section;
+            window.history.pushState({section: section}, '', newUrl);
+        });
+    });
+
+    // Copiar código de grupo
+    function copiarCodigo(elemento) {
+        const codigo = elemento.textContent.trim();
+        navigator.clipboard.writeText(codigo).then(() => {
+            const original = elemento.textContent;
+            elemento.textContent = '✅ ¡Copiado!';
+            elemento.style.background = 'rgba(255,255,255,0.4)';
+            setTimeout(() => {
+                elemento.textContent = original;
+                elemento.style.background = 'rgba(255,255,255,0.2)';
+            }, 2000);
+        });
+    }
+
+    {% if grupo %}
+    // Polling para verificar estado del grupo
+    console.log('✅ Iniciando polling para grupo ID: {{ grupo["id"] }}');
+
+    setInterval(() => {
+        fetch(`/api/estado_grupo/{{ grupo['id'] }}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && (data.game_state === 'waiting' || data.game_state === 'playing')) {
+                    console.log('🎮 Juego detectado (estado: ' + data.game_state + '). Redirigiendo...');
+                    window.location.href = `/sala_espera/{{ grupo['id'] }}`;
+                }
+            })
+            .catch(error => console.error('❌ Error verificando estado:', error));
+    }, 3000);
+    {% endif %}
+</script>
 </body>
 </html>

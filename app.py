@@ -842,7 +842,7 @@ def dashboard_estudiante():
                     partidas_individuales.append({
                         'titulo_cuestionario': resultado['titulo_cuestionario'],
                         'puntuacion_final': resultado['puntuacion_final'],
-                        'fecha_partida': resultado['fecha_realizacion'],  # ✅ Campo correcto
+                        'fecha_partida': resultado['fecha_realizacion'],
                         'nombre_grupo': None,
                         'tipo': 'individual'
                     })
@@ -876,39 +876,71 @@ def dashboard_estudiante():
         cuestionarios_recientes = []
 
     # === BLOQUE 3: Stats y Items ===
-    # Obtener stats del estudiante para el nivel
+    print(f"\n📊 Cargando estadísticas del estudiante...")
     stats = None
     try:
         conexion = obtener_conexion()
         try:
             with conexion.cursor() as cursor:
-                # ✅ CORREGIDO: Usar 'user_id'
-                cursor.execute("SELECT nivel, monedas FROM estudiantes_stats WHERE user_id = %s", (user_id,))
+                # ✅ TRAER TODAS LAS COLUMNAS DE STATS
+                cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
                 stats = cursor.fetchone()
+
                 if not stats:
-                    # Inicializar si no existe
+                    print(f"⚠️ No hay stats para user_id={user_id}. Inicializando...")
                     inicializar_stats_estudiante(user_id)
-                    cursor.execute("SELECT nivel, monedas FROM estudiantes_stats WHERE user_id = %s", (user_id,))
-                    stats = cursor.fetchone() # Volver a leer
-                if not stats: # Fallback si falla la lectura tras inicialización
-                    stats = {'nivel': 1, 'monedas': 0}
+                    cursor.execute("SELECT * FROM estudiantes_stats WHERE user_id = %s", (user_id,))
+                    stats = cursor.fetchone()
+
+                # Debug: Imprimir stats cargadas
+                if stats:
+                    print(f"   ✅ Stats cargadas correctamente:")
+                    print(f"      - Nivel: {stats.get('nivel', 0)}")
+                    print(f"      - Monedas: {stats.get('monedas', 0)}")
+                    print(f"      - Total Partidas: {stats.get('total_partidas', 0)}")
+                    print(f"      - Preguntas Correctas: {stats.get('total_preguntas_correctas', 0)}")
+                    print(f"      - Racha Actual: {stats.get('racha_actual', 0)}")
+                    print(f"      - Mejor Puntaje: {stats.get('mejor_puntaje', 0)}")
+                else:
+                    print(f"   ⚠️ Stats es None después de inicializar")
+
         finally:
             if conexion and conexion.open:
                 conexion.close()
     except Exception as e:
-        print(f"Error al cargar stats: {e}")
-        stats = {'nivel': 1, 'monedas': 0}
+        print(f"❌ Error al cargar stats: {e}")
+        import traceback
+        traceback.print_exc()
+        # Valores por defecto si falla todo
+        stats = {
+            'nivel': 1,
+            'monedas': 0,
+            'total_partidas': 0,
+            'total_preguntas_correctas': 0,
+            'total_preguntas_incorrectas': 0,
+            'racha_actual': 0,
+            'mejor_racha': 0,
+            'mejor_puntaje': 0,
+            'experiencia_actual': 0,
+            'experiencia_total': 0
+        }
 
-
-    items_equipados = obtener_items_equipados(user_id) # ✅ Ahora usa el ID correcto
+    # Cargar items equipados
+    print(f"\n🎨 Cargando items equipados...")
+    try:
+        items_equipados = obtener_items_equipados(user_id)
+        print(f"   ✅ Items equipados: {items_equipados}")
+    except Exception as e:
+        print(f"   ⚠️ Error al cargar items: {e}")
+        items_equipados = {'avatar': None, 'marco': None, 'titulo': None}
 
     # === RENDERIZAR ===
-    print(f"\n✅ Dashboard cargado")
+    print(f"\n✅ Dashboard cargado exitosamente")
     print(f"   - Grupo: {'Sí' if grupo_info else 'No'}")
     print(f"   - Miembros: {len(miembros)}")
     print(f"   - Historial: {len(cuestionarios_recientes)}")
+    print(f"   - Stats: {'Cargadas' if stats else 'Por defecto'}")
     print(f"{'='*70}\n")
-
 
     return render_template("dashboard_estudiante.html",
                            nombre=session["usuario"],
@@ -918,6 +950,7 @@ def dashboard_estudiante():
                            cuestionarios_recientes=cuestionarios_recientes,
                            items_equipados=items_equipados,
                            stats=stats)
+
 
 @app.route("/crear_grupo", methods=["POST"])
 def crear_grupo():
@@ -929,7 +962,7 @@ def crear_grupo():
 
     if not nombre_grupo:
         flash("❌ Debes darle un nombre a tu grupo.", "error")
-        return redirect(url_for("dashboard_estudiante"))
+        return redirect(url_for("dashboard_estudiante") + "?seccion=grupal")  # ✅ AGREGADO
 
     conexion = obtener_conexion()
     try:
@@ -940,7 +973,7 @@ def crear_grupo():
 
             if usuario and usuario.get('grupo_id'):
                 flash("❌ Ya perteneces a un grupo.", "error")
-                return redirect(url_for("dashboard_estudiante"))
+                return redirect(url_for("dashboard_estudiante") + "?seccion=grupal")  # ✅ AGREGADO
 
             # Generar código único
             codigo_grupo = generar_codigo_grupo()
@@ -971,26 +1004,33 @@ def crear_grupo():
         if conexion and conexion.open:
             conexion.close()
 
-    return redirect(url_for("dashboard_estudiante"))
+    return redirect(url_for("dashboard_estudiante") + "?seccion=grupal")  # ✅ AGREGADO
+
 
 @app.route("/unirse_grupo", methods=["POST"])
 def unirse_grupo():
-    if "usuario" not in session or session.get("rol") != "estudiante": return redirect(url_for("login"))
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return redirect(url_for("login"))
+
     codigo_grupo, user_id = request.form.get("codigo_grupo"), session["user_id"]
+
     if not codigo_grupo:
         flash("❌ Debes ingresar un código de grupo.", "error")
-        return redirect(url_for("dashboard_estudiante"))
+        return redirect(url_for("dashboard_estudiante") + "?seccion=grupal")  # ✅ AGREGADO
+
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
             cursor.execute("SELECT grupo_id FROM usuarios WHERE id = %s", (user_id,))
             if cursor.fetchone().get('grupo_id'):
                 flash("❌ Ya perteneces a un grupo.", "error")
-                return redirect(url_for("dashboard_estudiante"))
+                return redirect(url_for("dashboard_estudiante") + "?seccion=grupal")  # ✅ AGREGADO
+
             cursor.execute("SELECT id FROM grupos WHERE codigo_grupo = %s", (codigo_grupo,))
             if not (grupo := cursor.fetchone()):
                 flash("❌ No se encontró ningún grupo con ese código.", "error")
-                return redirect(url_for("dashboard_estudiante"))
+                return redirect(url_for("dashboard_estudiante") + "?seccion=grupal")  # ✅ AGREGADO
+
             cursor.execute("UPDATE usuarios SET grupo_id = %s WHERE id = %s", (grupo['id'], user_id))
             conexion.commit()
             flash("✅ Te has unido al grupo exitosamente.", "success")
@@ -998,12 +1038,17 @@ def unirse_grupo():
         flash("❌ Ocurrió un error al unirte al grupo.", "error")
         print(f"Error en /unirse_grupo: {e}")
     finally:
-        if conexion and conexion.open: conexion.close()
-    return redirect(url_for("dashboard_estudiante"))
+        if conexion and conexion.open:
+            conexion.close()
+
+    return redirect(url_for("dashboard_estudiante") + "?seccion=grupal")  # ✅ AGREGADO
+
 
 @app.route("/salir_grupo")
 def salir_grupo():
-    if "usuario" not in session or session.get("rol") != "estudiante": return redirect(url_for("login"))
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return redirect(url_for("login"))
+
     user_id = session["user_id"]
     conexion = obtener_conexion()
     try:
@@ -1011,7 +1056,8 @@ def salir_grupo():
             cursor.execute("SELECT g.id, g.lider_id FROM grupos g JOIN usuarios u ON g.id = u.grupo_id WHERE u.id = %s", (user_id,))
             if not (grupo := cursor.fetchone()):
                 flash("❌ No perteneces a ningún grupo.", "error")
-                return redirect(url_for("dashboard_estudiante"))
+                return redirect(url_for("dashboard_estudiante") + "?seccion=grupal")  # ✅ AGREGADO
+
             if grupo['lider_id'] == user_id:
                 grupo_id = grupo['id']
                 cursor.execute("UPDATE usuarios SET grupo_id = NULL WHERE grupo_id = %s", (grupo_id,))
@@ -1025,8 +1071,10 @@ def salir_grupo():
         flash("❌ Ocurrió un error al salir del grupo.", "error")
         print(f"Error en /salir_grupo: {e}")
     finally:
-        if conexion and conexion.open: conexion.close()
-    return redirect(url_for("dashboard_estudiante"))
+        if conexion and conexion.open:
+            conexion.close()
+
+    return redirect(url_for("dashboard_estudiante") + "?seccion=grupal")  # ✅ AGREGADO
 
 @app.route("/juego_grupo", methods=["POST"])
 def juego_grupo():

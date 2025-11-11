@@ -160,37 +160,37 @@
         }
 
         function iniciarTodasLasPartidas() {
-            if (!confirm('¿Estás seguro de iniciar todas las partidas?')) return;
+                if (!confirm('¿Estás seguro de iniciar todas las partidas?')) return;
 
-            const btn = document.getElementById('btnIniciar');
-            btn.disabled = true;
-            btn.textContent = '⏳ Iniciando...';
+                const btn = document.getElementById('btnIniciar');
+                btn.disabled = true;
+                btn.textContent = '⏳ Iniciando...';
 
-            fetch('/profesor_iniciar_partidas/' + codigoPin, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    mostrarNotificacion('✅ ' + data.message);
+                fetch('/profesor_iniciar_partidas/' + codigoPin, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        mostrarNotificacion('✅ ' + data.message);
 
-                    // ✅ REDIRIGIR A LA VISTA DEL JUEGO EN VIVO
-                    setTimeout(() => {
-                        window.location.href = `/profesor_vista_juego_grupal/${codigoPin}`;
-                    }, 1500);
-                } else {
-                    alert('❌ ' + data.message);
+                        // ✅ REDIRIGIR A LA VISTA DEL JUEGO EN VIVO
+                        setTimeout(() => {
+                            window.location.href = `/profesor_vista_juego_grupal/${codigoPin}`;
+                        }, 1500);
+                    } else {
+                        alert('❌ ' + data.message);
+                        btn.disabled = false;
+                        btn.textContent = '🚀 Iniciar Todas las Partidas';
+                    }
+                })
+                .catch(error => {
+                    alert('❌ Error: ' + error.message);
                     btn.disabled = false;
                     btn.textContent = '🚀 Iniciar Todas las Partidas';
-                }
-            })
-            .catch(error => {
-                alert('❌ Error: ' + error.message);
-                btn.disabled = false;
-                btn.textContent = '🚀 Iniciar Todas las Partidas';
-            });
-        }
+                });
+            }
         // Función para crear el HTML de un grupo
         function crearGrupoHTML(grupo) {
             const estadoClase = grupo.game_state;
@@ -330,37 +330,6 @@
             }, 3000);
         }
 
-        // Función para iniciar partidas
-        function iniciarTodasLasPartidas() {
-            if (!confirm('¿Estás seguro de iniciar todas las partidas?')) return;
-
-            const btn = document.getElementById('btnIniciar');
-            btn.disabled = true;
-            btn.textContent = '⏳ Iniciando...';
-
-            fetch('/profesor_iniciar_partidas/' + codigoPin, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    mostrarNotificacion('✅ ' + data.message);
-                    actualizarGrupos();
-                    btn.textContent = '✅ Partidas Iniciadas';
-                    btn.style.background = '#28a745';
-                } else {
-                    alert('❌ ' + data.message);
-                    btn.disabled = false;
-                    btn.textContent = '🚀 Iniciar Todas las Partidas';
-                }
-            })
-            .catch(error => {
-                alert('❌ Error: ' + error.message);
-                btn.disabled = false;
-                btn.textContent = '🚀 Iniciar Todas las Partidas';
-            });
-        }
 
         // Agregar CSS de animaciones
         const style = document.createElement('style');
