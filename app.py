@@ -1,6 +1,6 @@
 import pymysql
 import pymysql.cursors
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file, make_response
 from flask_mail import Mail, Message
 from bd import obtener_conexion
 import random
@@ -13,6 +13,7 @@ import json
 import pandas as pd
 import traceback
 import pytz
+import hashlib
 import jwt
 from functools import wraps
 
@@ -41,7 +42,16 @@ app.config['MAIL_DEBUG'] = True
 
 mail = Mail(app)
 
+def encriptar_password(password):
+    """Encripta una contraseña usando SHA256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def encriptar_dato_cookie(dato):
+    """Crea un hash SHA256 de un dato (ID o Nombre) para usarlo como valor de cookie de validación"""
+    return hashlib.sha256(str(dato).encode()).hexdigest()
+    
 # ========== NUEVO: FUNCIONES Y DECORADORES JWT ==========
+
 
 def generar_token_jwt(usuario_id, rol):
     """Genera un token JWT para el usuario"""
@@ -414,11 +424,14 @@ def registro():
                     flash("❌ Ese correo ya está registrado.", "error")
                     return render_template("registro.html", nombre=nombre, correo=correo, rol_seleccionado=rol)
 
+                # ✅ CORRECCIÓN: ENCRIPTAR CONTRASEÑA CON SHA256 ANTES DE GUARDAR
+                password_encriptada = encriptar_password(password)
+
                 codigo = generar_codigo_verificacion()
                 fecha_codigo = datetime.now()
                 sql = """INSERT INTO usuarios (nombre, correo, password, rol, verificado, codigo_verificacion, fecha_codigo)
                          VALUES (%s, %s, %s, %s, FALSE, %s, %s)"""
-                cursor.execute(sql, (nombre, correo, password, rol, codigo, fecha_codigo))
+                cursor.execute(sql, (nombre, correo, password_encriptada, rol, codigo, fecha_codigo))
                 conexion.commit()
                 usuario_id = cursor.lastrowid
 
@@ -501,7 +514,7 @@ def login():
 
         if not correo or not password:
             flash("Por favor, ingresa tu correo y contraseña.", "warning")
-            return render_template("login.html")
+            return render_template("iniciosesion.html")
 
         conexion = obtener_conexion()
         try:
@@ -509,23 +522,36 @@ def login():
                 cursor.execute("SELECT * FROM usuarios WHERE correo = %s", (correo,))
                 usuario = cursor.fetchone()
 
-                if usuario and usuario["password"] == password:
+                # Encriptar password ingresada para comparación
+                password_ingresada_encriptada = encriptar_password(password)
+
+                if usuario and usuario["password"] == password_ingresada_encriptada:
+                    
+                    # 1. Crear la sesión Flask (Consistente)
                     session.permanent = True
                     session["user_id"] = usuario["id"]
-                    session["user_name"] = usuario["nombre"]
-                    session["user_role"] = usuario["rol"]
-
-                    # ← NUEVO: Generar token JWT
+                    session["usuario"] = usuario["nombre"]
+                    session["rol"] = usuario["rol"]
+                    session["correo"] = usuario["correo"]
+                    
+                    # 2. Generar token JWT
                     token = generar_token_jwt(usuario["id"], usuario["rol"])
 
                     if usuario["rol"] == "profesor":
                         response = redirect(url_for("dashboard_profesor"))
                     else:
                         response = redirect(url_for("dashboard_estudiante"))
+                    
+                    # 3. Crear Respuesta y establecer Cookies Encriptadas (make_response ahora funciona)
+                    response = make_response(response) 
+                    
+                    user_id_hash = encriptar_dato_cookie(usuario["id"])
+                    user_name_hash = encriptar_dato_cookie(usuario["nombre"])
 
-                    # ← NUEVO: Guardar token en cookie (para requests del navegador)
                     response.set_cookie('token_jwt', token, httponly=True, secure=False, samesite='Lax')
-
+                    response.set_cookie('user_id_enc', user_id_hash, httponly=True, secure=False, samesite='Lax')
+                    response.set_cookie('user_name_enc', user_name_hash, httponly=True, secure=False, samesite='Lax')
+                    
                     flash(f"¡Bienvenido, {usuario['nombre']}!", "success")
                     return response
                 else:
@@ -630,7 +656,11 @@ def resetear_password(token):
                 if not es_segura:
                     flash(f"❌ {mensaje_error}", "error")
                     return render_template("resetear_password.html", token=token)
-                cursor.execute("UPDATE usuarios SET password = %s, reset_token = NULL, reset_token_expiration = NULL WHERE id = %s", (password, usuario['id']))
+                
+                # ✅ CORRECCIÓN: ENCRIPTAR LA NUEVA CONTRASEÑA
+                password_encriptada = encriptar_password(password)
+
+                cursor.execute("UPDATE usuarios SET password = %s, reset_token = NULL, reset_token_expiration = NULL WHERE id = %s", (password_encriptada, usuario['id']))
                 conexion.commit()
                 flash("✅ Tu contraseña ha sido actualizada. Ya puedes iniciar sesión.", "success")
                 return redirect(url_for("login"))
@@ -641,7 +671,16 @@ def resetear_password(token):
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("login"))
+    response = redirect(url_for("login"))
+    
+    # LIMPIAR LAS 3 COOKIES ENCRIPTADAS
+    response = make_response(response) 
+
+    response.set_cookie('token_jwt', '', expires=0, httponly=True, secure=False, samesite='Lax')
+    response.set_cookie('user_id_enc', '', expires=0, httponly=True, secure=False, samesite='Lax')
+    response.set_cookie('user_name_enc', '', expires=0, httponly=True, secure=False, samesite='Lax')
+
+    return response
 
 # --- RUTAS DE PROFESOR ---
 
@@ -808,6 +847,18 @@ def eliminar_cuestionario(cuestionario_id):
 def cambiar_datos_profesor():
     if "usuario" not in session or session.get("rol") != "profesor":
         return redirect(url_for("login"))
+    
+    # Manejo del correo en sesión (para el template)
+    if 'correo' not in session and 'user_id' in session:
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                cursor.execute("SELECT correo FROM usuarios WHERE id=%s", (session["user_id"],))
+                if correo_data := cursor.fetchone():
+                    session['correo'] = correo_data['correo']
+        finally:
+            if conexion and conexion.open: conexion.close()
+            
     if request.method == "POST":
         nombre_nuevo = request.form["nombre"]
         password_actual = request.form["password_actual"]
@@ -818,9 +869,14 @@ def cambiar_datos_profesor():
             with conexion.cursor() as cursor:
                 cursor.execute("SELECT password FROM usuarios WHERE id=%s", (session["user_id"],))
                 usuario = cursor.fetchone()
-                if not usuario or usuario["password"] != password_actual:
+                
+                # ✅ CORRECCIÓN CLAVE: ENCRIPTAR PASSWORD ACTUAL PARA COMPARAR
+                password_actual_encriptada = encriptar_password(password_actual)
+                
+                if not usuario or usuario["password"] != password_actual_encriptada:
                     flash("❌ La contraseña actual es incorrecta", "error")
                     return redirect(url_for("cambiar_datos_profesor"))
+                
                 if password_nueva:
                     if password_nueva != confirmar_nueva:
                         flash("❌ Las contraseñas nuevas no coinciden", "error")
@@ -829,17 +885,23 @@ def cambiar_datos_profesor():
                     if not es_segura:
                         flash(f"❌ {msg}", "error")
                         return redirect(url_for("cambiar_datos_profesor"))
-                    cursor.execute("UPDATE usuarios SET nombre=%s, password=%s WHERE id=%s", (nombre_nuevo, password_nueva, session["user_id"]))
+                        
+                    # ENCRIPTAR PASSWORD NUEVA ANTES DE GUARDAR
+                    password_nueva_encriptada = encriptar_password(password_nueva)
+                    cursor.execute("UPDATE usuarios SET nombre=%s, password=%s WHERE id=%s", (nombre_nuevo, password_nueva_encriptada, session["user_id"]))
                 else:
                     cursor.execute("UPDATE usuarios SET nombre=%s WHERE id=%s", (nombre_nuevo, session["user_id"]))
+                
                 conexion.commit()
+            
             session["usuario"] = nombre_nuevo
             flash("✅ Datos actualizados correctamente", "success")
             return redirect(url_for("dashboard_profesor"))
         finally:
             if conexion and conexion.open:
                 conexion.close()
-    return render_template("CambiarDatos_profesor.html", nombre=session["usuario"], correo=session["correo"])
+    
+    return render_template("CambiarDatos_profesor.html", nombre=session.get("usuario"), correo=session.get("correo"))
 
 @app.route("/eliminar_cuenta_profesor", methods=["POST"])
 def eliminar_cuenta_profesor():
@@ -854,7 +916,11 @@ def eliminar_cuenta_profesor():
         with conexion.cursor() as cursor:
             cursor.execute("SELECT password FROM usuarios WHERE id = %s", (user_id,))
             usuario = cursor.fetchone()
-            if not usuario or usuario['password'] != password_actual:
+
+            # ✅ CORRECCIÓN CLAVE: ENCRIPTAR PASSWORD ACTUAL PARA COMPARAR
+            password_actual_encriptada = encriptar_password(password_actual)
+            
+            if not usuario or usuario['password'] != password_actual_encriptada:
                 flash("❌ Contraseña incorrecta. No se pudo eliminar la cuenta.", "error")
                 return redirect(url_for('cambiar_datos_profesor'))
 
@@ -2675,6 +2741,18 @@ def api_responder(grupo_id):
 @app.route("/cambiar_datos_estudiante", methods=["GET", "POST"])
 def cambiar_datos_estudiante():
     if "usuario" not in session or session.get("rol") != "estudiante": return redirect(url_for("login"))
+    
+    # Manejo del correo en sesión (para el template)
+    if 'correo' not in session and 'user_id' in session:
+        conexion = obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                cursor.execute("SELECT correo FROM usuarios WHERE id=%s", (session["user_id"],))
+                if correo_data := cursor.fetchone():
+                    session['correo'] = correo_data['correo']
+        finally:
+            if conexion and conexion.open: conexion.close()
+            
     if request.method == "POST":
         nombre_nuevo, password_actual = request.form["nombre"], request.form["password_actual"]
         password_nueva, confirmar_nueva = request.form.get("password_nueva", ""), request.form.get("confirmar_nueva", "")
@@ -2683,9 +2761,14 @@ def cambiar_datos_estudiante():
             with conexion.cursor() as cursor:
                 cursor.execute("SELECT password FROM usuarios WHERE id=%s", (session["user_id"],))
                 usuario = cursor.fetchone()
-                if not usuario or usuario["password"] != password_actual:
+                
+                # ✅ CORRECCIÓN CLAVE: ENCRIPTAR PASSWORD ACTUAL PARA COMPARAR
+                password_actual_encriptada = encriptar_password(password_actual)
+                
+                if not usuario or usuario["password"] != password_actual_encriptada:
                     flash("❌ La contraseña actual es incorrecta", "error")
                     return redirect(url_for("cambiar_datos_estudiante"))
+                
                 if password_nueva:
                     if password_nueva != confirmar_nueva:
                         flash("❌ Las contraseñas nuevas no coinciden", "error")
@@ -2694,29 +2777,40 @@ def cambiar_datos_estudiante():
                     if not es_segura:
                         flash(f"❌ {msg}", "error")
                         return redirect(url_for("cambiar_datos_estudiante"))
-                    cursor.execute("UPDATE usuarios SET nombre=%s, password=%s WHERE id=%s", (nombre_nuevo, password_nueva, session["user_id"]))
+                        
+                    # ENCRIPTAR PASSWORD NUEVA ANTES DE GUARDAR
+                    password_nueva_encriptada = encriptar_password(password_nueva)
+                    cursor.execute("UPDATE usuarios SET nombre=%s, password=%s WHERE id=%s", (nombre_nuevo, password_nueva_encriptada, session["user_id"]))
                 else:
                     cursor.execute("UPDATE usuarios SET nombre=%s WHERE id=%s", (nombre_nuevo, session["user_id"]))
+                
                 conexion.commit()
             session["usuario"] = nombre_nuevo
             flash("✅ Datos actualizados correctamente", "success")
             return redirect(url_for("dashboard_estudiante"))
         finally:
             if conexion and conexion.open: conexion.close()
-    return render_template("CambiarDatos_estudiante.html", nombre=session["usuario"], correo=session["correo"])
+    
+    return render_template("CambiarDatos_estudiante.html", nombre=session.get("usuario"), correo=session.get("correo"))
 
 @app.route("/eliminar_cuenta_estudiante", methods=["POST"])
 def eliminar_cuenta_estudiante():
     if "usuario" not in session or session.get("rol") != "estudiante": return redirect(url_for("login"))
+    
     password_actual, user_id = request.form.get("password_actual"), session["user_id"]
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
             cursor.execute("SELECT password FROM usuarios WHERE id = %s", (user_id,))
             usuario = cursor.fetchone()
-            if not usuario or usuario['password'] != password_actual:
+            
+            # ✅ CORRECCIÓN CLAVE: ENCRIPTAR PASSWORD ACTUAL PARA COMPARAR
+            password_actual_encriptada = encriptar_password(password_actual)
+            
+            if not usuario or usuario['password'] != password_actual_encriptada:
                 flash("❌ Contraseña incorrecta. No se pudo eliminar la cuenta.", "error")
                 return redirect(url_for('cambiar_datos_estudiante'))
+            
             cursor.execute("DELETE FROM usuarios WHERE id = %s", (user_id,))
             conexion.commit()
             session.clear()

@@ -12,6 +12,18 @@
         @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
         .logo-container { text-align: center; margin-bottom: 30px; }
         .logo { width: 100px; height: 100px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; font-size: 48px; box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3); }
+
+        /* 👇 ==== ESTILO MODIFICADO (Tamaño ajustado) ==== 👇 */
+        .logo-img {
+            width: 150px;  /* Ajustado a 150px */
+            height: 150px; /* Ajustado a 150px */
+            border-radius: 50%;
+            object-fit: cover;
+            margin: 0 auto 15px;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        /* ==== FIN DEL ESTILO MODIFICADO ==== */
+
         h1 { color: #333; font-size: 28px; margin-bottom: 10px; text-align: center; }
         .subtitle { text-align: center; color: #666; font-size: 14px; margin-bottom: 30px; }
         .alert { padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; animation: shake 0.5s ease; }
@@ -96,7 +108,7 @@
 <body>
     <div class="container">
         <div class="logo-container">
-            <div class="logo">🎮</div>
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo-img">
             <h1>Iniciar Sesión</h1>
             <p class="subtitle">Sistema de Cuestionarios Interactivos</p>
         </div>
@@ -149,7 +161,6 @@
             </div>
         </form>
 
-        <!-- NUEVO: Sección de Login Facial -->
         <div class="alternative-methods">
             <h3>🎭 Método Alternativo</h3>
             <button type="button" class="btn-facial" onclick="irALoginFacial()">
