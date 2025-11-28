@@ -951,6 +951,122 @@ def resultados_grupo(grupo_id):
         return redirect(url_for('dashboard_estudiante'))
 
 
+@app.route("/guardar_respuesta_individual", methods=["POST"])
+def guardar_respuesta_individual():
+    """Guarda la respuesta de un estudiante en modo individual"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    try:
+        data = request.get_json()
+        pregunta_id = data.get('pregunta_id')
+        respuesta = data.get('respuesta')
+        tiempo_respuesta = data.get('tiempo_respuesta', 0)
+
+        user_id = session["user_id"]
+
+        # Llamada al CONTROLADOR
+        resultado, error = juego_db.guardar_respuesta_estudiante(
+            user_id, pregunta_id, respuesta, tiempo_respuesta
+        )
+
+        if error:
+            return jsonify({"success": False, "message": error}), 404
+
+        return jsonify(resultado)
+
+    except Exception as e:
+        print(f"Error guardar_respuesta_individual: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/finalizar_cuestionario_individual", methods=["POST"])
+def finalizar_cuestionario_individual():
+    """Finaliza el cuestionario y redirige a resultados"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    try:
+        data = request.get_json()
+        tiempo_total = data.get('tiempo_total', 0)
+
+        user_id = session["user_id"]
+
+        # Llamada al CONTROLADOR
+        resultado, error = juego_db.finalizar_partida_individual(user_id, tiempo_total)
+
+        if error:
+            return jsonify({"success": False, "message": error}), 404
+
+        # Actualizar estadísticas de gamificación
+        recompensas_resultado = None
+        try:
+            recompensas_resultado = recompensas_db.actualizar_stats_despues_partida(
+                user_id,
+                resultado['puntuacion_final'],
+                resultado['correctas'],
+                resultado['incorrectas']
+            )
+            # Guardar en sesión para mostrar en resultados
+            session['ultima_recompensa'] = recompensas_resultado
+        except Exception as e:
+            print(f"Error actualizando stats de recompensas: {e}")
+
+        # Redirigir a la página de resultados con ranking
+        return jsonify({
+            "success": True,
+            "message": "Cuestionario finalizado",
+            "redirect_url": f"/resultados_individual/{resultado['historial_id']}"
+        })
+
+    except Exception as e:
+        print(f"Error finalizar_cuestionario_individual: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/resultados_individual/<int:historial_id>")
+def resultados_individual(historial_id):
+    """Muestra la página de resultados con ranking"""
+    if "usuario" not in session or session.get("rol") != "estudiante":
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+
+    try:
+        # Llamada al CONTROLADOR
+        datos, error = juego_db.obtener_datos_resultados_individual(historial_id, user_id)
+
+        if error:
+            flash(f"❌ {error}", "error")
+            return redirect(url_for("dashboard_estudiante"))
+
+        # Obtener recompensas de la sesión (si existen)
+        recompensas = session.pop('ultima_recompensa', None)
+
+        # Formatear fecha para mostrar
+        fecha_realizacion_str = "Fecha no disponible"
+        if datos["historial"].get('fecha_realizacion'):
+            fecha_realizacion_str = datos["historial"]['fecha_realizacion'].strftime('%d/%m/%Y %H:%M')
+
+        return render_template("resultados_individual_con_ranking.html",
+                               historial=datos["historial"],
+                               respuestas=datos["respuestas"],
+                               ranking_completo=datos["ranking_completo"],
+                               posicion_actual=datos["posicion_actual"],
+                               correctas=datos["correctas"],
+                               incorrectas=datos["incorrectas"],
+                               porcentaje=datos["porcentaje"],
+                               tiempo_promedio=datos["tiempo_promedio"],
+                               recompensas=recompensas,
+                               fecha_realizacion_str=fecha_realizacion_str)
+
+    except Exception as e:
+        print(f"Error resultados_individual: {e}")
+        import traceback
+        traceback.print_exc()
+        flash("❌ Error al cargar los resultados", "error")
+        return redirect(url_for("dashboard_estudiante"))
 # ========================================
 # RUTAS DE JUEGO (VISTAS PROFESOR)
 # ========================================
@@ -1062,23 +1178,39 @@ def api_miembros_grupo(grupo_id):
 
 
 @app.route("/api/estudiantes_en_sesion/<sesion_id>")
-def api_estudiantes_en_sesion(sesion_id):
+def api_estudiantes_en_sesion_route(sesion_id):
+    """Obtener lista de estudiantes en una sesión con su progreso"""
     if "usuario" not in session or session.get("rol") != "profesor":
         return jsonify({"success": False, "message": "No autorizado"}), 403
+
     try:
-        estudiantes = juego_db.api_estudiantes_sesion(sesion_id)
-        return jsonify({"success": True, "estudiantes": estudiantes})
+        estudiantes = profe_db.obtener_estudiantes_en_sesion(sesion_id)
+
+        return jsonify({
+            "success": True,
+            "estudiantes": estudiantes
+        })
+
     except Exception as e:
+        print(f"Error en api_estudiantes_en_sesion: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route("/api/ranking_final_sesion/<sesion_id>")
-def api_ranking_final_sesion(sesion_id):
+def api_ranking_final_sesion_route(sesion_id):
+    """Obtener el ranking final de una sesión"""
     if "usuario" not in session or session.get("rol") != "profesor":
         return jsonify({"success": False, "message": "No autorizado"}), 403
+
     try:
-        ranking = juego_db.api_ranking_sesion(sesion_id)
-        return jsonify({"success": True, "ranking": ranking})
+        ranking = profe_db.obtener_ranking_final_sesion(sesion_id)
+
+        return jsonify({
+            "success": True,
+            "ranking": ranking
+        })
+
     except Exception as e:
+        print(f"Error en api_ranking_final_sesion: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -1513,6 +1645,89 @@ def eliminar_cuenta_estudiante():
 # ========================================
 # RUTAS: VISUALIZACIÓN Y EXPORTACIÓN
 # ========================================
+
+
+@app.route('/enviar_resultados_profesor/<int:cuestionario_id>', methods=['POST'])
+def enviar_resultados_profesor(cuestionario_id):
+    """Envía los resultados del cuestionario al correo que indique el profesor"""
+    if 'user_id' not in session or session.get('role') != 'profesor':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    # Obtener el correo destino del formulario
+    correo_destino = request.form.get('correo_destino')
+
+    if not correo_destino:
+        flash('Debe indicar un correo de destino', 'error')
+        return redirect(url_for('exportar_resultados', cuestionario_id=cuestionario_id))
+
+    try:
+        # Generar el Excel con los resultados
+        from controlador_exportar import generar_excel_resultados
+        excel_data, nombre_archivo, error = generar_excel_resultados(cuestionario_id, session['user_id'])
+
+        if error:
+            flash(f'Error al generar resultados: {error}', 'error')
+            return redirect(url_for('exportar_resultados', cuestionario_id=cuestionario_id))
+
+        # Obtener info del cuestionario para el asunto
+        from controlador_cuestionario import obtener_cuestionario_por_id
+        cuestionario, _ = obtener_cuestionario_por_id(cuestionario_id)
+        nombre_cuestionario = cuestionario['titulo'] if cuestionario else f'Cuestionario #{cuestionario_id}'
+
+        # Crear el mensaje
+        msg = Message(
+            subject=f'Resultados: {nombre_cuestionario}',
+            sender=app.config['MAIL_DEFAULT_SENDER'],
+            recipients=[correo_destino]  # ← AQUÍ VA EL OUTLOOK DEL PROFESOR
+        )
+
+        msg.body = f'''
+Estimado profesor,
+
+Adjunto encontrará los resultados del cuestionario "{nombre_cuestionario}".
+
+Este correo fue enviado automáticamente desde el sistema de cuestionarios.
+
+Saludos,
+Sistema KahootSG4
+'''
+
+        msg.html = f'''
+<html>
+<body style="font-family: Arial, sans-serif;">
+    <h2 style="color: #2c3e50;">Resultados del Cuestionario</h2>
+    <p>Estimado profesor,</p>
+    <p>Adjunto encontrará los resultados del cuestionario <strong>"{nombre_cuestionario}"</strong>.</p>
+    <hr>
+    <p style="color: #7f8c8d; font-size: 12px;">
+        Este correo fue enviado automáticamente desde el sistema de cuestionarios KahootSG4.
+    </p>
+</body>
+</html>
+'''
+
+        # Adjuntar el Excel
+        msg.attach(
+            filename=nombre_archivo,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            data=excel_data.getvalue()
+        )
+
+        # Enviar el correo
+        mail.send(msg)
+
+        flash(f'Resultados enviados correctamente a {correo_destino}', 'success')
+        return redirect(url_for('dashboard_profesor'))
+
+    except OSError as e:
+        if e.errno == 101:
+            flash('Error de red: El servidor no puede enviar correos en este momento. Use la descarga directa.', 'error')
+        else:
+            flash(f'Error de conexión: {str(e)}', 'error')
+        return redirect(url_for('exportar_resultados', cuestionario_id=cuestionario_id))
+    except Exception as e:
+        flash(f'Error al enviar correo: {str(e)}', 'error')
+        return redirect(url_for('exportar_resultados', cuestionario_id=cuestionario_id))
 
 @app.route("/visualizar_cuestionario", methods=["POST"])
 def visualizar_cuestionario():
@@ -1951,19 +2166,54 @@ def verificar_rostro_login():
 def api_estado_pregunta_profesor(sesion_id):
     """API para que los estudiantes consulten en qué pregunta está el profesor"""
     try:
-        # Llamada al CONTROLADOR PROFESOR
-        estado = profe_db.obtener_o_crear_estado_sesion(sesion_id)
+        estado = profe_db.obtener_estado_pregunta_profesor(sesion_id)
+
+        if not estado:
+            return jsonify({
+                'success': False,
+                'error': 'Sesión no encontrada'
+            }), 404
 
         return jsonify({
-            "pregunta_actual": estado['pregunta_actual'],
-            "estado": estado['estado'],
-            "tiempo_restante": estado['tiempo_restante']
+            'success': True,
+            'estado': estado['estado'],
+            'pregunta_actual': estado['pregunta_actual'],
+            'tiempo_restante': estado['tiempo_restante']
         })
 
     except Exception as e:
         print(f"Error en api_estado_pregunta_profesor: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route("/api/actualizar_tiempo_profesor/<sesion_id>", methods=["POST"])
+def api_actualizar_tiempo_profesor(sesion_id):
+    """API para que el profesor actualice el tiempo restante cada segundo"""
+    if "usuario" not in session or session.get("rol") != "profesor":
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    try:
+        data = request.get_json()
+        tiempo_restante = data.get('tiempo_restante')
+
+        if tiempo_restante is None:
+            return jsonify({
+                "success": False,
+                "message": "Tiempo restante no proporcionado"
+            }), 400
+
+        success = profe_db.actualizar_tiempo_profesor(sesion_id, tiempo_restante)
+
+        if not success:
+            return jsonify({
+                "success": False,
+                "message": "Error al actualizar tiempo"
+            }), 500
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        print(f"Error en api_actualizar_tiempo_profesor: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route("/api/actualizar_pregunta_profesor/<sesion_id>", methods=["POST"])
 def api_actualizar_pregunta_profesor(sesion_id):
@@ -1973,14 +2223,28 @@ def api_actualizar_pregunta_profesor(sesion_id):
 
     try:
         data = request.get_json()
+        pregunta_actual = data.get('pregunta_actual')
+        estado = data.get('estado', 'playing')
+        tiempo_restante = data.get('tiempo_restante')
 
-        # Llamada al CONTROLADOR PROFESOR
-        profe_db.actualizar_progreso_sesion(
+        if pregunta_actual is None or tiempo_restante is None:
+            return jsonify({
+                "success": False,
+                "message": "Datos incompletos"
+            }), 400
+
+        success = profe_db.actualizar_estado_pregunta_profesor(
             sesion_id,
-            data.get('pregunta_actual'),
-            data.get('estado', 'playing'),
-            data.get('tiempo_restante', 0)
+            pregunta_actual,
+            estado,
+            tiempo_restante
         )
+
+        if not success:
+            return jsonify({
+                "success": False,
+                "message": "Error al actualizar estado"
+            }), 500
 
         return jsonify({"success": True})
 

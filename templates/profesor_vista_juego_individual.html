@@ -582,39 +582,77 @@
     }
 
     function iniciarTemporizador() {
-        clearInterval(timerInterval);
-        tiempoRestante = tiempoPorPregunta;
+    clearInterval(timerInterval);
+    tiempoRestante = tiempoPorPregunta;
 
-        const timerBar = document.getElementById('timer-bar');
-        timerBar.style.transition = 'none';
-        timerBar.style.width = '100%';
 
-        setTimeout(() => {
-            timerBar.style.transition = `width ${tiempoPorPregunta}s linear`;
-            timerBar.style.width = '0%';
-        }, 50);
 
+
+    const timerBar = document.getElementById('timer-bar');
+    timerBar.style.transition = 'none';
+    timerBar.style.width = '100%';
+
+    setTimeout(() => {
+        timerBar.style.transition = `width ${tiempoPorPregunta}s linear`;
+        timerBar.style.width = '0%';
+    }, 50);
+
+    actualizarDisplayTiempo();
+
+    timerInterval = setInterval(() => {
+        tiempoRestante--;
         actualizarDisplayTiempo();
 
-        timerInterval = setInterval(() => {
-            tiempoRestante--;
-            actualizarDisplayTiempo();
+        // ✅ ACTUALIZAR TIEMPO EN LA BASE DE DATOS cada segundo
+        fetch(`/api/actualizar_tiempo_profesor/${sesionId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tiempo_restante: tiempoRestante })
+        }).catch(error => console.error('Error actualizando tiempo:', error));
 
-            // ✅ ACTUALIZAR TIEMPO EN TIEMPO REAL
-            if (tiempoRestante % 2 === 0) { // Cada 2 segundos
-                notificarCambioPregunta(preguntaActual, tiempoRestante);
-            }
+        if (tiempoRestante <= 0) {
+            clearInterval(timerInterval);
+            console.log('⏰ Tiempo agotado para pregunta', preguntaActual + 1);
 
-            if (tiempoRestante <= 0) {
-                clearInterval(timerInterval);
-                console.log('⏰ Tiempo agotado para pregunta', preguntaActual + 1);
+            setTimeout(() => {
+                cargarPregunta(preguntaActual + 1);
+            }, 3000);
+        }
+    }, 1000);
+}
 
-                setTimeout(() => {
-                    cargarPregunta(preguntaActual + 1);
-                }, 3000);
-            }
-        }, 1000);
-    }
+    const timerBar = document.getElementById('timer-bar');
+    timerBar.style.transition = 'none';
+    timerBar.style.width = '100%';
+
+    setTimeout(() => {
+        timerBar.style.transition = `width ${tiempoPorPregunta}s linear`;
+        timerBar.style.width = '0%';
+    }, 50);
+
+    actualizarDisplayTiempo();
+
+    timerInterval = setInterval(() => {
+        tiempoRestante--;
+        actualizarDisplayTiempo();
+
+        // ✅ ACTUALIZAR TIEMPO EN LA BASE DE DATOS
+        fetch(`/api/actualizar_tiempo_profesor/${sesionId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/headers' },
+            body: JSON.stringify({ tiempo_restante: tiempoRestante })
+        });
+
+        if (tiempoRestante <= 0) {
+            clearInterval(timerInterval);
+            console.log('⏰ Tiempo agotado para pregunta', preguntaActual + 1);
+
+            setTimeout(() => {
+                cargarPregunta(preguntaActual + 1);
+            }, 3000);
+        }
+    }, 1000);
+}
 
     function actualizarDisplayTiempo() {
         document.getElementById('timer-display').textContent = tiempoRestante + 's';

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Enviar Resultados por Correo</title>
+    <style>
+        .container { max-width: 500px; margin: 50px auto; padding: 20px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .btn { background: #3498db; color: white; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn:hover { background: #2980b9; }
+        .info-box { background: #e8f4fd; border-left: 4px solid #3498db; padding: 15px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>📧 Enviar Resultados por Correo</h2>
+        
+        <div class="info-box">
+            <strong>Cuestionario:</strong> {{ cuestionario.titulo }}<br>
+            <small>Los resultados se enviarán como archivo Excel adjunto.</small>
+        </div>
+        
+        <form action="{{ url_for('enviar_resultados_profesor', cuestionario_id=cuestionario.id) }}" method="POST">
+            <div class="form-group">
+                <label for="correo_destino">Correo de destino (Outlook, Gmail, etc.):</label>
+                <input type="email" 
+                       id="correo_destino" 
+                       name="correo_destino" 
+                       placeholder="profesor@outlook.com"
+                       required>
+            </div>
+            
+            <button type="submit" class="btn">📤 Enviar Resultados</button>
+            <a href="{{ url_for('dashboard_profesor') }}" style="margin-left: 10px;">Cancelar</a>
+        </form>
+    </div>
+</body>
+</html>

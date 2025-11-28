@@ -632,109 +632,117 @@
     }
 
     function renderizarGrupos() {
-        const grid = document.getElementById('grupos-grid');
+    const grid = document.getElementById('grupos-grid');
 
-        if (gruposData.length === 0) {
-            grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #999;">No hay grupos activos</p>';
-            return;
-        }
-
-        grid.innerHTML = gruposData.map(grupo => {
-            const respondio = grupo.current_question_index > preguntaActual;
-            const clase = respondio ? 'answered' : 'waiting';
-            const statusText = respondio ? 'Respondió' : 'Esperando...';
-            const statusClass = respondio ? 'answered' : 'waiting';
-
-            return `
-                <div class="grupo-item ${clase}">
-                    <div class="grupo-nombre">
-                        <span>${grupo.id ? 'Grupo #' + grupo.id : 'Cargando...'}</span>
-                        <span class="status-badge ${statusClass}">${statusText}</span>
-                    </div>
-                    <div class="grupo-score">${grupo.current_score || 0} pts</div>
-                    <div style="font-size: 12px; color: #666;">
-                        Pregunta: ${grupo.current_question_index || 0}/${numPreguntas}
-                    </div>
-                </div>
-            `;
-        }).join('');
+    if (gruposData.length === 0) {
+        grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #999;">No hay grupos activos</p>';
+        return;
     }
+
+    grid.innerHTML = gruposData.map(grupo => {
+        const respondio = grupo.current_question_index > preguntaActual;
+        const clase = respondio ? 'answered' : 'waiting';
+        const statusText = respondio ? 'Respondió' : 'Esperando...';
+        const statusClass = respondio ? 'answered' : 'waiting';
+
+        // ✅ Usar nombre_grupo si existe, sino fallback a "Grupo #ID"
+        const nombreGrupo = grupo.nombre_grupo || `Grupo #${grupo.id}`;
+
+        return `
+            <div class="grupo-item ${clase}">
+                <div class="grupo-nombre">
+                    <span>${nombreGrupo}</span>
+                    <span class="status-badge ${statusClass}">${statusText}</span>
+                </div>
+                <div class="grupo-score">${grupo.current_score || 0} pts</div>
+                <div style="font-size: 12px; color: #666;">
+                    Pregunta: ${grupo.current_question_index || 0}/${numPreguntas}
+                    | 👥 ${grupo.num_miembros || 0} miembros
+                </div>
+            </div>
+        `;
+    }).join('');
+}
 
     function mostrarResultadosFinales() {
-        console.log('🏆 Mostrando resultados finales');
-        clearInterval(timerInterval);
-        clearInterval(pollInterval);
+    console.log('🏆 Mostrando resultados finales');
+    clearInterval(timerInterval);
+    clearInterval(pollInterval);
 
-        document.getElementById('waiting-screen').style.display = 'none';
-        document.getElementById('question-screen').style.display = 'none';
-        document.getElementById('results-screen').style.display = 'block';
+    document.getElementById('waiting-screen').style.display = 'none';
+    document.getElementById('question-screen').style.display = 'none';
+    document.getElementById('results-screen').style.display = 'block';
 
-        // Obtener resultados finales de grupos
-        Promise.all(gruposIds.map(grupoId =>
-            fetch(`/api/estado_grupo/${grupoId}`)
-                .then(response => response.json())
-        ))
-        .then(grupos => {
-            const ranking = grupos
-                .map((grupo, index) => ({
-                    id: gruposIds[index],
-                    nombre: `Grupo #${gruposIds[index]}`,
-                    puntuacion: grupo.current_score || 0,
-                    miembros: grupo.num_miembros || 0
-                }))
-                .sort((a, b) => b.puntuacion - a.puntuacion);
+    // Obtener resultados finales de grupos
+    Promise.all(gruposIds.map(grupoId =>
+        fetch(`/api/estado_grupo/${grupoId}`)
+            .then(response => response.json())
+    ))
+    .then(grupos => {
+        const ranking = grupos
+            .map((grupo, index) => ({
+                id: gruposIds[index],
+                // ✅ Usar nombre_grupo del API
+                nombre: grupo.nombre_grupo || `Grupo #${gruposIds[index]}`,
+                puntuacion: grupo.current_score || 0,
+                miembros: grupo.num_miembros || 0
+            }))
+            .sort((a, b) => b.puntuacion - a.puntuacion);
 
-            renderizarResultados(ranking);
-        })
-        .catch(error => {
-            console.error('Error al cargar ranking:', error);
-        });
-    }
+        renderizarResultados(ranking);
+    })
+    .catch(error => {
+        console.error('Error al cargar ranking:', error);
+    });
+}
 
     function renderizarResultados(ranking) {
-        const podium = document.getElementById('podium');
-        const top3 = ranking.slice(0, 3);
+    const podium = document.getElementById('podium');
+    const top3 = ranking.slice(0, 3);
 
-        const podiumHTML = `
-            ${top3[1] ? `
-                <div class="podium-place podium-2">
-                    <div class="medal">🥈</div>
-                    <div class="name">${top3[1].nombre}</div>
-                    <div class="score">${top3[1].puntuacion}</div>
-                </div>
-            ` : ''}
+    const podiumHTML = `
+        ${top3[1] ? `
+            <div class="podium-place podium-2">
+                <div class="medal">🥈</div>
+                <div class="name">${top3[1].nombre}</div>
+                <div class="score">${top3[1].puntuacion} pts</div>
+                <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">👥 ${top3[1].miembros} miembros</div>
+            </div>
+        ` : ''}
 
-            ${top3[0] ? `
-                <div class="podium-place podium-1">
-                    <div class="medal">🥇</div>
-                    <div class="name">${top3[0].nombre}</div>
-                    <div class="score">${top3[0].puntuacion}</div>
-                </div>
-            ` : ''}
+        ${top3[0] ? `
+            <div class="podium-place podium-1">
+                <div class="medal">🥇</div>
+                <div class="name">${top3[0].nombre}</div>
+                <div class="score">${top3[0].puntuacion} pts</div>
+                <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">👥 ${top3[0].miembros} miembros</div>
+            </div>
+        ` : ''}
 
-            ${top3[2] ? `
-                <div class="podium-place podium-3">
-                    <div class="medal">🥉</div>
-                    <div class="name">${top3[2].nombre}</div>
-                    <div class="score">${top3[2].puntuacion}</div>
-                </div>
-            ` : ''}
+        ${top3[2] ? `
+            <div class="podium-place podium-3">
+                <div class="medal">🥉</div>
+                <div class="name">${top3[2].nombre}</div>
+                <div class="score">${top3[2].puntuacion} pts</div>
+                <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">👥 ${top3[2].miembros} miembros</div>
+            </div>
+        ` : ''}
+    `;
+    podium.innerHTML = podiumHTML;
+
+    const tbody = document.getElementById('ranking-body');
+    tbody.innerHTML = ranking.map((grupo, index) => {
+        const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : (index + 1);
+        return `
+            <tr>
+                <td style="font-weight: bold; font-size: 20px;">${medal}</td>
+                <td>${grupo.nombre}</td>
+                <td style="font-weight: bold; color: #667eea;">${grupo.puntuacion} pts</td>
+                <td>${grupo.miembros}</td>
+            </tr>
         `;
-        podium.innerHTML = podiumHTML;
-
-        const tbody = document.getElementById('ranking-body');
-        tbody.innerHTML = ranking.map((grupo, index) => {
-            const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : (index + 1);
-            return `
-                <tr>
-                    <td style="font-weight: bold; font-size: 20px;">${medal}</td>
-                    <td>${grupo.nombre}</td>
-                    <td style="font-weight: bold; color: #667eea;">${grupo.puntuacion}</td>
-                    <td>${grupo.miembros}</td>
-                </tr>
-            `;
-        }).join('');
-    }
+    }).join('');
+}
 
     function volverAlDashboard() {
         window.location.href = '/dashboard_profesor';

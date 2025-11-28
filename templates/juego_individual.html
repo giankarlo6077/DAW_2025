@@ -167,7 +167,6 @@
             color: #721c24;
         }
 
-        /* ✅ Mensaje de espera */
         .waiting-overlay {
             position: fixed;
             top: 0;
@@ -274,7 +273,6 @@
         </div>
     </div>
 
-    <!-- ✅ Overlay de espera -->
     <div class="waiting-overlay" id="waitingOverlay">
         <div class="waiting-box">
             <div class="waiting-icon">⏳</div>
@@ -294,14 +292,13 @@
     let puntuacionTotal = 0;
     let respuestas = [];
     let tiempoRestantePregunta = tiempoPorPregunta;
-    let timerIntervalPregunta;
+    let timerIntervalPregunta = null;
     let tiempoInicioRespuesta;
     let respuestaEnviada = false;
     let tiempoTotalTranscurrido = 0;
-    let timerIntervalTotal;
-    let intervalSincronizacion = null;
-    let esperandoSincronizacion = false;
-    let intervalCheckProfesor = null; // ✅ NUEVO
+    let timerIntervalTotal = null;
+    let intervalCheckProfesor = null;
+    let ultimaPreguntaProfesor = 0;
 
     document.addEventListener('DOMContentLoaded', function() {
         console.log('🎮 Iniciando juego individual...');
@@ -314,15 +311,18 @@
             return;
         }
 
+        // Timer para tiempo total
         timerIntervalTotal = setInterval(() => {
             tiempoTotalTranscurrido++;
         }, 1000);
 
-        // ✅ INICIAR SINCRONIZACIÓN CON PROFESOR
+        // Sincronización con profesor (cada 2 segundos, separado del timer visual)
         iniciarSincronizacionConProfesor();
+
+        // Cargar primera pregunta
+        cargarPregunta();
     });
 
-    // ✅ NUEVA FUNCIÓN: Verificar estado del profesor
     function iniciarSincronizacionConProfesor() {
         console.log('🔄 Iniciando sincronización con profesor...');
 
@@ -332,14 +332,17 @@
                 const data = await response.json();
 
                 // Si el profesor cambió de pregunta
-                if (data.pregunta_actual !== preguntaActual) {
-                    console.log(`🔄 Profesor en pregunta ${data.pregunta_actual + 1}, nosotros en ${preguntaActual + 1}`);
+                if (data.pregunta_actual > preguntaActual) {
+                    console.log(`🔄 Profesor avanzó a pregunta ${data.pregunta_actual + 1}`);
 
-                    // Si el profesor avanzó y nosotros no respondimos
-                    if (data.pregunta_actual > preguntaActual && !respuestaEnviada) {
-                        console.log('⚠️ Forzando avance por cambio del profesor');
-                        guardarRespuestaVacia();
+                    // Si no respondimos, guardar vacía
+                    if (!respuestaEnviada) {
+                        await guardarRespuestaVacia();
                     }
+
+                    // Avanzar
+                    clearInterval(timerIntervalPregunta);
+                    avanzarALaSiguiente();
                 }
 
                 // Si el profesor terminó el juego
@@ -351,7 +354,7 @@
             } catch (error) {
                 console.error('❌ Error verificando estado del profesor:', error);
             }
-        }, 2000); // Cada 2 segundos
+        }, 2000);
     }
 
     function cargarPregunta() {
@@ -366,22 +369,24 @@
         }
 
         respuestaEnviada = false;
-        esperandoSincronizacion = false;
         ocultarMensajeEspera();
 
+        // Resetear timer
         tiempoRestantePregunta = tiempoPorPregunta;
-        document.getElementById('questionTimer').textContent = tiempoRestantePregunta + 's';
-        document.getElementById('questionTimer').classList.remove('warning');
+        actualizarUITimer();
 
+        // Resetear barra de progreso
         const progressBar = document.getElementById('progressBar');
         progressBar.style.transition = 'none';
         progressBar.style.width = '100%';
         void progressBar.offsetWidth;
 
+        // Actualizar UI de pregunta
         document.getElementById('currentQuestion').textContent = (preguntaActual + 1) + '/' + preguntas.length;
         document.getElementById('questionNumber').textContent = preguntaActual + 1;
         document.getElementById('questionText').textContent = pregunta.pregunta;
 
+        // Generar opciones
         const optionsGrid = document.getElementById('optionsGrid');
         optionsGrid.innerHTML = '';
         const opciones = [
@@ -402,9 +407,56 @@
             optionsGrid.appendChild(btn);
         });
 
+        // Ocultar feedback anterior
         document.getElementById('feedback').classList.remove('show');
+
+        // Iniciar timer
         tiempoInicioRespuesta = Date.now();
-        iniciarTimerParaPreguntaActual();
+        iniciarTimerLocal();
+    }
+
+    function actualizarUITimer() {
+        const timerElement = document.getElementById('questionTimer');
+        const progressBar = document.getElementById('progressBar');
+
+        timerElement.textContent = tiempoRestantePregunta + 's';
+
+        const porcentaje = (tiempoRestantePregunta / tiempoPorPregunta) * 100;
+        progressBar.style.transition = 'width 1s linear';
+        progressBar.style.width = porcentaje + '%';
+
+        if (tiempoRestantePregunta <= 5) {
+            timerElement.classList.add('warning');
+        } else {
+            timerElement.classList.remove('warning');
+        }
+    }
+
+    function iniciarTimerLocal() {
+        // Limpiar timer anterior si existe
+        if (timerIntervalPregunta) {
+            clearInterval(timerIntervalPregunta);
+        }
+
+        // Timer LOCAL - solo decrementa cada segundo, sin fetch
+        timerIntervalPregunta = setInterval(() => {
+            tiempoRestantePregunta--;
+            actualizarUITimer();
+
+            // Si se acabó el tiempo
+            if (tiempoRestantePregunta <= 0) {
+                clearInterval(timerIntervalPregunta);
+
+                if (!respuestaEnviada) {
+                    guardarRespuestaVacia().then(() => {
+                        // Esperar un momento antes de avanzar
+                        setTimeout(() => {
+                            avanzarALaSiguiente();
+                        }, 2000);
+                    });
+                }
+            }
+        }, 1000);
     }
 
     function seleccionarRespuesta(letra) {
@@ -452,6 +504,7 @@
                     document.getElementById('score').textContent = puntuacionTotal;
                 }
 
+                // Mostrar respuesta correcta
                 opciones.forEach((btn, index) => {
                     const letraBtn = ['A', 'B', 'C', 'D'][index];
                     if (letraBtn === data.respuesta_correcta) {
@@ -462,6 +515,7 @@
                     }
                 });
 
+                // Mostrar feedback
                 const feedback = document.getElementById('feedback');
                 if (data.correcta) {
                     feedback.className = 'feedback correct show';
@@ -471,19 +525,20 @@
                     feedback.innerHTML = `❌ Incorrecto. La respuesta correcta era: ${data.respuesta_correcta}`;
                 }
 
-                // Ya no esperamos sincronización, el profesor controla el timing
                 console.log('✅ Respuesta guardada, esperando al profesor...');
 
             } else {
                 console.error('Error del servidor:', data.message);
                 alert('Error: ' + data.message);
                 respuestaEnviada = false;
+                opciones.forEach(btn => btn.classList.remove('disabled'));
             }
         })
         .catch(error => {
             console.error('❌ Error al guardar respuesta:', error);
             alert('Error de red al guardar la respuesta.');
             respuestaEnviada = false;
+            opciones.forEach(btn => btn.classList.remove('disabled'));
         });
     }
 
@@ -495,6 +550,72 @@
         document.getElementById('waitingOverlay').classList.remove('show');
     }
 
+    function iniciarTimerParaPreguntaActual() {
+    console.log('⏱️ Iniciando timer para pregunta', preguntaActual + 1);
+
+    if (timerIntervalPregunta) {
+        clearInterval(timerIntervalPregunta);
+    }
+
+    timerIntervalPregunta = setInterval(async () => {
+        // ✅ VERIFICAR ESTADO DEL PROFESOR
+        try {
+            const response = await fetch(`/api/estado_pregunta_profesor/${sesionId}`);
+
+            if (!response.ok) {
+                throw new Error('Error en respuesta del servidor');
+            }
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error('Datos no válidos');
+            }
+
+            // Usar el tiempo del profesor
+            tiempoRestantePregunta = data.tiempo_restante;
+
+            const timerElement = document.getElementById('questionTimer');
+            const progressBar = document.getElementById('progressBar');
+            const porcentajeRestante = (tiempoRestantePregunta / tiempoPorPregunta) * 100;
+            progressBar.style.width = porcentajeRestante + '%';
+            progressBar.style.transition = 'width 1s linear';
+
+            timerElement.textContent = tiempoRestantePregunta + 's';
+
+            if (tiempoRestantePregunta <= 5) {
+                timerElement.classList.add('warning');
+            }
+
+            // Si el profesor avanzó de pregunta
+            if (data.pregunta_actual > preguntaActual) {
+                console.log('⏭️ Profesor avanzó, cambiando de pregunta');
+                clearInterval(timerIntervalPregunta);
+
+                if (!respuestaEnviada) {
+                    await guardarRespuestaVacia();
+                }
+
+                avanzarALaSiguiente();
+            }
+
+        } catch (error) {
+            console.error('Error verificando profesor:', error);
+            // Fallback: continuar con timer local
+            tiempoRestantePregunta--;
+            const timerElement = document.getElementById('questionTimer');
+            timerElement.textContent = tiempoRestantePregunta + 's';
+
+            if (tiempoRestantePregunta <= 0) {
+                clearInterval(timerIntervalPregunta);
+                if (!respuestaEnviada) {
+                    await guardarRespuestaVacia();
+                }
+            }
+        }
+    }, 1000);
+}
+
     function avanzarALaSiguiente() {
         console.log('⏭️ Avanzando a la siguiente pregunta...');
         if (preguntaActual < preguntas.length - 1) {
@@ -503,55 +624,6 @@
         } else {
             finalizarCuestionario();
         }
-    }
-
-    function iniciarTimerParaPreguntaActual() {
-        console.log('⏱️ Iniciando timer para pregunta', preguntaActual + 1);
-
-        if (timerIntervalPregunta) {
-            clearInterval(timerIntervalPregunta);
-        }
-
-        timerIntervalPregunta = setInterval(async () => {
-            // ✅ VERIFICAR ESTADO DEL PROFESOR
-            try {
-                const response = await fetch(`/api/estado_pregunta_profesor/${sesionId}`);
-                const data = await response.json();
-
-                // Usar el tiempo del profesor
-                tiempoRestantePregunta = data.tiempo_restante;
-
-                const timerElement = document.getElementById('questionTimer');
-                const progressBar = document.getElementById('progressBar');
-                const porcentajeRestante = (tiempoRestantePregunta / tiempoPorPregunta) * 100;
-                progressBar.style.width = porcentajeRestante + '%';
-                progressBar.style.transition = 'width 1s linear';
-
-                timerElement.textContent = tiempoRestantePregunta + 's';
-
-                if (tiempoRestantePregunta <= 5) {
-                    timerElement.classList.add('warning');
-                }
-
-                // Si el profesor avanzó de pregunta
-                if (data.pregunta_actual > preguntaActual) {
-                    console.log('⏭️ Profesor avanzó, cambiando de pregunta');
-                    clearInterval(timerIntervalPregunta);
-
-                    if (!respuestaEnviada) {
-                        await guardarRespuestaVacia();
-                    }
-
-                    avanzarALaSiguiente();
-                }
-
-            } catch (error) {
-                console.error('Error verificando profesor:', error);
-                // Fallback: continuar con timer local
-                tiempoRestantePregunta--;
-                document.getElementById('questionTimer').textContent = tiempoRestantePregunta + 's';
-            }
-        }, 1000);
     }
 
     async function guardarRespuestaVacia() {
@@ -599,13 +671,11 @@
         console.log('📊 Puntuación final:', puntuacionTotal);
         console.log('⏱️ Tiempo total:', tiempoTotalTranscurrido, 's');
 
-        clearInterval(timerIntervalTotal);
-        if (timerIntervalPregunta) {
-            clearInterval(timerIntervalPregunta);
-        }
-        if (intervalCheckProfesor) {
-            clearInterval(intervalCheckProfesor);
-        }
+        // Limpiar todos los intervalos
+        if (timerIntervalTotal) clearInterval(timerIntervalTotal);
+        if (timerIntervalPregunta) clearInterval(timerIntervalPregunta);
+        if (intervalCheckProfesor) clearInterval(intervalCheckProfesor);
+
         ocultarMensajeEspera();
 
         try {
@@ -646,14 +716,12 @@
 
     window.addEventListener('beforeunload', function(e) {
         if (preguntaActual < preguntas.length - 1) {
-            clearInterval(intervalCheckProfesor);
+            if (intervalCheckProfesor) clearInterval(intervalCheckProfesor);
+            if (timerIntervalPregunta) clearInterval(timerIntervalPregunta);
             e.preventDefault();
             e.returnValue = '¿Estás seguro de que quieres salir? Tu progreso se perderá.';
         }
     });
-
-    // ✅ INICIAR EL JUEGO
-    cargarPregunta();
-</script>
+    </script>
 </body>
 </html>

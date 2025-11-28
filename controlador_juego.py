@@ -18,7 +18,7 @@ def procesar_ingreso_juego_grupal(user_id, pin):
         with conexion.cursor() as cursor:
             # 1. Verificar grupo del usuario
             cursor.execute("""
-                SELECT g.id, g.lider_id, g.nombre_grupo 
+                SELECT g.id, g.lider_id, g.nombre_grupo
                 FROM grupos g
                 JOIN usuarios u ON g.id = u.grupo_id
                 WHERE u.id = %s
@@ -34,7 +34,7 @@ def procesar_ingreso_juego_grupal(user_id, pin):
 
             if not cuestionario:
                 return False, f"No se encontró ningún cuestionario con el PIN '{pin}'.", None
-            
+
             if cuestionario['modo_juego'] != 'grupal':
                 return False, f"El cuestionario '{cuestionario['titulo']}' es INDIVIDUAL.", None
 
@@ -50,7 +50,7 @@ def procesar_ingreso_juego_grupal(user_id, pin):
                     WHERE id = %s
                 """, (pin, grupo['id']))
                 conexion.commit()
-            
+
             return True, "OK", grupo['id']
     finally:
         if conexion and conexion.open:
@@ -65,12 +65,12 @@ def obtener_datos_sala_espera(grupo_id, user_id):
             # Datos grupo
             cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
             resultado["grupo"] = cursor.fetchone()
-            
+
             if resultado["grupo"]:
                 # Miembros
                 cursor.execute("SELECT id, nombre FROM usuarios WHERE grupo_id = %s ORDER BY id", (grupo_id,))
                 resultado["miembros"] = cursor.fetchall()
-                
+
                 # Validar si usuario actual está en la lista
                 resultado["es_miembro"] = any(m['id'] == user_id for m in resultado["miembros"])
     finally:
@@ -108,7 +108,7 @@ def obtener_datos_partida_activa(grupo_id):
         with conexion.cursor() as cursor:
             cursor.execute("SELECT * FROM grupos WHERE id = %s", (grupo_id,))
             datos["grupo"] = cursor.fetchone()
-            
+
             if datos["grupo"] and datos["grupo"].get('active_pin'):
                 cursor.execute("SELECT * FROM cuestionarios WHERE codigo_pin = %s", (datos["grupo"]['active_pin'],))
                 datos["cuestionario"] = cursor.fetchone()
@@ -126,12 +126,12 @@ def procesar_resultados_grupo(grupo_id, user_id):
     """
     conexion = obtener_conexion()
     res = {
-        "error": None, 
-        "grupo": None, 
-        "cuestionario": None, 
+        "error": None,
+        "grupo": None,
+        "cuestionario": None,
         "miembros": []
     }
-    
+
     try:
         with conexion.cursor() as cursor:
             # 1. Obtener grupo
@@ -168,7 +168,7 @@ def procesar_resultados_grupo(grupo_id, user_id):
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (grupo_id, cuestionario['id'], grupo['nombre_grupo'], cuestionario['titulo'],
                       grupo['current_score'], cuestionario['num_preguntas'], len(miembros)))
-                
+
                 partida_id = cursor.lastrowid
 
                 # Insertar Participantes
@@ -184,9 +184,9 @@ def procesar_resultados_grupo(grupo_id, user_id):
                     SET active_pin = NULL, game_state = 'archived', current_question_index = 0
                     WHERE id = %s
                 """, (grupo_id,))
-                
+
                 conexion.commit()
-            
+
             # --- LÓGICA DE RECUPERACIÓN (Si ya fue archivado) ---
             elif not cuestionario:
                 # Buscar último historial
@@ -224,7 +224,7 @@ def procesar_resultados_grupo(grupo_id, user_id):
     finally:
         if conexion and conexion.open:
             conexion.close()
-    
+
     return res
 
 
@@ -259,7 +259,7 @@ def obtener_datos_sala_profesor_grupal(codigo_pin, profesor_id):
                     cursor.execute("SELECT nombre FROM usuarios WHERE grupo_id = %s ORDER BY id", (grupo['id'],))
                     ms = cursor.fetchall()
                     grupo['miembros'] = ', '.join([m['nombre'] for m in ms]) if ms else 'Sin miembros'
-                
+
                 datos["grupos"] = grupos
     finally:
         if conexion and conexion.open:
@@ -361,8 +361,8 @@ def api_estudiantes_sesion(sesion_id):
         with conexion.cursor() as cursor:
             cursor.execute("""
                 SELECT u.id, u.nombre, se.estado,
-                COALESCE((SELECT COUNT(DISTINCT r.pregunta_id) 
-                          FROM respuestas_individuales r JOIN historial_individual h ON r.historial_id = h.id 
+                COALESCE((SELECT COUNT(DISTINCT r.pregunta_id)
+                          FROM respuestas_individuales r JOIN historial_individual h ON r.historial_id = h.id
                           WHERE h.usuario_id = u.id AND h.sesion_id = %s), 0) as pregunta_actual
                 FROM salas_espera se JOIN usuarios u ON se.usuario_id = u.id
                 WHERE se.sesion_id = %s ORDER BY u.nombre
@@ -408,7 +408,7 @@ def api_grupos_esperando_pin(codigo_pin):
     finally:
         if conexion and conexion.open: conexion.close()
     return grupos
-    
+
 # ========================================
 # GESTIÓN DE PARTIDAS (PROFESOR Y LÍDER)
 # ========================================
@@ -442,7 +442,7 @@ def iniciar_partidas_masivo_profesor(codigo_pin, profesor_id):
 
             grupos_afectados = cursor.rowcount
             conexion.commit()
-            
+
             return True, "OK", grupos_afectados
     finally:
         if conexion and conexion.open:
@@ -534,7 +534,7 @@ def procesar_resultados_finales(grupo_id, user_id):
         "cuestionario": None,
         "miembros": []
     }
-    
+
     try:
         with conexion.cursor() as cursor:
             # 1. Datos Básicos
@@ -571,7 +571,7 @@ def procesar_resultados_finales(grupo_id, user_id):
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (grupo_id, cuestionario['id'], grupo['nombre_grupo'], cuestionario['titulo'],
                       grupo['current_score'], cuestionario['num_preguntas'], len(miembros)))
-                
+
                 partida_id = cursor.lastrowid
 
                 # Guardar participantes
@@ -587,9 +587,9 @@ def procesar_resultados_finales(grupo_id, user_id):
                     SET active_pin = NULL, game_state = 'archived', current_question_index = 0
                     WHERE id = %s
                 """, (grupo_id,))
-                
+
                 conexion.commit()
-            
+
             # CASO B: Juego ya archivado -> LEER HISTORIAL
             elif not cuestionario:
                 cursor.execute("""
@@ -612,7 +612,7 @@ def procesar_resultados_finales(grupo_id, user_id):
                         resultado["grupo"] = {'nombre_grupo': historial['nombre_grupo'], 'current_score': historial['puntuacion_final']}
                     else:
                         resultado["grupo"]['current_score'] = historial['puntuacion_final']
-                    
+
                     # Recuperar miembros del historial
                     cursor.execute("SELECT nombre_usuario FROM participantes_partida WHERE partida_id = %s", (historial['id'],))
                     m_hist = cursor.fetchall()
@@ -623,7 +623,7 @@ def procesar_resultados_finales(grupo_id, user_id):
     finally:
         if conexion and conexion.open:
             conexion.close()
-    
+
     return resultado
 
 # ========================================
@@ -705,7 +705,7 @@ def iniciar_partidas_individuales_masivo(codigo_pin, profesor_id):
                 SET estado = 'playing', sesion_id = %s
                 WHERE codigo_pin = %s AND estado = 'waiting'
             """, (sesion_id, codigo_pin))
-            
+
             afectados = cursor.rowcount
             conexion.commit()
 
@@ -755,7 +755,7 @@ def ingresar_sala_espera_individual(user_id, codigo_pin):
     finally:
         if conexion and conexion.open:
             conexion.close()
-            
+
 # ========================================
 # JUEGO INDIVIDUAL: INICIO Y UNIÓN
 # ========================================
@@ -771,7 +771,7 @@ def procesar_union_individual(user_id, codigo_pin):
 
             if not cuestionario:
                 return False, "Código PIN no válido"
-            
+
             if cuestionario["modo_juego"] != "individual":
                 return False, "Este PIN no corresponde a un cuestionario individual"
 
@@ -787,7 +787,7 @@ def procesar_union_individual(user_id, codigo_pin):
                     UPDATE salas_espera SET estado = 'waiting', fecha_ingreso = NOW()
                     WHERE usuario_id = %s AND codigo_pin = %s
                 """, (user_id, codigo_pin))
-            
+
             conexion.commit()
             return True, "OK"
     finally:
@@ -797,7 +797,7 @@ def iniciar_juego_individual_logica(user_id, codigo_pin, nombre_estudiante):
     """Prepara la partida individual: obtiene datos y crea historial"""
     conexion = obtener_conexion()
     res = {"cuestionario": None, "preguntas": [], "sesion_id": None}
-    
+
     try:
         with conexion.cursor() as cursor:
             # 1. Obtener Sesión ID
@@ -824,10 +824,10 @@ def iniciar_juego_individual_logica(user_id, codigo_pin, nombre_estudiante):
                 VALUES (%s, %s, %s, %s, NOW(), 0, %s)
             """, (user_id, res["cuestionario"]['id'], nombre_estudiante, res["cuestionario"]['num_preguntas'], res["sesion_id"]))
             conexion.commit()
-            
+
             # Retornamos el ID del historial recién creado por si se necesita en sesión
             res["historial_id"] = cursor.lastrowid
-            
+
             return True, res
     finally:
         if conexion and conexion.open: conexion.close()
@@ -837,13 +837,16 @@ def iniciar_juego_individual_logica(user_id, codigo_pin, nombre_estudiante):
 # ========================================
 
 def api_obtener_estado_grupo(grupo_id):
-    """Devuelve el estado actual del juego para el polling"""
+    """Devuelve el estado actual del juego para el polling, incluyendo nombre del grupo"""
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT game_state, active_pin, current_question_index, current_score
-                FROM grupos WHERE id = %s
+                SELECT g.game_state, g.active_pin, g.current_question_index,
+                       g.current_score, g.nombre_grupo, g.lider_id,
+                       (SELECT COUNT(*) FROM usuarios WHERE grupo_id = g.id) as num_miembros
+                FROM grupos g
+                WHERE g.id = %s
             """, (grupo_id,))
             return cursor.fetchone()
     finally:
@@ -913,7 +916,7 @@ def api_obtener_resultado_ultima(grupo_id):
             if juego['game_state'] == 'answered' and juego['current_question_index'] > 0:
                 pregunta_index = juego['current_question_index'] - 1
                 cursor.execute("""
-                    SELECT respuesta_correcta FROM preguntas 
+                    SELECT respuesta_correcta FROM preguntas
                     WHERE cuestionario_id = %s ORDER BY orden LIMIT 1 OFFSET %s
                 """, (juego['cuestionario_id'], pregunta_index))
                 pregunta = cursor.fetchone()
@@ -925,21 +928,23 @@ def api_obtener_resultado_ultima(grupo_id):
                         "nuevo_score": juego['current_score'],
                         "fue_correcta": juego['ultima_respuesta_correcta']
                     }
-            
+
             return {"tiene_respuesta": False}
     finally:
         if conexion and conexion.open: conexion.close()
 
 def api_procesar_respuesta_lider(grupo_id, user_id, respuesta_usuario):
-    """Procesa respuesta, calcula puntos y avanza el juego"""
+    """Procesa respuesta, calcula puntos por tiempo y avanza el juego"""
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
             # 1. Validar Líder y Juego
             cursor.execute("""
-                SELECT g.lider_id, g.current_question_index, g.current_score, 
-                       c.id as cuestionario_id, c.num_preguntas
-                FROM grupos g JOIN cuestionarios c ON g.active_pin = c.codigo_pin
+                SELECT g.lider_id, g.current_question_index, g.current_score,
+                       g.tiempo_inicio_pregunta, c.id as cuestionario_id,
+                       c.num_preguntas, c.tiempo_pregunta
+                FROM grupos g
+                JOIN cuestionarios c ON g.active_pin = c.codigo_pin
                 WHERE g.id = %s
             """, (grupo_id,))
             juego = cursor.fetchone()
@@ -950,16 +955,34 @@ def api_procesar_respuesta_lider(grupo_id, user_id, respuesta_usuario):
 
             # 2. Obtener Respuesta Correcta
             cursor.execute("""
-                SELECT respuesta_correcta FROM preguntas 
+                SELECT respuesta_correcta FROM preguntas
                 WHERE cuestionario_id = %s ORDER BY orden LIMIT 1 OFFSET %s
             """, (juego['cuestionario_id'], juego['current_question_index']))
             pregunta_actual = cursor.fetchone()
 
             if not pregunta_actual: return False, "Pregunta no encontrada"
 
-            # 3. Calcular Puntaje
+            # 3. Calcular Puntaje basado en tiempo
             es_correcta = (respuesta_usuario == pregunta_actual['respuesta_correcta'])
-            puntos_ganados = 100 if es_correcta else 0
+
+            if es_correcta:
+                tiempo_pregunta = juego['tiempo_pregunta'] or 30
+
+                # Calcular tiempo transcurrido
+                if juego.get('tiempo_inicio_pregunta'):
+                    from datetime import datetime
+                    tiempo_transcurrido = (datetime.now() - juego['tiempo_inicio_pregunta']).total_seconds()
+                    tiempo_transcurrido = min(tiempo_transcurrido, tiempo_pregunta)
+                else:
+                    tiempo_transcurrido = tiempo_pregunta / 2  # Fallback si no hay timestamp
+
+                # Sistema de puntos: más puntos si respondes rápido
+                puntos_base = 1000
+                puntos_ganados = puntos_base - int((tiempo_transcurrido / tiempo_pregunta) * 900)
+                puntos_ganados = max(puntos_ganados, 100)  # Mínimo 100 puntos
+            else:
+                puntos_ganados = 0
+
             nuevo_score = juego['current_score'] + puntos_ganados
 
             # 4. Actualizar Estado del Juego
@@ -968,14 +991,15 @@ def api_procesar_respuesta_lider(grupo_id, user_id, respuesta_usuario):
             nuevo_estado = 'finished' if es_ultima else 'answered'
 
             cursor.execute("""
-                UPDATE grupos SET 
+                UPDATE grupos SET
                     current_question_index = %s,
                     current_score = %s,
                     game_state = %s,
-                    ultima_respuesta_correcta = %s
+                    ultima_respuesta_correcta = %s,
+                    tiempo_inicio_pregunta = NULL
                 WHERE id = %s
             """, (nuevo_index, nuevo_score, nuevo_estado, es_correcta, grupo_id))
-            
+
             conexion.commit()
 
             return True, {
@@ -987,7 +1011,26 @@ def api_procesar_respuesta_lider(grupo_id, user_id, respuesta_usuario):
             }
     finally:
         if conexion and conexion.open: conexion.close()
-        
+
+def registrar_inicio_pregunta_grupal(grupo_id):
+    """Registra el timestamp de inicio de una pregunta para calcular tiempo de respuesta"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE grupos
+                SET tiempo_inicio_pregunta = NOW()
+                WHERE id = %s
+            """, (grupo_id,))
+            conexion.commit()
+            return True
+    except Exception as e:
+        print(f"Error registrando inicio de pregunta: {e}")
+        return False
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
 # ========================================
 # VISUALIZACIÓN Y EXPORTACIÓN DE RESULTADOS
 # ========================================
@@ -1036,7 +1079,7 @@ def obtener_datos_exportacion(cuestionario_id, profesor_id):
                     cursor.execute("SELECT COUNT(*) as total FROM historial_partidas WHERE cuestionario_id = %s", (cuestionario_id,))
                 else:
                     cursor.execute("SELECT COUNT(*) as total FROM historial_individual WHERE cuestionario_id = %s AND puntuacion_final > 0", (cuestionario_id,))
-                
+
                 res["total_resultados"] = cursor.fetchone()['total']
     finally:
         if conexion and conexion.open: conexion.close()
@@ -1053,7 +1096,7 @@ def generar_excel_resultados(cuestionario_id, profesor_id):
             # 1. Validar propiedad
             cursor.execute("SELECT titulo, modo_juego, num_preguntas FROM cuestionarios WHERE id = %s AND profesor_id = %s", (cuestionario_id, profesor_id))
             cuestionario = cursor.fetchone()
-            
+
             if not cuestionario:
                 return None, "Cuestionario no encontrado"
 
@@ -1081,13 +1124,13 @@ def generar_excel_resultados(cuestionario_id, profesor_id):
                 """, (cuestionario_id,))
 
             resultados = cursor.fetchall()
-            
+
             if not resultados:
                 return None, "No hay resultados para exportar"
 
             # 3. Procesar con Pandas
             df = pd.DataFrame(resultados)
-            
+
             if cuestionario['modo_juego'] == 'grupal':
                 df.columns = ['ID Partida', 'Grupo', 'Puntuación', 'Total Preguntas', 'Miembros', 'Fecha', 'Participantes']
                 df['Porcentaje (%)'] = (df['Puntuación'] / (df['Total Preguntas'] * 100) * 100).round(2)
@@ -1103,29 +1146,54 @@ def generar_excel_resultados(cuestionario_id, profesor_id):
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df.to_excel(writer, sheet_name='Resultados Detallados', index=False)
-                
+
                 # Generar hoja de estadísticas
                 stats_data = {
                     'Métrica': ['Total de Partidas', 'Total de Jugadores', 'Puntuación Promedio', 'Puntuación Máxima'],
                     'Valor': [len(df), total_jugadores, df['Puntuación'].mean().round(2), df['Puntuación'].max()]
                 }
                 pd.DataFrame(stats_data).to_excel(writer, sheet_name='Estadísticas', index=False)
-                
+
                 # Ajuste de columnas (simplificado)
                 for sheet in writer.sheets.values():
                     for col in sheet.columns:
                         sheet.column_dimensions[col[0].column_letter].width = 20
 
             output.seek(0)
-            
+
             modo_texto = "Grupal" if cuestionario['modo_juego'] == 'grupal' else "Individual"
             filename = f"Resultados_{modo_texto}_{cuestionario['titulo'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-            
+
             return filename, output
 
     finally:
         if conexion and conexion.open: conexion.close()
-        
+
+def enviar_resultados_automatico(cuestionario_id, correo_profesor):
+    """Envía resultados automáticamente al correo del profesor"""
+    try:
+        from controlador_exportar import generar_excel_resultados
+        excel_data, nombre_archivo, error = generar_excel_resultados(cuestionario_id, None)
+
+        if error:
+            print(f"Error generando Excel: {error}")
+            return False
+
+        msg = Message(
+            subject=f'Resultados automáticos - Cuestionario #{cuestionario_id}',
+            sender=app.config['MAIL_DEFAULT_SENDER'],
+            recipients=[correo_profesor]
+        )
+        msg.body = 'Adjunto los resultados del cuestionario recién finalizado.'
+        msg.attach(nombre_archivo,
+                   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                   excel_data.getvalue())
+
+        mail.send(msg)
+        return True
+    except Exception as e:
+        print(f"Error enviando correo automático: {e}")
+        return False
 # ========================================
 # SINCRONIZACIÓN Y BARRERAS (APIs)
 # ========================================
@@ -1139,10 +1207,10 @@ def api_verificar_sincronizacion_individual(sesion_id, pregunta_index):
             # Total en la sesión
             cursor.execute("SELECT COUNT(*) as total FROM salas_espera WHERE sesion_id = %s", (sesion_id,))
             total = cursor.fetchone()['total']
-            
+
             # Total que ya terminaron la pregunta
             cursor.execute("""
-                SELECT COUNT(*) as listos FROM salas_espera 
+                SELECT COUNT(*) as listos FROM salas_espera
                 WHERE sesion_id = %s AND pregunta_actual >= %s AND listo_para_siguiente = 1
             """, (sesion_id, pregunta_index))
             listos = cursor.fetchone()['listos']
@@ -1177,3 +1245,234 @@ def api_verificar_sincronizacion_grupal(grupo_id, pregunta_index):
     finally:
         if conexion and conexion.open: conexion.close()
     return data
+
+    # ========================================
+# GUARDAR RESPUESTAS INDIVIDUALES
+# ========================================
+
+def guardar_respuesta_estudiante(user_id, pregunta_id, respuesta, tiempo_respuesta):
+    """
+    Guarda la respuesta del estudiante y calcula puntos.
+    Retorna: dict con resultado o None si hay error
+    """
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # 1. Buscar historial individual activo del usuario
+            cursor.execute("""
+                SELECT h.id, c.id as cuestionario_id
+                FROM historial_individual h
+                JOIN cuestionarios c ON h.cuestionario_id = c.id
+                WHERE h.usuario_id = %s
+                ORDER BY h.fecha_realizacion DESC
+                LIMIT 1
+            """, (user_id,))
+            historial = cursor.fetchone()
+
+            if not historial:
+                return None, "No hay partida activa"
+
+            historial_id = historial['id']
+
+            # 2. Obtener respuesta correcta de la pregunta
+            cursor.execute("""
+                SELECT respuesta_correcta FROM preguntas WHERE id = %s
+            """, (pregunta_id,))
+            pregunta = cursor.fetchone()
+
+            if not pregunta:
+                return None, "Pregunta no encontrada"
+
+            respuesta_correcta = pregunta['respuesta_correcta']
+
+            # 3. Verificar si es correcta y calcular puntos
+            es_correcta = (respuesta == respuesta_correcta) if respuesta else False
+
+            if es_correcta:
+                tiempo_maximo = 30
+                puntos_base = 1000
+                if tiempo_respuesta <= tiempo_maximo:
+                    puntos = puntos_base - (tiempo_respuesta * 20)
+                    puntos = max(puntos, 100)
+                else:
+                    puntos = 100
+            else:
+                puntos = 0
+
+            # 4. Guardar la respuesta
+            cursor.execute("""
+                INSERT INTO respuestas_individuales
+                (historial_id, pregunta_id, respuesta_estudiante, es_correcta, puntos, tiempo_respuesta)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (historial_id, pregunta_id, respuesta, es_correcta, puntos, tiempo_respuesta))
+
+            # 5. Actualizar puntuación total en el historial
+            cursor.execute("""
+                UPDATE historial_individual
+                SET puntuacion_final = puntuacion_final + %s
+                WHERE id = %s
+            """, (puntos, historial_id))
+
+            conexion.commit()
+
+            return {
+                "success": True,
+                "correcta": es_correcta,
+                "respuesta_correcta": respuesta_correcta,
+                "puntos": puntos
+            }, None
+
+    except Exception as e:
+        print(f"Error en guardar_respuesta_estudiante: {e}")
+        return None, str(e)
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+
+def finalizar_partida_individual(user_id, tiempo_total):
+    """
+    Finaliza la partida individual, calcula stats y limpia sala de espera.
+    Retorna: dict con resultados o None si hay error
+    """
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # 1. Obtener historial activo
+            cursor.execute("""
+                SELECT id, cuestionario_id, sesion_id FROM historial_individual
+                WHERE usuario_id = %s
+                ORDER BY fecha_realizacion DESC
+                LIMIT 1
+            """, (user_id,))
+            historial = cursor.fetchone()
+
+            if not historial:
+                return None, "No hay partida activa"
+
+            historial_id = historial['id']
+            cuestionario_id = historial['cuestionario_id']
+            sesion_id = historial['sesion_id']
+
+            # 2. Calcular estadísticas finales
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total_respondidas,
+                    SUM(CASE WHEN es_correcta = 1 THEN 1 ELSE 0 END) as correctas,
+                    SUM(puntos) as puntos_totales
+                FROM respuestas_individuales
+                WHERE historial_id = %s
+            """, (historial_id,))
+            stats = cursor.fetchone()
+
+            total_respondidas = stats['total_respondidas'] or 0
+            correctas = int(stats['correctas'] or 0)
+            incorrectas = total_respondidas - correctas
+            puntos_totales = int(stats['puntos_totales'] or 0)
+
+            # 3. Actualizar historial con datos finales
+            cursor.execute("""
+                UPDATE historial_individual
+                SET puntuacion_final = %s, tiempo_total = %s
+                WHERE id = %s
+            """, (puntos_totales, tiempo_total, historial_id))
+
+            # 4. Limpiar sala de espera
+            cursor.execute("""
+                DELETE FROM salas_espera WHERE usuario_id = %s
+            """, (user_id,))
+
+            conexion.commit()
+
+            return {
+                "historial_id": historial_id,
+                "cuestionario_id": cuestionario_id,
+                "sesion_id": sesion_id,
+                "puntuacion_final": puntos_totales,
+                "correctas": correctas,
+                "incorrectas": incorrectas,
+                "tiempo_total": tiempo_total
+            }, None
+
+    except Exception as e:
+        print(f"Error en finalizar_partida_individual: {e}")
+        return None, str(e)
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+def obtener_datos_resultados_individual(historial_id, user_id):
+    """
+    Obtiene todos los datos necesarios para la página de resultados con ranking.
+    """
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # 1. Obtener historial del usuario
+            cursor.execute("""
+                SELECT h.*, c.titulo as titulo_cuestionario, c.tiempo_pregunta
+                FROM historial_individual h
+                JOIN cuestionarios c ON h.cuestionario_id = c.id
+                WHERE h.id = %s AND h.usuario_id = %s
+            """, (historial_id, user_id))
+            historial = cursor.fetchone()
+
+            if not historial:
+                return None, "Historial no encontrado"
+
+            # 2. Obtener respuestas detalladas
+            cursor.execute("""
+                SELECT r.*, p.pregunta, p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d,
+                       p.respuesta_correcta, c.tiempo_pregunta
+                FROM respuestas_individuales r
+                JOIN preguntas p ON r.pregunta_id = p.id
+                JOIN cuestionarios c ON p.cuestionario_id = c.id
+                WHERE r.historial_id = %s
+                ORDER BY r.id ASC
+            """, (historial_id,))
+            respuestas = cursor.fetchall()
+
+            # 3. Obtener ranking completo del cuestionario
+            cursor.execute("""
+                SELECT h.id, h.nombre_estudiante, h.puntuacion_final, h.tiempo_total,
+                       h.fecha_realizacion, h.usuario_id
+                FROM historial_individual h
+                WHERE h.cuestionario_id = %s AND h.puntuacion_final > 0
+                ORDER BY h.puntuacion_final DESC, h.tiempo_total ASC
+            """, (historial['cuestionario_id'],))
+            ranking_completo = cursor.fetchall()
+
+            # 4. Calcular posición del usuario actual
+            posicion_actual = 1
+            for idx, r in enumerate(ranking_completo, 1):
+                if r['id'] == historial_id:
+                    posicion_actual = idx
+                    break
+
+            # 5. Calcular estadísticas
+            correctas = sum(1 for r in respuestas if r['es_correcta'])
+            incorrectas = len(respuestas) - correctas
+            total_preguntas = len(respuestas) if respuestas else 1
+            porcentaje = round((correctas / total_preguntas) * 100) if total_preguntas > 0 else 0
+
+            # Tiempo promedio por respuesta
+            tiempo_total_respuestas = sum(r['tiempo_respuesta'] or 0 for r in respuestas)
+            tiempo_promedio = round(tiempo_total_respuestas / total_preguntas) if total_preguntas > 0 else 0
+
+            return {
+                "historial": historial,
+                "respuestas": respuestas,
+                "ranking_completo": ranking_completo,
+                "posicion_actual": posicion_actual,
+                "correctas": correctas,
+                "incorrectas": incorrectas,
+                "porcentaje": porcentaje,
+                "tiempo_promedio": tiempo_promedio
+            }, None
+
+    except Exception as e:
+        print(f"Error en obtener_datos_resultados_individual: {e}")
+        return None, str(e)
+    finally:
+        if conexion and conexion.open:
+            conexion.close()

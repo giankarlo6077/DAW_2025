@@ -399,3 +399,148 @@ def actualizar_progreso_sesion(sesion_id, pregunta_actual, estado, tiempo_restan
     finally:
         if conexion and conexion.open:
             conexion.close()
+
+
+# ========================================
+# SINCRONIZACIÓN DE TIEMPO (JUEGO INDIVIDUAL)
+# ========================================
+
+def obtener_estado_pregunta_profesor(sesion_id):
+    """Obtener el estado actual de la pregunta desde el profesor"""
+    conexion = obtener_conexion()
+    estado = None
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT estado, pregunta_actual, tiempo_restante
+                FROM control_sesiones
+                WHERE sesion_id = %s
+            """, (sesion_id,))
+
+            estado = cursor.fetchone()
+
+            if not estado:
+                # Si no existe, crear registro inicial
+                cursor.execute("""
+                    INSERT INTO control_sesiones (sesion_id, pregunta_actual, estado, tiempo_restante)
+                    VALUES (%s, 0, 'playing', 0)
+                """, (sesion_id,))
+                conexion.commit()
+
+                return {
+                    'estado': 'playing',
+                    'pregunta_actual': 0,
+                    'tiempo_restante': 0
+                }
+
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+    return estado if estado else None
+
+def actualizar_tiempo_profesor(sesion_id, tiempo_restante):
+    """Actualizar el tiempo restante de la pregunta actual"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE control_sesiones
+                SET tiempo_restante = %s,
+                    ultima_actualizacion = NOW()
+                WHERE sesion_id = %s
+            """, (tiempo_restante, sesion_id))
+
+            conexion.commit()
+            return True
+    except Exception as e:
+        print(f"Error al actualizar tiempo: {e}")
+        return False
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+def actualizar_estado_pregunta_profesor(sesion_id, pregunta_actual, estado, tiempo_restante):
+    """Actualizar el estado completo de la pregunta (usado al cambiar de pregunta)"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO control_sesiones
+                (sesion_id, pregunta_actual, estado, tiempo_restante, ultima_actualizacion)
+                VALUES (%s, %s, %s, %s, NOW())
+                ON DUPLICATE KEY UPDATE
+                    pregunta_actual = %s,
+                    estado = %s,
+                    tiempo_restante = %s,
+                    ultima_actualizacion = NOW()
+            """, (sesion_id, pregunta_actual, estado, tiempo_restante,
+                  pregunta_actual, estado, tiempo_restante))
+
+            conexion.commit()
+            return True
+    except Exception as e:
+        print(f"Error al actualizar estado de pregunta: {e}")
+        return False
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+def obtener_estudiantes_en_sesion(sesion_id):
+    """Obtener lista de estudiantes en una sesión con su progreso actual"""
+    conexion = obtener_conexion()
+    estudiantes = []
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    u.id,
+                    u.nombre,
+                    se.estado,
+                    COALESCE((
+                        SELECT COUNT(DISTINCT r.pregunta_id)
+                        FROM respuestas_individuales r
+                        JOIN historial_individual h ON r.historial_id = h.id
+                        WHERE h.usuario_id = u.id AND h.sesion_id = %s
+                    ), 0) as pregunta_actual
+                FROM salas_espera se
+                JOIN usuarios u ON se.usuario_id = u.id
+                WHERE se.sesion_id = %s
+                ORDER BY u.nombre
+            """, (sesion_id, sesion_id))
+
+            estudiantes = cursor.fetchall()
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+    return estudiantes
+
+def obtener_ranking_final_sesion(sesion_id):
+    """Obtener el ranking final de una sesión individual"""
+    conexion = obtener_conexion()
+    ranking = []
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    u.nombre,
+                    h.puntuacion_final as puntuacion,
+                    h.tiempo_total,
+                    COUNT(CASE WHEN r.respuesta_estudiante = p.respuesta_correcta THEN 1 END) as correctas,
+                    COUNT(r.id) as total_respondidas
+                FROM historial_individual h
+                JOIN usuarios u ON h.usuario_id = u.id
+                LEFT JOIN respuestas_individuales r ON h.id = r.historial_id
+                LEFT JOIN preguntas p ON r.pregunta_id = p.id
+                WHERE h.sesion_id = %s
+                GROUP BY h.id, u.nombre, h.puntuacion_final, h.tiempo_total
+                ORDER BY h.puntuacion_final DESC, h.tiempo_total ASC
+            """, (sesion_id,))
+
+            ranking = cursor.fetchall()
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+    return ranking
