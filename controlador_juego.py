@@ -853,12 +853,19 @@ def api_obtener_estado_grupo(grupo_id):
         if conexion and conexion.open: conexion.close()
 
 def api_obtener_pregunta_actual(grupo_id):
-    """Devuelve la pregunta actual basada en el índice del grupo"""
+    """
+    Devuelve la pregunta actual.
+    CORRECCIÓN: Solo actualiza el tiempo de inicio si está en NULL.
+    Esto evita que el tiempo se resetee al recargar la página (F5).
+    """
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # Info del juego
-            cursor.execute("SELECT active_pin, current_question_index, current_score, game_state FROM grupos WHERE id = %s", (grupo_id,))
+            # Obtenemos también 'tiempo_inicio_pregunta' para verificar si ya existe
+            cursor.execute("""
+                SELECT active_pin, current_question_index, current_score, game_state, tiempo_inicio_pregunta
+                FROM grupos WHERE id = %s
+            """, (grupo_id,))
             juego = cursor.fetchone()
 
             if not juego or not juego['active_pin']: return None, "No hay juego activo"
@@ -871,10 +878,7 @@ def api_obtener_pregunta_actual(grupo_id):
 
             # Verificar fin del juego
             if juego['current_question_index'] >= cuestionario['num_preguntas']:
-                return {
-                    "finished": True,
-                    "score": juego['current_score']
-                }, None
+                return { "finished": True, "score": juego['current_score'] }, None
 
             # Obtener Pregunta
             cursor.execute("""
@@ -885,13 +889,15 @@ def api_obtener_pregunta_actual(grupo_id):
 
             if not pregunta: return None, "Pregunta no encontrada"
 
-            # ✅ REGISTRAR TIMESTAMP DE INICIO AL CARGAR LA PREGUNTA
-            cursor.execute("""
-                UPDATE grupos
-                SET tiempo_inicio_pregunta = NOW()
-                WHERE id = %s
-            """, (grupo_id,))
-            conexion.commit()
+            # ✅ CORRECCIÓN CRÍTICA: Solo iniciamos el reloj si está vacío (NULL)
+            # Si el usuario recarga la página, el tiempo no se toca y sigue corriendo.
+            if not juego['tiempo_inicio_pregunta']:
+                cursor.execute("""
+                    UPDATE grupos
+                    SET tiempo_inicio_pregunta = NOW()
+                    WHERE id = %s
+                """, (grupo_id,))
+                conexion.commit()
 
             return {
                 "pregunta": pregunta,
@@ -899,7 +905,7 @@ def api_obtener_pregunta_actual(grupo_id):
                 "total": cuestionario['num_preguntas'],
                 "score": juego['current_score'],
                 "tiempo_pregunta": cuestionario['tiempo_pregunta'],
-                "game_state": juego['game_state'],
+                "game_state": juego['game_state'], # Enviamos el estado al frontend
                 "finished": False
             }, None
     finally:
@@ -943,13 +949,14 @@ def api_obtener_resultado_ultima(grupo_id):
 
 def api_procesar_respuesta_lider(grupo_id, user_id, respuesta_usuario):
     """
-    Procesa respuesta del líder: calcula puntos y marca estado 'answered'.
-    NO AVANZA DE PREGUNTA TODAVÍA (eso se hace en otro paso para ver el feedback).
+    Procesa respuesta del líder.
+    CORRECCIÓN: No reiniciar el tiempo_inicio_pregunta para que el temporizador siga corriendo
+    hasta llegar a 0 y activar el cambio automático.
     """
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # 1. Validar datos del juego actual
+            # 1. Validar datos
             cursor.execute("""
                 SELECT g.lider_id, g.current_question_index, g.current_score,
                        g.tiempo_inicio_pregunta, c.id as cuestionario_id,
@@ -963,7 +970,7 @@ def api_procesar_respuesta_lider(grupo_id, user_id, respuesta_usuario):
             if not juego: return False, "Juego no encontrado"
             if juego['lider_id'] != user_id: return False, "Solo el líder puede responder"
 
-            # 2. Validar respuesta correcta
+            # 2. Validar respuesta
             cursor.execute("""
                 SELECT respuesta_correcta FROM preguntas
                 WHERE cuestionario_id = %s ORDER BY orden LIMIT 1 OFFSET %s
@@ -974,30 +981,20 @@ def api_procesar_respuesta_lider(grupo_id, user_id, respuesta_usuario):
 
             # 3. Calcular Puntos
             es_correcta = (respuesta_usuario == pregunta_actual['respuesta_correcta'])
-            puntos_ganados = 0
-
-            if es_correcta:
-                # Lógica de puntos simple y segura
-                puntos_ganados = 100
-                # (Aquí puedes reinsertar tu lógica de tiempo si lo deseas, pero primero aseguremos que funcione)
-
+            puntos_ganados = 100 if es_correcta else 0
             nuevo_score = juego['current_score'] + puntos_ganados
 
-            # 4. ACTUALIZACIÓN CORREGIDA:
-            # Cambiamos estado a 'answered' pero MANTENEMOS el índice actual.
-            # Así todos ven el resultado de ESTA pregunta antes de pasar a la siguiente.
+            # 4. ACTUALIZAR (Sin borrar tiempo_inicio_pregunta)
             cursor.execute("""
                 UPDATE grupos SET
                     current_score = %s,
                     game_state = 'answered',
-                    ultima_respuesta_correcta = %s,
-                    tiempo_inicio_pregunta = NULL
+                    ultima_respuesta_correcta = %s
                 WHERE id = %s
             """, (nuevo_score, 1 if es_correcta else 0, grupo_id))
 
             conexion.commit()
 
-            # Verificar si era la última para avisar al frontend
             es_ultima = (juego['current_question_index'] + 1) >= juego['num_preguntas']
 
             return True, {

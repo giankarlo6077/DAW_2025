@@ -349,11 +349,8 @@
         cargarPregunta();
     });
 
-    function cargarPregunta() {
-        if (juegoTerminado) {
-            console.log('⚠️ Juego ya terminado, no se carga pregunta');
-            return;
-        }
+function cargarPregunta() {
+        if (juegoTerminado) return;
 
         console.log('🔥 Cargando pregunta...');
         esperandoSiguientePregunta = false;
@@ -363,17 +360,13 @@
         fetch(`/api/get_pregunta/${grupoId}`)
             .then(response => response.json())
             .then(data => {
-                console.log('📦 Datos recibidos:', data);
-
                 if (data.error) {
-                    console.error('❌ Error en datos:', data.error);
                     alert('Error: ' + data.error);
                     window.location.href = '/dashboard_estudiante';
                     return;
                 }
 
                 if (data.finished) {
-                    console.log('🏁 Juego finalizado');
                     juegoTerminado = true;
                     clearAllIntervals();
                     window.location.href = `/resultados_grupo/${grupoId}`;
@@ -381,8 +374,6 @@
                 }
 
                 const pregunta = data.pregunta;
-                console.log('✅ Pregunta cargada:', pregunta.pregunta.substring(0, 50) + '...');
-
                 ultimoIndexVisto = data.index;
 
                 // Actualizar UI
@@ -391,37 +382,46 @@
                 document.getElementById('currentQuestion').textContent = `${data.index + 1}/${data.total}`;
                 document.getElementById('score').textContent = data.score;
 
-                // Actualizar opciones
                 document.querySelector('#opcion_a .option-text').textContent = pregunta.opcion_a;
                 document.querySelector('#opcion_b .option-text').textContent = pregunta.opcion_b;
                 document.querySelector('#opcion_c .option-text').textContent = pregunta.opcion_c;
                 document.querySelector('#opcion_d .option-text').textContent = pregunta.opcion_d;
 
                 tiempoPorPregunta = data.tiempo_pregunta;
-                tiempoRestantePregunta = tiempoPorPregunta;
-
+                
+                // IMPORTANTE: No reiniciamos el tiempo aquí ciegamente,
+                // la función sincronizarTiempo() ajustará el tiempo real en menos de 2 segundos.
+                
                 resetearEstilosBotones();
-                document.getElementById('feedback').classList.remove('show');
 
-                // Resetear barra de progreso
-                const progressBar = document.getElementById('progressBar');
-                progressBar.style.transition = 'none';
-                progressBar.style.width = '100%';
-                void progressBar.offsetWidth;
+                // ✅ CORRECCIÓN: Si recargo la página y ya estaba respondida ('answered')
+                if (data.game_state === 'answered') {
+                    console.log("🔄 Página recargada en estado ANSWERED");
+                    respuestaEnviada = true;
+                    deshabilitarOpciones();
+                    mostrarMensajeEspera(); // Mostrar "Esperando..."
+                    
+                    // Opcional: Recuperar la última respuesta para mostrar si acertó o no
+                    fetch(`/api/get_ultima_respuesta/${grupoId}`)
+                        .then(r => r.json())
+                        .then(resp => {
+                            if (resp.tiene_respuesta) {
+                                if(esLider) { 
+                                    mostrarResultado(null, resp.respuesta_correcta, resp.fue_correcta, 100);
+                                } else {
+                                    mostrarResultadoParaMiembro(resp.respuesta_correcta, resp.fue_correcta);
+                                }
+                            }
+                        });
+                }
 
-                // Iniciar sincronización de tiempo
                 iniciarSincronizacion();
 
-                // Si no es líder, iniciar polling
                 if (!esLider) {
-                    console.log('👥 Iniciando polling para miembro no-líder');
                     iniciarPolling();
                 }
             })
-            .catch(err => {
-                console.error('❌ Error al cargar pregunta:', err);
-                alert('Error al cargar la pregunta: ' + err.message);
-            });
+            .catch(err => console.error('❌ Error al cargar pregunta:', err));
     }
 
     function iniciarSincronizacion() {
@@ -463,24 +463,25 @@
     }
 
     function sincronizarTiempo() {
+        // Si ya estamos esperando el cambio o el juego terminó, no hacemos nada
         if (esperandoSiguientePregunta || juegoTerminado) return;
-
+    
         fetch(`/api/tiempo_restante_grupo/${grupoId}`)
             .then(response => response.json())
             .then(data => {
                 if (data.error) return;
-
-                // Sincronizar con tiempo del servidor
+    
+                // 1. Sincronizar con el tiempo real del servidor
                 const tiempoServidor = data.tiempo_restante;
                 
-                // Si hay diferencia significativa (más de 2 segundos), corregir
+                // Solo corregimos visualmente si hay un desfase mayor a 2 segundos
                 if (Math.abs(tiempoServidor - tiempoRestantePregunta) > 2) {
                     console.log(`🔄 Corrigiendo tiempo: ${tiempoRestantePregunta}s → ${tiempoServidor}s`);
                     tiempoRestantePregunta = tiempoServidor;
                     actualizarUITimer();
                 }
-
-                // Verificar si el estado del juego cambió
+    
+                // 2. Verificar si el juego ha terminado
                 if (data.game_state === 'finished') {
                     console.log('🏁 Juego terminado detectado por sincronización');
                     juegoTerminado = true;
@@ -488,30 +489,34 @@
                     window.location.href = `/resultados_grupo/${grupoId}`;
                     return;
                 }
-
-                // Si cambió el índice de pregunta, recargar
+    
+                // 3. Verificar si el profesor/líder ya avanzó a la siguiente pregunta
                 if (data.current_question_index > ultimoIndexVisto) {
                     console.log(`🔄 Nueva pregunta detectada: ${data.current_question_index}`);
                     esperandoSiguientePregunta = false;
                     ocultarMensajeEspera();
-                    cargarPregunta();
+                    cargarPregunta(); // Recarga la interfaz con la nueva pregunta
                     return;
                 }
-
-                // Si el tiempo llegó a 0 o es negativo
+    
+                // 4. LÓGICA CLAVE: Si el tiempo se acabó (llega a 0)
                 if (tiempoServidor <= 0 && !esperandoSiguientePregunta) {
-                    console.log('⏰ Tiempo agotado - esperando siguiente pregunta');
+                    console.log('⏰ Tiempo agotado - ejecutando avance automático');
+                    
+                    // Bloqueamos para evitar múltiples llamadas
                     esperandoSiguientePregunta = true;
+                    
+                    // Detenemos los contadores locales
                     clearInterval(syncInterval);
                     clearInterval(timerIntervalPregunta);
                     
                     mostrarMensajeEspera();
                     
-                    // Dar tiempo para que otros vean el resultado
+                    // Esperamos 2 segundos para que los usuarios vean que se acabó el tiempo
+                    // y luego forzamos el avance a la siguiente pregunta
                     setTimeout(() => {
-                        if (esperandoSiguientePregunta) {
-                            avanzarSiguientePregunta();
-                        }
+                        // Esta función llama a la API /api/avanzar_pregunta/
+                        avanzarSiguientePregunta();
                     }, 2000);
                 }
             })
