@@ -3,131 +3,351 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Partida Grupal - {{ cuestionario['titulo'] }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
+    <title>{{ cuestionario.titulo }}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; color: #333; }
-        .game-container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 100%; max-width: 800px; text-align: center; animation: fadeIn 0.5s ease; }
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        .header { margin-bottom: 20px; }
-        .header h1 { font-size: 28px; }
-        .header p { font-size: 16px; color: #666; }
-        .question-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 18px; font-weight: 600; }
-        #score { color: #28a745; }
-        .timer-container { width: 100%; background-color: #e9ecef; border-radius: 10px; overflow: hidden; margin-bottom: 30px; height: 25px; }
-        #timer-bar { height: 100%; background: linear-gradient(90deg, #28a745, #ffc107, #dc3545); transition: width 0.1s linear; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; }
-        #question-text { font-size: 24px; min-height: 100px; display: flex; align-items: center; justify-content: center; margin-bottom: 30px; }
-        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .option-btn { padding: 20px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: 18px; cursor: pointer; transition: all 0.2s ease; background-color: white; width: 100%; }
-        .option-btn:not(:disabled):hover { transform: translateY(-3px); border-color: #667eea; }
-        .option-btn:disabled { cursor: not-allowed; background-color: #f8f9fa; color: #6c757d; }
-        .option-btn.selected { background-color: #667eea; color: white; border-color: #667eea; }
-        .option-btn.correct { background-color: #28a745; color: white; border-color: #28a745; }
-        .option-btn.incorrect { background-color: #dc3545; color: white; border-color: #dc3545; }
-        .feedback { font-size: 20px; font-weight: bold; margin-top: 20px; height: 30px; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .game-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            max-width: 900px;
+            width: 100%;
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        .header p {
+            font-size: 16px;
+            opacity: 0.95;
+        }
+        .role-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            margin-top: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .stats-bar {
+            display: flex;
+            justify-content: space-around;
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-item .label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .stat-item .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .timer {
+            color: #e74c3c;
+        }
+        .timer.warning {
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .question-container {
+            padding: 40px;
+        }
+        .question-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+        .question-number {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 20px;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+        .question-text {
+            flex-grow: 1;
+            font-size: 22px;
+            color: #333;
+            font-weight: 600;
+        }
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 30px;
+        }
+        .option-btn {
+            padding: 20px;
+            border: 3px solid #e0e0e0;
+            border-radius: 15px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 16px;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+        .option-btn:hover:not(.disabled):not(:disabled) {
+            border-color: #667eea;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
+        }
+        .option-btn.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .option-btn.correct {
+            border-color: #28a745;
+            background: #d4edda;
+        }
+        .option-btn.incorrect {
+            border-color: #e74c3c;
+            background: #f8d7da;
+        }
+        .option-btn.disabled,
+        .option-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .option-btn:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+        .option-letter {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        .option-text {
+            flex-grow: 1;
+        }
+        .feedback {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+            animation: slideDown 0.3s ease;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .feedback.show {
+            display: block;
+        }
+        .feedback.correct {
+            background: #d4edda;
+            border-left: 5px solid #28a745;
+            color: #155724;
+        }
+        .feedback.incorrect {
+            background: #f8d7da;
+            border-left: 5px solid #e74c3c;
+            color: #721c24;
+        }
+
+        .waiting-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .waiting-overlay.show {
+            display: flex;
+        }
+        .waiting-box {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+        }
+        .waiting-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+            animation: rotate 2s linear infinite;
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .waiting-text {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .waiting-info {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e9ecef;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
+            transition: width 0.3s ease;
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @media (max-width: 768px) {
+            .options-grid {
+                grid-template-columns: 1fr;
+            }
+            .question-text {
+                font-size: 18px;
+            }
+            .header h1 {
+                font-size: 22px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="game-container">
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressBar" style="width: 100%"></div>
+        </div>
+
         <div class="header">
-            <h1>{{ cuestionario['titulo'] }}</h1>
-            <p>Jugando en grupo: {{ grupo['nombre_grupo'] }}</p>
+            <h1>🎯 {{ cuestionario.titulo }}</h1>
+            <p>Grupo: {{ grupo.nombre_grupo }}</p>
+            <span class="role-badge">{{ '👑 LÍDER' if user_id == grupo.lider_id else '👥 MIEMBRO' }}</span>
         </div>
 
-        <div class="question-header">
-            <span id="question-counter"></span>
-            <span id="score">Puntuación: {{ grupo['current_score'] }}</span>
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="label">Pregunta</div>
+                <div class="value" id="currentQuestion">1</div>
+            </div>
+            <div class="stat-item">
+                <div class="label">Puntuación</div>
+                <div class="value" id="score">{{ grupo.current_score }}</div>
+            </div>
+            <div class="stat-item">
+                <div class="label">Tiempo</div>
+                <div class="value timer" id="questionTimer">{{ cuestionario.tiempo_pregunta }}s</div>
+            </div>
         </div>
 
-        <div class="timer-container">
-            <div id="timer-bar"></div>
+        <div class="question-container">
+            <div class="question-header">
+                <div class="question-number" id="questionNumber">1</div>
+                <div class="question-text" id="questionText">Cargando pregunta...</div>
+            </div>
+
+            <div class="options-grid" id="optionsGrid">
+                <button class="option-btn" data-option="A" id="opcion_a" onclick="seleccionarRespuesta('A')" {% if user_id != grupo.lider_id %}disabled{% endif %}>
+                    <div class="option-letter">A</div>
+                    <div class="option-text"></div>
+                </button>
+                <button class="option-btn" data-option="B" id="opcion_b" onclick="seleccionarRespuesta('B')" {% if user_id != grupo.lider_id %}disabled{% endif %}>
+                    <div class="option-letter">B</div>
+                    <div class="option-text"></div>
+                </button>
+                <button class="option-btn" data-option="C" id="opcion_c" onclick="seleccionarRespuesta('C')" {% if user_id != grupo.lider_id %}disabled{% endif %}>
+                    <div class="option-letter">C</div>
+                    <div class="option-text"></div>
+                </button>
+                <button class="option-btn" data-option="D" id="opcion_d" onclick="seleccionarRespuesta('D')" {% if user_id != grupo.lider_id %}disabled{% endif %}>
+                    <div class="option-letter">D</div>
+                    <div class="option-text"></div>
+                </button>
+            </div>
+
+            <div class="feedback" id="feedback"></div>
         </div>
-
-        <h2 id="question-text">Cargando pregunta...</h2>
-
-        <div class="options-grid">
-            <button class="option-btn" data-option="A" id="opcion_a" onclick="seleccionarRespuesta('A')" {% if user_id != grupo['lider_id'] %}disabled{% endif %}></button>
-            <button class="option-btn" data-option="B" id="opcion_b" onclick="seleccionarRespuesta('B')" {% if user_id != grupo['lider_id'] %}disabled{% endif %}></button>
-            <button class="option-btn" data-option="C" id="opcion_c" onclick="seleccionarRespuesta('C')" {% if user_id != grupo['lider_id'] %}disabled{% endif %}></button>
-            <button class="option-btn" data-option="D" id="opcion_d" onclick="seleccionarRespuesta('D')" {% if user_id != grupo['lider_id'] %}disabled{% endif %}></button>
-        </div>
-
-        <div class="feedback" id="feedback-message"></div>
     </div>
 
-<script>
-    const grupoId = {{ grupo['id'] }};
-    const esLider = {{ 'true' if user_id == grupo['lider_id'] else 'false' }};
-    let tiempoPorPregunta = {{ cuestionario['tiempo_pregunta'] }};
-    let syncInterval;
-    let pollInterval;
+    <div class="waiting-overlay" id="waitingOverlay">
+        <div class="waiting-box">
+            <div class="waiting-icon">⏳</div>
+            <div class="waiting-text">Esperando a que termine el tiempo...</div>
+            <div class="waiting-info" id="waitingInfo">Todos deben estar listos para continuar</div>
+        </div>
+    </div>
+
+    <script>
+    const grupoId = {{ grupo.id }};
+    const esLider = {{ 'true' if user_id == grupo.lider_id else 'false' }};
+    let tiempoPorPregunta = {{ cuestionario.tiempo_pregunta }};
+    let tiempoRestantePregunta = tiempoPorPregunta;
+    let syncInterval = null;
+    let pollInterval = null;
+    let timerIntervalPregunta = null;
     let respuestaEnviada = false;
     let juegoTerminado = false;
     let ultimoIndexVisto = -1;
-    let tiempoOficial = tiempoPorPregunta;
     let esperandoSiguientePregunta = false;
 
-    console.log('🎮 Iniciando juego - Grupo ID:', grupoId, 'Es líder:', esLider);
+    console.log('🎮 Iniciando juego grupal - Grupo ID:', grupoId, 'Es líder:', esLider);
 
-    function sincronizarTiempo() {
-        if (esperandoSiguientePregunta || juegoTerminado) return;
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!grupoId) {
+            console.error("❌ No se cargó el ID del grupo");
+            alert("Error: No se pudo cargar el juego");
+            window.location.href = "/dashboard_estudiante";
+            return;
+        }
 
-        fetch(`/api/tiempo_restante_grupo/${grupoId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) return;
-
-                tiempoOficial = data.tiempo_restante;
-
-                // Actualizar barra visual
-                actualizarBarraTiempo(tiempoOficial, data.tiempo_total);
-
-                // ✅ Si el tiempo llegó a 0, avanzar a la siguiente pregunta
-                if (tiempoOficial <= 0 && !esperandoSiguientePregunta) {
-                    console.log('⏰ Tiempo agotado - avanzando a siguiente pregunta');
-                    esperandoSiguientePregunta = true;
-                    clearInterval(syncInterval);
-
-                    // Dar 2 segundos para ver el resultado si ya respondieron
-                    setTimeout(() => {
-                        avanzarSiguientePregunta();
-                    }, respuestaEnviada ? 2000 : 500);
-                }
-            })
-            .catch(err => console.error('Error sincronizando tiempo:', err));
-    }
-
-    function actualizarBarraTiempo(restante, total) {
-        const porcentaje = Math.max(0, (restante / total) * 100);
-        const timerBar = document.getElementById('timer-bar');
-
-        timerBar.style.width = `${porcentaje}%`;
-        timerBar.textContent = `${restante}s`;
-    }
-
-    function avanzarSiguientePregunta() {
-        console.log('📤 Enviando solicitud para avanzar pregunta...');
-
-        fetch(`/api/avanzar_pregunta/${grupoId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                console.log('✅ Pregunta avanzada, recargando...');
-                esperandoSiguientePregunta = false;
-                respuestaEnviada = false;
-                cargarPregunta();
-            } else {
-                console.error('❌ Error al avanzar:', data.message);
-            }
-        })
-        .catch(err => {
-            console.error('❌ Error en avanzar:', err);
-        });
-    }
+        // Cargar primera pregunta
+        cargarPregunta();
+    });
 
     function cargarPregunta() {
         if (juegoTerminado) {
@@ -137,6 +357,8 @@
 
         console.log('🔥 Cargando pregunta...');
         esperandoSiguientePregunta = false;
+        respuestaEnviada = false;
+        ocultarMensajeEspera();
 
         fetch(`/api/get_pregunta/${grupoId}`)
             .then(response => response.json())
@@ -163,20 +385,31 @@
 
                 ultimoIndexVisto = data.index;
 
-                document.getElementById('question-text').textContent = pregunta.pregunta;
-                document.getElementById('opcion_a').textContent = `A: ${pregunta.opcion_a}`;
-                document.getElementById('opcion_b').textContent = `B: ${pregunta.opcion_b}`;
-                document.getElementById('opcion_c').textContent = `C: ${pregunta.opcion_c}`;
-                document.getElementById('opcion_d').textContent = `D: ${pregunta.opcion_d}`;
-                document.getElementById('question-counter').textContent = `Pregunta ${data.index + 1} / ${data.total}`;
-                document.getElementById('score').textContent = `Puntuación: ${data.score}`;
+                // Actualizar UI
+                document.getElementById('questionText').textContent = pregunta.pregunta;
+                document.getElementById('questionNumber').textContent = data.index + 1;
+                document.getElementById('currentQuestion').textContent = `${data.index + 1}/${data.total}`;
+                document.getElementById('score').textContent = data.score;
+
+                // Actualizar opciones
+                document.querySelector('#opcion_a .option-text').textContent = pregunta.opcion_a;
+                document.querySelector('#opcion_b .option-text').textContent = pregunta.opcion_b;
+                document.querySelector('#opcion_c .option-text').textContent = pregunta.opcion_c;
+                document.querySelector('#opcion_d .option-text').textContent = pregunta.opcion_d;
 
                 tiempoPorPregunta = data.tiempo_pregunta;
-                tiempoOficial = tiempoPorPregunta;
-                respuestaEnviada = false;
-                resetearEstilosBotones();
+                tiempoRestantePregunta = tiempoPorPregunta;
 
-                // ✅ Iniciar sincronización de tiempo
+                resetearEstilosBotones();
+                document.getElementById('feedback').classList.remove('show');
+
+                // Resetear barra de progreso
+                const progressBar = document.getElementById('progressBar');
+                progressBar.style.transition = 'none';
+                progressBar.style.width = '100%';
+                void progressBar.offsetWidth;
+
+                // Iniciar sincronización de tiempo
                 iniciarSincronizacion();
 
                 // Si no es líder, iniciar polling
@@ -193,11 +426,322 @@
 
     function iniciarSincronizacion() {
         clearInterval(syncInterval);
+        clearInterval(timerIntervalPregunta);
 
-        sincronizarTiempo();  // Primera vez inmediatamente
-        syncInterval = setInterval(sincronizarTiempo, 1000);
+        actualizarUITimer();
+
+        // Timer LOCAL visual que decrementa cada segundo
+        timerIntervalPregunta = setInterval(() => {
+            if (tiempoRestantePregunta > 0) {
+                tiempoRestantePregunta--;
+                actualizarUITimer();
+            }
+        }, 1000);
+
+        // Sincronización con servidor cada 2 segundos
+        syncInterval = setInterval(sincronizarTiempo, 2000);
+        sincronizarTiempo(); // Primera vez inmediatamente
 
         console.log('⏱️ Sincronización de tiempo iniciada');
+    }
+
+    function actualizarUITimer() {
+        const timerElement = document.getElementById('questionTimer');
+        const progressBar = document.getElementById('progressBar');
+
+        timerElement.textContent = tiempoRestantePregunta + 's';
+
+        const porcentaje = (tiempoRestantePregunta / tiempoPorPregunta) * 100;
+        progressBar.style.transition = 'width 1s linear';
+        progressBar.style.width = porcentaje + '%';
+
+        if (tiempoRestantePregunta <= 5) {
+            timerElement.classList.add('warning');
+        } else {
+            timerElement.classList.remove('warning');
+        }
+    }
+
+    function sincronizarTiempo() {
+        if (esperandoSiguientePregunta || juegoTerminado) return;
+
+        fetch(`/api/tiempo_restante_grupo/${grupoId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) return;
+
+                // Sincronizar con tiempo del servidor
+                const tiempoServidor = data.tiempo_restante;
+                
+                // Si hay diferencia significativa (más de 2 segundos), corregir
+                if (Math.abs(tiempoServidor - tiempoRestantePregunta) > 2) {
+                    console.log(`🔄 Corrigiendo tiempo: ${tiempoRestantePregunta}s → ${tiempoServidor}s`);
+                    tiempoRestantePregunta = tiempoServidor;
+                    actualizarUITimer();
+                }
+
+                // Verificar si el estado del juego cambió
+                if (data.game_state === 'finished') {
+                    console.log('🏁 Juego terminado detectado por sincronización');
+                    juegoTerminado = true;
+                    clearAllIntervals();
+                    window.location.href = `/resultados_grupo/${grupoId}`;
+                    return;
+                }
+
+                // Si cambió el índice de pregunta, recargar
+                if (data.current_question_index > ultimoIndexVisto) {
+                    console.log(`🔄 Nueva pregunta detectada: ${data.current_question_index}`);
+                    esperandoSiguientePregunta = false;
+                    ocultarMensajeEspera();
+                    cargarPregunta();
+                    return;
+                }
+
+                // Si el tiempo llegó a 0 o es negativo
+                if (tiempoServidor <= 0 && !esperandoSiguientePregunta) {
+                    console.log('⏰ Tiempo agotado - esperando siguiente pregunta');
+                    esperandoSiguientePregunta = true;
+                    clearInterval(syncInterval);
+                    clearInterval(timerIntervalPregunta);
+                    
+                    mostrarMensajeEspera();
+                    
+                    // Dar tiempo para que otros vean el resultado
+                    setTimeout(() => {
+                        if (esperandoSiguientePregunta) {
+                            avanzarSiguientePregunta();
+                        }
+                    }, 2000);
+                }
+            })
+            .catch(err => console.error('Error sincronizando tiempo:', err));
+    }
+
+    function seleccionarRespuesta(opcion) {
+        if (!esLider) {
+            console.log('⚠️ Solo el líder puede responder');
+            return;
+        }
+        if (respuestaEnviada) {
+            console.log('⚠️ Respuesta ya enviada, ignorando clic');
+            return;
+        }
+
+        console.log(`✅ Líder seleccionó opción: ${opcion}`);
+
+        respuestaEnviada = true;
+        deshabilitarOpciones();
+
+        // Marcar visualmente la selección
+        const btn = document.querySelector(`[data-option="${opcion}"]`);
+        if (btn) btn.classList.add('selected');
+
+        fetch(`/api/responder/${grupoId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ respuesta: opcion })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log(`${data.es_correcta ? '✅ CORRECTA' : '❌ INCORRECTA'} - Puntos: ${data.puntos_ganados}`);
+
+                // Actualizar puntuación
+                document.getElementById('score').textContent = data.nuevo_score;
+
+                // Mostrar resultado visual
+                mostrarResultado(opcion, data.respuesta_correcta, data.es_correcta, data.puntos_ganados);
+
+                // Mostrar overlay de espera
+                mostrarMensajeEspera();
+
+                console.log('✅ Respuesta guardada, esperando que termine el tiempo...');
+
+            } else {
+                console.error('Error del servidor:', data.message);
+                alert('Error: ' + data.message);
+                respuestaEnviada = false;
+                habilitarOpcionesLider();
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error al guardar respuesta:', error);
+            alert('Error de red al guardar la respuesta.');
+            respuestaEnviada = false;
+            habilitarOpcionesLider();
+        });
+    }
+
+    function mostrarResultado(respuestaSeleccionada, respuestaCorrecta, esCorrecta, puntosGanados) {
+        // Marcar respuesta correcta
+        const btnCorrecto = document.querySelector(`[data-option="${respuestaCorrecta}"]`);
+        if (btnCorrecto) {
+            btnCorrecto.classList.add('correct');
+        }
+
+        // Marcar respuesta incorrecta si aplica
+        if (!esCorrecta && respuestaSeleccionada) {
+            const btnSeleccionado = document.querySelector(`[data-option="${respuestaSeleccionada}"]`);
+            if (btnSeleccionado) {
+                btnSeleccionado.classList.remove('selected');
+                btnSeleccionado.classList.add('incorrect');
+            }
+        }
+
+        // Mostrar feedback
+        const feedback = document.getElementById('feedback');
+        if (esCorrecta) {
+            feedback.className = 'feedback correct show';
+            feedback.innerHTML = `✅ ¡Correcto! +${puntosGanados} puntos`;
+        } else {
+            feedback.className = 'feedback incorrect show';
+            feedback.innerHTML = `❌ Incorrecto. La respuesta correcta era: ${respuestaCorrecta}`;
+        }
+    }
+
+    function iniciarPolling() {
+        if (pollInterval) clearInterval(pollInterval);
+
+        pollInterval = setInterval(() => {
+            if (juegoTerminado || esperandoSiguientePregunta) return;
+
+            fetch(`/api/estado_grupo/${grupoId}`)
+                .then(response => response.json())
+                .then(estado => {
+                    // Si el juego terminó
+                    if (estado.game_state === 'finished') {
+                        console.log('🏁 Juego terminado detectado');
+                        juegoTerminado = true;
+                        clearAllIntervals();
+                        window.location.href = `/resultados_grupo/${grupoId}`;
+                        return;
+                    }
+
+                    // Si el líder respondió (estado changed a 'answered')
+                    if (estado.game_state === 'answered' && !respuestaEnviada) {
+                        console.log("📥 El líder respondió. Mostrando resultados...");
+                        respuestaEnviada = true;
+
+                        fetch(`/api/get_ultima_respuesta/${grupoId}`)
+                            .then(r => r.json())
+                            .then(resp => {
+                                if (resp.tiene_respuesta) {
+                                    document.getElementById('score').textContent = resp.nuevo_score;
+                                    mostrarResultadoParaMiembro(resp.respuesta_correcta, resp.fue_correcta);
+                                }
+                            });
+                    }
+
+                    // Si avanzó a la siguiente pregunta
+                    if (estado.game_state === 'playing' && estado.current_question_index > ultimoIndexVisto) {
+                        console.log("🔄 Nueva pregunta detectada!");
+                        cargarPregunta();
+                    }
+                })
+                .catch(err => console.error('Error en polling:', err));
+        }, 1000);
+    }
+
+    function mostrarResultadoParaMiembro(respuestaCorrecta, fueCorrecta) {
+        // Marcar respuesta correcta
+        const btnCorrecto = document.querySelector(`[data-option="${respuestaCorrecta}"]`);
+        if (btnCorrecto) {
+            btnCorrecto.classList.add('correct');
+        }
+
+        // Mostrar feedback
+        const feedback = document.getElementById('feedback');
+        if (fueCorrecta) {
+            feedback.className = 'feedback correct show';
+            feedback.innerHTML = `✅ ¡El equipo acertó!`;
+        } else {
+            feedback.className = 'feedback incorrect show';
+            feedback.innerHTML = `❌ El equipo falló. La respuesta correcta era ${respuestaCorrecta}`;
+        }
+
+        mostrarMensajeEspera();
+    }
+
+    function avanzarSiguientePregunta() {
+        if (!esperandoSiguientePregunta) {
+            console.log('⚠️ Ya se avanzó o no es momento de avanzar');
+            return;
+        }
+
+        console.log("🚀 Avanzando a la siguiente pregunta...");
+        
+        fetch(`/api/avanzar_pregunta/${grupoId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('✅ Pregunta avanzada exitosamente');
+                esperandoSiguientePregunta = false;
+                respuestaEnviada = false;
+                ocultarMensajeEspera();
+                
+                // Esperar un momento antes de cargar la nueva pregunta
+                setTimeout(() => {
+                    cargarPregunta();
+                }, 500);
+            } else {
+                console.error('❌ Error al avanzar:', data.message);
+                // Intentar recargar de todas formas
+                setTimeout(() => {
+                    esperandoSiguientePregunta = false;
+                    cargarPregunta();
+                }, 1000);
+            }
+        })
+        .catch(err => {
+            console.error('❌ Error en avanzar:', err);
+            // Intentar recargar de todas formas
+            setTimeout(() => {
+                esperandoSiguientePregunta = false;
+                cargarPregunta();
+            }, 1000);
+        });
+    }
+
+    function mostrarMensajeEspera() {
+        document.getElementById('waitingOverlay').classList.add('show');
+    }
+
+    function ocultarMensajeEspera() {
+        document.getElementById('waitingOverlay').classList.remove('show');
+    }
+
+    function deshabilitarOpciones() {
+        document.querySelectorAll('.option-btn').forEach(btn => {
+            btn.disabled = true;
+            btn.classList.add('disabled');
+        });
+    }
+
+    function habilitarOpcionesLider() {
+        if (esLider) {
+            document.querySelectorAll('.option-btn').forEach(btn => {
+                btn.disabled = false;
+                btn.classList.remove('disabled');
+            });
+        }
+    }
+
+    function resetearEstilosBotones() {
+        document.querySelectorAll('.option-btn').forEach(btn => {
+            btn.classList.remove('selected', 'correct', 'incorrect');
+            if (esLider && !juegoTerminado) {
+                btn.disabled = false;
+                btn.classList.remove('disabled');
+            } else if (!esLider) {
+                btn.disabled = true;
+            }
+        });
+        document.getElementById('feedback').classList.remove('show');
+        document.getElementById('feedback').textContent = '';
     }
 
     function clearAllIntervals() {
@@ -209,170 +753,19 @@
             clearInterval(pollInterval);
             pollInterval = null;
         }
-    }
-
-function seleccionarRespuesta(opcion) {
-        if (!esLider) return; // Solo líder responde
-        if (respuestaEnviada) return;
-
-        respuestaEnviada = true;
-        clearInterval(timerInterval);
-        clearInterval(pollInterval); // Detener polling momentáneamente
-        deshabilitarOpciones();
-
-        // Feedback visual inmediato
-        const btn = document.querySelector(`[data-option="${opcion}"]`);
-        if(btn) btn.classList.add('selected');
-
-        fetch(`/api/responder/${grupoId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ respuesta: opcion })
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                // 1. Mostrar si acertaron o no
-                mostrarResultado(data.respuesta_seleccionada, data.respuesta_correcta, data.es_correcta, data.puntos_ganados);
-                document.getElementById('score').textContent = `Puntuación: ${data.nuevo_score}`;
-
-                // 2. Esperar 3 segundos para leer, y LUEGO avanzar
-                setTimeout(() => {
-                    if (data.es_ultima_pregunta) {
-                        window.location.href = `/resultados_grupo/${grupoId}`;
-                    } else {
-                        // Llamar al backend para cambiar índice y estado
-                        avanzarSiguientePregunta();
-                    }
-                }, 3000);
-            } else {
-                alert(data.message);
-                respuestaEnviada = false; // Permitir intentar de nuevo si falló
-            }
-        });
-    }
-
-    function avanzarSiguientePregunta() {
-        console.log("🚀 Avanzando a la siguiente pregunta...");
-        fetch(`/api/avanzar_pregunta_grupo/${grupoId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        })
-        .then(r => r.json())
-        .then(data => {
-            if(data.success) {
-                // Al avanzar exitosamente, recargamos la data de la nueva pregunta
-                cargarPregunta();
-                // Reiniciamos polling para escuchar el siguiente cambio
-                if(!esLider) iniciarPolling();
-            }
-        });
-    }
-
-    function mostrarResultado(respuestaSeleccionada, respuestaCorrecta, esCorrecta, puntosGanados) {
-        if (respuestaSeleccionada) {
-            const btnSeleccionado = document.querySelector(`[data-option="${respuestaSeleccionada}"]`);
-            if (btnSeleccionado) {
-                btnSeleccionado.classList.remove('selected');
-                if (esCorrecta) {
-                    btnSeleccionado.classList.add('correct');
-                } else {
-                    btnSeleccionado.classList.add('incorrect');
-                }
-            }
-        }
-
-        const btnCorrecto = document.querySelector(`[data-option="${respuestaCorrecta}"]`);
-        if (btnCorrecto) {
-            btnCorrecto.classList.add('correct');
-        }
-
-        if (esCorrecta) {
-            document.getElementById('feedback-message').innerHTML = `✅ ¡Correcto! +${puntosGanados} puntos`;
-            document.getElementById('feedback-message').style.color = '#28a745';
-        } else {
-            document.getElementById('feedback-message').innerHTML = `❌ Incorrecto. La respuesta correcta era ${respuestaCorrecta}`;
-            document.getElementById('feedback-message').style.color = '#dc3545';
+        if (timerIntervalPregunta) {
+            clearInterval(timerIntervalPregunta);
+            timerIntervalPregunta = null;
         }
     }
 
-    function mostrarResultadoParaMiembro(respuestaCorrecta, fueCorrecta, nuevoScore) {
-        const btnCorrecto = document.querySelector(`[data-option="${respuestaCorrecta}"]`);
-        if (btnCorrecto) {
-            btnCorrecto.classList.add('correct');
-        }
-
-        document.getElementById('score').textContent = `Puntuación: ${nuevoScore}`;
-
-        if (fueCorrecta) {
-            document.getElementById('feedback-message').innerHTML = `✅ ¡El equipo acertó!`;
-            document.getElementById('feedback-message').style.color = '#28a745';
-        } else {
-            document.getElementById('feedback-message').innerHTML = `❌ El equipo falló. La respuesta correcta era ${respuestaCorrecta}`;
-            document.getElementById('feedback-message').style.color = '#dc3545';
-        }
-    }
-
-    function iniciarPolling() {
-        if (pollInterval) clearInterval(pollInterval);
-
-        pollInterval = setInterval(() => {
-            if (juegoTerminado) return;
-
-            fetch(`/api/estado_grupo/${grupoId}`)
-                .then(r => r.json())
-                .then(estado => {
-                    // Si el juego terminó
-                    if (estado.game_state === 'finished') {
-                        window.location.href = `/resultados_grupo/${grupoId}`;
-                        return;
-                    }
-
-                    // CASO 1: El líder respondió (estado changed a 'answered')
-                    // Mostramos el resultado a los miembros
-                    if (estado.game_state === 'answered' && !respuestaEnviada) {
-                         console.log("📥 El líder respondió. Mostrando resultados...");
-                         respuestaEnviada = true;
-                         clearInterval(timerInterval);
-
-                         fetch(`/api/get_ultima_respuesta/${grupoId}`)
-                            .then(r => r.json())
-                            .then(resp => {
-                                deshabilitarOpciones();
-                                mostrarResultadoParaMiembro(resp.respuesta_correcta, resp.fue_correcta, resp.nuevo_score);
-                            });
-                    }
-
-                    // CASO 2: El líder avanzó (estado changed a 'playing' Y el índice subió)
-                    // Cargamos la nueva pregunta
-                    if (estado.game_state === 'playing' && estado.current_question_index > ultimoIndexVisto) {
-                        console.log("🔄 Nueva pregunta detectada!");
-                        cargarPregunta();
-                    }
-                });
-        }, 1000);
-    }
-
-    function deshabilitarOpciones() {
-        document.querySelectorAll('.option-btn').forEach(btn => btn.disabled = true);
-    }
-
-    function resetearEstilosBotones() {
-        document.querySelectorAll('.option-btn').forEach(btn => {
-            btn.classList.remove('selected', 'correct', 'incorrect');
-            if (esLider && !juegoTerminado) {
-                btn.disabled = false;
-            }
-        });
-        document.getElementById('feedback-message').textContent = '';
-    }
-
-    window.addEventListener('beforeunload', () => {
+    window.addEventListener('beforeunload', function(e) {
         clearAllIntervals();
+        if (!juegoTerminado && preguntaActual < totalPreguntas - 1) {
+            e.preventDefault();
+            e.returnValue = '¿Estás seguro de que quieres salir? El juego está en progreso.';
+        }
     });
-
-    console.log('🚀 Iniciando carga de primera pregunta...');
-    window.onload = cargarPregunta;
-</script>
+    </script>
 </body>
 </html>
