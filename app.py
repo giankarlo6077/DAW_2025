@@ -777,6 +777,21 @@ def crear_grupo():
 
     return redirect(url_for("dashboard_estudiante") + "?seccion=grupal")
 
+@app.route("/api/avanzar_pregunta_grupo/<int:grupo_id>", methods=["POST"])
+def api_avanzar_pregunta_grupo(grupo_id):
+    if "usuario" not in session:
+        return jsonify({"success": False, "message": "No autenticado"}), 403
+
+    user_id = session['user_id']
+
+    try:
+        exito, msg = juego_db.avanzar_pregunta_grupo(grupo_id, user_id)
+        if exito:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "message": msg}), 400
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route("/unirse_grupo", methods=["POST"])
 def unirse_grupo():
@@ -828,6 +843,70 @@ def salir_grupo():
 
     return redirect(url_for("dashboard_estudiante") + "?seccion=grupal")
 
+@app.route("/api/tiempo_restante_grupo/<int:grupo_id>")
+def api_tiempo_restante_grupo(grupo_id):
+    """API para que todos consulten cuánto tiempo queda"""
+    try:
+        # Obtener datos del grupo
+        grupo = juego_db.api_obtener_estado_grupo(grupo_id)
+
+        if not grupo or not grupo['active_pin']:
+            return jsonify({"error": "Grupo no encontrado"}), 404
+
+        # Obtener tiempo de pregunta del cuestionario
+        cuestionario = profe_db.obtener_cuestionario_propio(
+            grupo['active_pin'],
+            None  # No validamos profesor aquí
+        )
+
+        if not cuestionario:
+            return jsonify({"error": "Cuestionario no encontrado"}), 404
+
+        tiempo_pregunta = cuestionario.get('tiempo_pregunta', 30)
+
+        # Calcular tiempo restante
+        tiempo_restante = juego_db.obtener_tiempo_restante_grupal(grupo_id, tiempo_pregunta)
+
+        return jsonify({
+            "tiempo_restante": tiempo_restante,
+            "tiempo_total": tiempo_pregunta,
+            "game_state": grupo['game_state'],
+            "current_question_index": grupo['current_question_index']
+        })
+    except Exception as e:
+        print(f"Error en api_tiempo_restante_grupo: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/forzar_siguiente_pregunta/<int:grupo_id>", methods=["POST"])
+def api_forzar_siguiente_pregunta(grupo_id):
+    """Fuerza el avance a la siguiente pregunta cuando se agota el tiempo"""
+    if "usuario" not in session:
+        return jsonify({"success": False, "message": "No autorizado"}), 403
+
+    try:
+        exito = juego_db.avanzar_pregunta_cuando_termine_tiempo(grupo_id)
+
+        if exito:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "message": "Error al avanzar"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/api/avanzar_pregunta/<int:grupo_id>", methods=["POST"])
+def api_avanzar_pregunta(grupo_id):
+    """Avanza a la siguiente pregunta (llamado cuando el tiempo se agota)"""
+    try:
+        exito = juego_db.avanzar_pregunta_cuando_termine_tiempo(grupo_id)
+
+        if exito:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "message": "Error al avanzar"}), 500
+    except Exception as e:
+        print(f"Error en api_avanzar_pregunta: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 # ========================================
 # RUTAS DE JUEGO (ESTUDIANTE)
@@ -2251,6 +2330,8 @@ def api_actualizar_pregunta_profesor(sesion_id):
     except Exception as e:
         print(f"Error en api_actualizar_pregunta_profesor: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
+
+
 
 # ========================================
 # RUTAS: REGISTRO FACIAL

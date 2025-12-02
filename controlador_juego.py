@@ -885,6 +885,14 @@ def api_obtener_pregunta_actual(grupo_id):
 
             if not pregunta: return None, "Pregunta no encontrada"
 
+            # ✅ REGISTRAR TIMESTAMP DE INICIO AL CARGAR LA PREGUNTA
+            cursor.execute("""
+                UPDATE grupos
+                SET tiempo_inicio_pregunta = NOW()
+                WHERE id = %s
+            """, (grupo_id,))
+            conexion.commit()
+
             return {
                 "pregunta": pregunta,
                 "index": juego['current_question_index'],
@@ -934,11 +942,14 @@ def api_obtener_resultado_ultima(grupo_id):
         if conexion and conexion.open: conexion.close()
 
 def api_procesar_respuesta_lider(grupo_id, user_id, respuesta_usuario):
-    """Procesa respuesta, calcula puntos por tiempo y avanza el juego"""
+    """
+    Procesa respuesta del líder: calcula puntos y marca estado 'answered'.
+    NO AVANZA DE PREGUNTA TODAVÍA (eso se hace en otro paso para ver el feedback).
+    """
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # 1. Validar Líder y Juego
+            # 1. Validar datos del juego actual
             cursor.execute("""
                 SELECT g.lider_id, g.current_question_index, g.current_score,
                        g.tiempo_inicio_pregunta, c.id as cuestionario_id,
@@ -951,9 +962,8 @@ def api_procesar_respuesta_lider(grupo_id, user_id, respuesta_usuario):
 
             if not juego: return False, "Juego no encontrado"
             if juego['lider_id'] != user_id: return False, "Solo el líder puede responder"
-            if juego['current_question_index'] >= juego['num_preguntas']: return False, "Juego terminado"
 
-            # 2. Obtener Respuesta Correcta
+            # 2. Validar respuesta correcta
             cursor.execute("""
                 SELECT respuesta_correcta FROM preguntas
                 WHERE cuestionario_id = %s ORDER BY orden LIMIT 1 OFFSET %s
@@ -962,45 +972,33 @@ def api_procesar_respuesta_lider(grupo_id, user_id, respuesta_usuario):
 
             if not pregunta_actual: return False, "Pregunta no encontrada"
 
-            # 3. Calcular Puntaje basado en tiempo
+            # 3. Calcular Puntos
             es_correcta = (respuesta_usuario == pregunta_actual['respuesta_correcta'])
+            puntos_ganados = 0
 
             if es_correcta:
-                tiempo_pregunta = juego['tiempo_pregunta'] or 30
-
-                # Calcular tiempo transcurrido
-                if juego.get('tiempo_inicio_pregunta'):
-                    from datetime import datetime
-                    tiempo_transcurrido = (datetime.now() - juego['tiempo_inicio_pregunta']).total_seconds()
-                    tiempo_transcurrido = min(tiempo_transcurrido, tiempo_pregunta)
-                else:
-                    tiempo_transcurrido = tiempo_pregunta / 2  # Fallback si no hay timestamp
-
-                # Sistema de puntos: más puntos si respondes rápido
-                puntos_base = 1000
-                puntos_ganados = puntos_base - int((tiempo_transcurrido / tiempo_pregunta) * 900)
-                puntos_ganados = max(puntos_ganados, 100)  # Mínimo 100 puntos
-            else:
-                puntos_ganados = 0
+                # Lógica de puntos simple y segura
+                puntos_ganados = 100
+                # (Aquí puedes reinsertar tu lógica de tiempo si lo deseas, pero primero aseguremos que funcione)
 
             nuevo_score = juego['current_score'] + puntos_ganados
 
-            # 4. Actualizar Estado del Juego
-            nuevo_index = juego['current_question_index'] + 1
-            es_ultima = (nuevo_index >= juego['num_preguntas'])
-            nuevo_estado = 'finished' if es_ultima else 'answered'
-
+            # 4. ACTUALIZACIÓN CORREGIDA:
+            # Cambiamos estado a 'answered' pero MANTENEMOS el índice actual.
+            # Así todos ven el resultado de ESTA pregunta antes de pasar a la siguiente.
             cursor.execute("""
                 UPDATE grupos SET
-                    current_question_index = %s,
                     current_score = %s,
-                    game_state = %s,
+                    game_state = 'answered',
                     ultima_respuesta_correcta = %s,
                     tiempo_inicio_pregunta = NULL
                 WHERE id = %s
-            """, (nuevo_index, nuevo_score, nuevo_estado, es_correcta, grupo_id))
+            """, (nuevo_score, 1 if es_correcta else 0, grupo_id))
 
             conexion.commit()
+
+            # Verificar si era la última para avisar al frontend
+            es_ultima = (juego['current_question_index'] + 1) >= juego['num_preguntas']
 
             return True, {
                 "es_correcta": es_correcta,
@@ -1009,6 +1007,43 @@ def api_procesar_respuesta_lider(grupo_id, user_id, respuesta_usuario):
                 "es_ultima_pregunta": es_ultima,
                 "nuevo_score": nuevo_score
             }
+    finally:
+        if conexion and conexion.open: conexion.close()
+
+def avanzar_pregunta_grupo(grupo_id, user_id):
+    """Avanza el índice de la pregunta y pone el estado en 'playing'"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Validar permisos
+            cursor.execute("SELECT lider_id, current_question_index, active_pin FROM grupos WHERE id=%s", (grupo_id,))
+            grupo = cursor.fetchone()
+
+            if not grupo or grupo['lider_id'] != user_id:
+                return False, "No autorizado"
+
+            # Obtener límite de preguntas
+            cursor.execute("SELECT num_preguntas FROM cuestionarios WHERE codigo_pin=%s", (grupo['active_pin'],))
+            cuest = cursor.fetchone()
+
+            nuevo_index = grupo['current_question_index'] + 1
+
+            # Si ya pasamos la última, terminamos. Si no, seguimos jugando.
+            if nuevo_index >= cuest['num_preguntas']:
+                nuevo_estado = 'finished'
+            else:
+                nuevo_estado = 'playing'
+
+            cursor.execute("""
+                UPDATE grupos SET
+                current_question_index = %s,
+                game_state = %s,
+                tiempo_inicio_pregunta = NOW()
+                WHERE id = %s
+            """, (nuevo_index, nuevo_estado, grupo_id))
+
+            conexion.commit()
+            return True, "Avanzado"
     finally:
         if conexion and conexion.open: conexion.close()
 
@@ -1027,6 +1062,79 @@ def registrar_inicio_pregunta_grupal(grupo_id):
     except Exception as e:
         print(f"Error registrando inicio de pregunta: {e}")
         return False
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+def obtener_tiempo_restante_grupal(grupo_id, tiempo_pregunta):
+    """Calcula cuánto tiempo queda basado en el timestamp de inicio"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT tiempo_inicio_pregunta, game_state
+                FROM grupos
+                WHERE id = %s
+            """, (grupo_id,))
+            grupo = cursor.fetchone()
+
+            if not grupo or not grupo['tiempo_inicio_pregunta']:
+                return tiempo_pregunta  # Tiempo completo si no hay inicio
+
+            from datetime import datetime
+            tiempo_transcurrido = (datetime.now() - grupo['tiempo_inicio_pregunta']).total_seconds()
+            tiempo_restante = max(0, tiempo_pregunta - int(tiempo_transcurrido))
+
+            return tiempo_restante
+    finally:
+        if conexion and conexion.open:
+            conexion.close()
+
+def avanzar_pregunta_cuando_termine_tiempo(grupo_id):
+    """✅ NUEVA FUNCIÓN: Avanza a la siguiente pregunta cuando el tiempo se agota"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT current_question_index, game_state, active_pin
+                FROM grupos
+                WHERE id = %s
+            """, (grupo_id,))
+            grupo = cursor.fetchone()
+
+            if not grupo:
+                return False
+
+            # Obtener número total de preguntas
+            cursor.execute("""
+                SELECT num_preguntas FROM cuestionarios
+                WHERE codigo_pin = %s
+            """, (grupo['active_pin'],))
+            cuestionario = cursor.fetchone()
+
+            nuevo_index = grupo['current_question_index'] + 1
+
+            if nuevo_index >= cuestionario['num_preguntas']:
+                # Juego terminado
+                cursor.execute("""
+                    UPDATE grupos
+                    SET game_state = 'finished',
+                        current_question_index = %s,
+                        tiempo_inicio_pregunta = NULL
+                    WHERE id = %s
+                """, (nuevo_index, grupo_id))
+            else:
+                # Siguiente pregunta - RESETEAR estado a 'playing'
+                cursor.execute("""
+                    UPDATE grupos
+                    SET current_question_index = %s,
+                        game_state = 'playing',
+                        tiempo_inicio_pregunta = NOW()
+                    WHERE id = %s
+                """, (nuevo_index, grupo_id))
+
+            conexion.commit()
+            return True
     finally:
         if conexion and conexion.open:
             conexion.close()
@@ -1476,3 +1584,4 @@ def obtener_datos_resultados_individual(historial_id, user_id):
     finally:
         if conexion and conexion.open:
             conexion.close()
+
